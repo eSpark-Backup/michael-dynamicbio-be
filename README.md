@@ -1,1 +1,2 @@
-# michael-dynamicbio-be
+# Dynamic Bio Platform Backend
+#### Client Name: Michael Netherly
