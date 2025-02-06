@@ -1,0 +1,20 @@
+{
+  "name": "michael-dynamicbio-be",
+  "version": "1.0.0",
+  "description": "The project requirements are outlined in below documents:",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eSpark-Consultants/michael-dynamicbio-be.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/eSpark-Consultants/michael-dynamicbio-be/issues"
+  },
+  "homepage": "https://github.com/eSpark-Consultants/michael-dynamicbio-be#readme"
+}
