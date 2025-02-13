@@ -16,7 +16,7 @@ const cookieOptions = {
 const connectDb = async (uri: string, delay: number = 2000) => {
   while (true) {
     try {
-      const connection = await mongoose.connect(uri, { dbName: "ShwCase" });
+      const connection = await mongoose.connect(uri, { dbName: "Fusion" });
       console.log(`✅ Connected to MongoDB: ${connection.connection.host}`);
       return connection;
     } catch (err) {
