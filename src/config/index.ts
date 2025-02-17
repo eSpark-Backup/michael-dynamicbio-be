@@ -14,6 +14,7 @@ export const configs = {
   JWT_SECRET_KEY: <string>getEnv("JWT_SECRET"),
   EXPIRES_IN: <string>getEnv("EXPIRES_IN"),
   LINK_SECRET_KEY: <string>getEnv("LINK_SECRET_KEY"),
+  QR_ISSUER: <string>getEnv("QR_ISSUER"),
 };
 
 export const MAILER_CONFIG = {
@@ -24,6 +25,8 @@ export const MAILER_CONFIG = {
   pass: getEnv("SMTP_PASS"),
   from: getEnv("SMTP_FROM"),
 };
+
+
 
 export const bcryptConfig = {
   salt: Number(getEnv("SALT")),

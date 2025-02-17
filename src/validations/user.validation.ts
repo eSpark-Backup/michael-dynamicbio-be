@@ -20,6 +20,15 @@ export class UserValidation {
     socialId: Joi.string().optional(),
   });
 
+  static verifyQr= Joi.object({
+    token: Joi.string().required(),
+  });
+
+  static verifyResyncQr= Joi.object({
+    firstToken: Joi.string().required(),
+    secondToken: Joi.string().required(),
+  });
+
   static addToFavorites = Joi.object({
     entityId: Joi.string().required(),
     entityType: Joi.string().required(),

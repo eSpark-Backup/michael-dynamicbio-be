@@ -11,7 +11,7 @@ export enum LoginType {
   LOCAL = "local",
   FACEBOOK = "facebook",
   GOOGLE = "google",
-  APPLE = "apple",
+  LINKEDIN = "linkedin",
 }
 @Entity()
 export class User extends BaseEntity {
@@ -20,10 +20,19 @@ export class User extends BaseEntity {
   id: string;
 
   @Column({ type: "varchar", length: 100, unique: false })
-  name: string;
+  firstName: string;
+
+  @Column({ type: "varchar", length: 100, unique: false })
+  lastName: string;
 
   @Column({ type: "varchar", length: 100 })
   email: string;
+
+  @Column({ type: "varchar", length: 5, unique: false })
+  countryCode: string;
+
+  @Column({ type: "varchar", length: 15, unique: false })
+  phoneNumber: string;
 
   @Column({ type: "varchar", length: 100, nullable: true })
   socialId: string;
@@ -53,11 +62,34 @@ export class User extends BaseEntity {
   @Column({ type: "varchar", length: 100, nullable: true })
   userChatId: string;
 
+  @Column({ type: "varchar", length: 100, nullable: true })
+  country: string;
+
+  @Column({ type: "varchar", length: 100, nullable: true })
+  company: string;
+
+  @Column({ type: "varchar", length: 100, nullable: true })
+  designation: string;
+
+  @Column({ type: "varchar", length: 100, nullable: true })
+  industry: string;
+
   @Column({ type: "boolean", nullable: true, default: false })
-  isVerified: boolean;
+  isPhoneVerified: boolean;
+
+  @Column({ type: "boolean", nullable: true, default: false })
+  isEmailVerified: boolean;
 
   @Column({ type: "varchar", length: 100, nullable: true })
   emailLinkExpire: string;
+
+
+  @Column({ type: "boolean",nullable: true ,default: false})
+  is2FAEnabled: boolean;
+
+  @Column({ type: "varchar", length: 100, nullable: true })
+  secret: string;
+
 
   @Column({ type: "varchar", length: 100, nullable: true })
   passwordResetExpire: string;

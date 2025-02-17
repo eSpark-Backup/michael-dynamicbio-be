@@ -1,8 +1,8 @@
 import { SendMailOptions, createTransport } from "nodemailer";
 import { MAILER_CONFIG } from "../config";
 import { logger } from "../utils";
-import { changeEmailAddress } from "../templates";
-import { forgotPassword } from "../templates";
+import { changeEmailAddress, registerNewDevice } from "../templates";
+import { forgotPassword ,verifyEmail} from "../templates";
 
 const transporter = createTransport({
   service: MAILER_CONFIG.service,
@@ -52,6 +52,38 @@ class MailService {
       from: MAILER_CONFIG.from,
       to: userData?.email,
       subject: "Reset Password",
+      html: template,
+    };
+    return this.sendMail(mailDetails);
+  }
+
+
+  registerNewDevice(userData: any) {
+    const template = registerNewDevice({
+      name: userData?.name,
+      email: userData?.email,
+      link: userData?.link,
+    });
+
+    const mailDetails: SendMailOptions = {
+      from: MAILER_CONFIG.from,
+      to: userData?.email,
+      subject: "Register New Device For 2FA",
+      html: template,
+    };
+    return this.sendMail(mailDetails);
+  }
+  verifyEmail(userData: any) {
+    const template = verifyEmail({
+      name: userData?.name,
+      email: userData?.email,
+      link: userData?.link,
+    });
+
+    const mailDetails: SendMailOptions = {
+      from: MAILER_CONFIG.from,
+      to: userData?.email,
+      subject: "Verify Email",
       html: template,
     };
     return this.sendMail(mailDetails);

@@ -1,7 +1,6 @@
 import { NextFunction, Request, RequestHandler, Response } from "express";
-import {
-  User,
-} from "../../entity";
+import { User } from "../../entity";
+
 import { ApiError } from "../../errors";
 import { Repository } from "typeorm";
 import {
@@ -11,10 +10,7 @@ import {
   logger,
   verifyToken,
 } from "../../utils";
-import {
-  CLOUD_FOLDERS,
-  HTTP_STATUS,
-} from "../../constants";
+import { CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
 import jwt from "jsonwebtoken";
 import { UserForChat } from "../../models";
 
@@ -31,10 +27,15 @@ import path from "path";
 import { commonHelper } from "../../helpers";
 import { mailService, uploadService } from "../../services";
 import { json } from "stream/consumers";
+import { config } from "dotenv";
+import { configs } from "../../config";
+import * as otplib from "otplib";
+import qrCode from "qrcode";
+
 export class UserController {
   constructor(
     private usersRepo: Repository<User>,
-    private notificationModel: typeof Notification,
+    private notificationModel: typeof Notification
   ) {}
 
   async verifyTokenAPI(
@@ -88,7 +89,7 @@ export class UserController {
         );
       }
       user.emailLinkExpire = null;
-      user.isVerified = true;
+      user.isEmailVerified = true;
       user.email = payload.newEmail;
       await this.usersRepo.save(user);
 
@@ -137,7 +138,7 @@ export class UserController {
       const link = `${process.env.FRONTEND_URL}confirm-email?token=${token}&expiresAt=${expiresAt}`;
 
       await mailService.changeEmailAddress({
-        name: user.name,
+        name: user.firstName + " " + user.lastName,
         oldEmail,
         newEmail,
         link,
@@ -223,11 +224,6 @@ export class UserController {
       }
 
       const imageFilesPath = path.join(process.cwd(), "uploads");
-      const coverFilesPath = path.join(process.cwd(), "uploads");
-
-      const coverFiles = fs
-        .readdirSync(coverFilesPath)
-        .filter((file) => file.startsWith("cover")); // Filter for cover files
 
       const imageFiles = fs
         .readdirSync(path.join(imageFilesPath))
@@ -236,109 +232,25 @@ export class UserController {
       const imageFileObjects: IFileObject[] = imageFiles.map((file) =>
         commonHelper.createFileObject(path.join(imageFilesPath, file), "image")
       );
-      const coverFileObjects: IFileObject[] = coverFiles.map((file) =>
-        commonHelper.createFileObject(path.join(coverFilesPath, file), "cover")
-      );
 
-      let { coverKeys, about,isProfile } = req.body;
+      let { country, industry, company, designation } = req.body;
 
-      
-      if (Array.isArray(coverKeys)) {
-        coverKeys = coverKeys.filter((key) => typeof key === "string");
-      }
-      if (typeof coverKeys === "string" && !Array.isArray(coverKeys)) {
-        coverKeys = coverKeys.split(",").map((item) => item.trim());
-      }
-      let oldCoverImages: UploadResult[] = [];
-      const FolderName = `${CLOUD_FOLDERS.USER}/${user.name.trim()}`;
-      if (typeof user.coverImages === "string") {
-        try {
-          oldCoverImages = JSON.parse(user.coverImages) as UploadResult[];
-        } catch (error) {
-          logger.error("Failed to parse coverImages:", error);
-          oldCoverImages = [];
-        }
-      } else {
-        oldCoverImages = [];
-      }
+      const FolderName = `${CLOUD_FOLDERS.USER}/${
+        user.firstName.trim() + user.lastName.trim()
+      }`;
 
-      let coverUrls ;
-      if(isProfile=="false")
-      {
+      const imageUrls = (await uploadService.uploadMultipleFiles(
+        imageFileObjects,
+        FolderName
+      )) as UploadResult[];
 
-      coverUrls = (
-        coverFileObjects?.length > 0
-          ? await uploadService.uploadMultipleFiles(
-              coverFileObjects,
-              FolderName
-            )
-          : []
-      ) as UploadResult[];
-
-
-      for (const oldCoverImage of oldCoverImages) {
-        if (coverKeys && coverKeys.length > 0) {
-          const coverKeyNumbers = coverKeys
-            .map((key: any) => {
-              const splitKey = key.split("+");
-              return {
-                key: splitKey[0],
-                order: parseInt(splitKey[1], 10),
-              };
-            })
-            .filter((keyData: any) => !isNaN(keyData.order)); // Filter out invalid or undefined numbers
-
-          const matchingKey = coverKeyNumbers.find(
-            (keyData: any) => oldCoverImage.public_id.includes(keyData.key) // Match based on the key part of the public_id
-          );
-
-          if (!matchingKey) {
-            await uploadService.deleteFile(oldCoverImage.public_id);
-          } else {
-            const { order } = matchingKey;
-
-            const validOrder = Math.max(
-              1,
-              Math.min(order, coverUrls.length + 1)
-            );
-
-            if (validOrder === coverUrls.length + 1) {
-              coverUrls.push(oldCoverImage);
-            } else {
-              coverUrls.splice(validOrder - 1, 0, oldCoverImage);
-            }
-          }
-        } else {
-          if (
-            !coverUrls.some((url) => url.public_id === oldCoverImage.public_id)
-          ) {
-            await uploadService.deleteFile(oldCoverImage.public_id);
-          }
-        }
-      }
-    }
-
-      const oldUserImage = user.profileImage;
-      const imageUrls = (
-        imageFileObjects?.length > 0
-          ? await uploadService.uploadMultipleFiles(
-              imageFileObjects,
-              FolderName
-            )
-          : [{ url: oldUserImage }]
-      ) as UploadResult[];
-
-      if (user.imageKey) {
-        if (imageFileObjects && oldUserImage !== imageUrls[0]?.url) {
-          await uploadService.deleteFile(user.imageKey);
-        }
-      }
       user.profileImage = imageUrls[0]?.url;
       user.imageKey = imageUrls[0]?.public_id;
-      user.about = about || user.about;
-      if(isProfile=="false"){
-      user.coverImages = JSON.stringify(coverUrls) as Object;
-      }
+      user.country = country || user.country;
+      user.industry = industry || user.industry;
+      user.company = company || user.company;
+      user.designation = designation || user.designation;
+
       await this.usersRepo.save(user);
       const { password: _, ...userProfile } = user;
       userProfile.coverImages = JSON.parse(
@@ -421,6 +333,55 @@ export class UserController {
     }
   }
 
+ 
+
+  async verifyNewDevice(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+  
+      const user = await this.usersRepo
+        .createQueryBuilder('user')
+        .where('user.id = :userId', { userId })
+        .getOne();
+  
+      if (!user) {
+        throw new ApiError('User or secret not found', HTTP_STATUS.NOT_FOUND);
+      }
+
+
+      const { token, expiresAt } = generateToken(
+        { userId: user.id, newEmail: user.email },
+        "1h"
+      );
+
+      const resetLink = `${process.env.FRONTEND_URL}verify-device?token=${token}&expiresAt=${expiresAt}`;
+      user.passwordResetExpire = expiresAt;
+      await this.usersRepo.save(user);
+
+      await mailService.registerNewDevice({
+        name: user.firstName + " " + user.lastName,
+        email: user.email,
+        link: resetLink,
+      });
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Email Sent successfully", {
+          id: user.id,
+          email: user.email,
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `AuthController :: Register New Device For 2FA :: "${(error as Error)?.message}"`
+      );
+      return next(error);
+    }
+  }
+
   async fetchNotifications(
     req: ICustomRequest,
     res: Response,
@@ -481,8 +442,7 @@ export class UserController {
         throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
       }
 
-
-      const { password: _, ...userProfile } = user as User
+      const { password: _, ...userProfile } = user as User;
 
       userProfile.coverImages = JSON.parse(
         userProfile.coverImages as Object as string
@@ -500,4 +460,126 @@ export class UserController {
     }
   }
 
+
+  async verifyResync(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { firstToken, secondToken } = req.body;
+      const userId = req.user?.id;
+  
+      const user = await this.usersRepo
+        .createQueryBuilder('user')
+        .where('user.id = :userId', { userId })
+        .getOne();
+  
+      if (!user || !user.secret) {
+        throw new ApiError('User or secret not found', HTTP_STATUS.NOT_FOUND);
+      }
+      otplib.authenticator.options = { window: 1 };
+
+  
+      const isFirstValid = otplib.authenticator.check(firstToken, user.secret);
+  
+      const nextToken = otplib.authenticator.generate(user.secret);
+      const isSecondValid = secondToken === nextToken;
+  
+      if (isFirstValid && isSecondValid) {
+        res.status(HTTP_STATUS.OK).json(
+          handleResponse('2FA resynchronized successfully')
+        );
+      } else {
+        throw new ApiError('Failed to resynchronize 2FA', HTTP_STATUS.BAD_REQUEST);
+      }
+    } catch (error) {
+      logger.error(`UserController :: verifyResync :: ${(error as Error)?.message}`);
+      return next(error);
+    }
+  }
+
+  async verifyQr(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const user = await this.usersRepo
+        .createQueryBuilder("user")
+        .where("user.id = :userId", { userId })
+        .getOne();
+      if (!user) {
+        throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
+      }
+      if (!user.secret) {
+        throw new ApiError("Register to a Authenticator First", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      const isValid = otplib.authenticator.check(
+        req.body.token,
+        user.secret
+      );
+      if (!isValid) {
+        throw new ApiError("Invalid token", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      user.is2FAEnabled = true;
+      await this.usersRepo.save(user);
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("2FA enabled successfully", {
+          is2FAEnabled: user.is2FAEnabled,
+        })
+      );
+
+    } catch (error) {
+      logger.error(
+        `UserController :: verifyQr :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async generateQr(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const user = await this.usersRepo
+        .createQueryBuilder("user")
+        .where("user.id = :userId", { userId })
+        .getOne();
+      if (!user) {
+        throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
+      }
+      if (user.secret && user.is2FAEnabled) {
+        throw new ApiError("2FA is already enabled", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      const secret = otplib.authenticator.generateSecret();
+      const otpauthUrl = otplib.authenticator.keyuri(
+        user.email,
+        configs.QR_ISSUER,
+        secret
+      );
+      user.secret = secret;
+      await this.usersRepo.save(user);
+
+      const qrcode = await qrCode.toDataURL(otpauthUrl);
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("QR Code generated successfully", {
+          qrcode,
+          secret,
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `UserController :: generateQr :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
 }

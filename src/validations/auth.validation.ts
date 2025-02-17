@@ -10,9 +10,9 @@ export class AuthValidation {
   static signupUser = Joi.object({
     firstName: Joi.string()?.optional(),
     email: Joi.string().email(),
-    password: Joi.string().min(8)?.optional(),
+    countryCode: Joi.string().optional(),
     lastName: Joi.string()?.optional(),
-    profileImage: Joi.string()?.optional(),
+    phoneNumber: Joi.string()?.optional(),
     loginType: Joi.string().valid(...Object.values(LoginType)),
     isSocialLogin: Joi.boolean().optional(),
     socialId: Joi.string().optional(),

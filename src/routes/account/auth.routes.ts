@@ -32,15 +32,17 @@ const authController = new AuthController(userRepository);
  *               email:
  *                 type: string
  *                 format: email
- *               password:
+ *               countryCode:
  *                 type: string
- *                 minLength: 8
+ *               profileImage:
+ *                 type: string
+ *                 required: false
  *               loginType:
  *                 type: string
- *                 enum: [local, facebook, google, apple]
+ *                 enum: [local, facebook, google, linkedin]
  *               isSocialLogin:
  *                 type: boolean
- *               profileImage:
+ *               phoneNumber:
  *                 type: string
  *               socialId:
  *                 type: string
@@ -190,6 +192,137 @@ router.post(
 
 /**
  * @swagger
+ * /auth/set-password/{token}/{expiresAt}:
+ *   post:
+ *     summary: Set Password
+ *     description: Sets a user's password using a token and expiration time.
+ *     tags:
+ *      - Auth
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The token for setting the password.
+ *       - in: path
+ *         name: expiresAt
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: The expiration time of the token.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               newPassword:
+ *                 type: string
+ *                 minLength: 8
+ *                 description: The new password to be set.
+ *             required:
+ *               - newPassword
+ *     responses:
+ *       200:
+ *         description: Password Set successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Password Set successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     email:
+ *                       type: string
+ *                       format: email
+ *                       example: user@example.com
+ *       400:
+ *         description: Validation error or invalid/expired token
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.post(
+  "/set-password/:token/:expiresAt", 
+  validate(AuthValidation.passwordReset, "body"),
+  (req, res, next) =>
+  authController.setPassword(req, res, next)
+);
+
+
+/**
+ * @swagger
+ * /auth/forgot-password:
+ *   post:
+ *     summary: Forgot Password
+ *     description: Sends a password reset email to the user if the email exists and is not a social login.
+ *     tags:
+ *      - Auth
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *             required:
+ *               - email
+ *     responses:
+ *       200:
+ *         description: Password reset email sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Email Sent successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     email:
+ *                       type: string
+ *                       format: email
+ *                       example: user@example.com
+ *       404:
+ *         description: User not found
+ *       400:
+ *         description: Validation error or social login email
+ *       500:
+ *         description: Server error
+ */
+router.post(
+  "/forgot-password", 
+  validate(AuthValidation.forgotPassword, "body"),
+  (req, res, next) =>
+  authController.forgotPassword(req, res, next)
+);
+
+
+
+
+
+
+/**
+ * @swagger
  * /auth/reset-password/{token}/{expiresAt}:
  *   post:
  *     summary: Reset Password
@@ -256,6 +389,63 @@ router.post(
   validate(AuthValidation.passwordReset, "body"),
   (req, res, next) =>
   authController.resetPassword(req, res, next)
+);
+
+
+/**
+ * @swagger
+ * /auth/register-device/{token}/{expiresAt}:
+ *   post:
+ *     summary: GET QR CODE
+ *     description: Sets a user's password using a token and expiration time.
+ *     tags:
+ *      - Auth
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The token for setting the New Device For 2FA.
+ *       - in: path
+ *         name: expiresAt
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: The expiration time of the token.
+ *     responses:
+ *       200:
+ *         description: Password Set successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Password Set successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     email:
+ *                       type: string
+ *                       format: email
+ *                       example: user@example.com
+ *       400:
+ *         description: Validation error or invalid/expired token
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.post(
+  "/register-device/:token/:expiresAt", 
+  (req, res, next) =>
+  authController.verifyRegisteredDevice(req, res, next)
 );
 
 export { router };

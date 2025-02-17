@@ -1,7 +1,9 @@
 import { NextFunction, Request, RequestHandler, Response } from "express";
-import { User } from "../../entity";
+import { LoginType, User } from "../../entity";
 import { ApiError } from "../../errors";
 import { Repository } from "typeorm";
+import * as otplib from "otplib";
+import qrCode from "qrcode";
 import {
   decrypt,
   generateToken,
@@ -9,11 +11,13 @@ import {
   logger,
   verifyToken,
 } from "../../utils";
-import { CHAT_COOKIE, HTTP_STATUS } from "../../constants";
+import { CHAT_COOKIE, HTTP_STATUS, LOGIN_TYPE } from "../../constants";
 import jwt from "jsonwebtoken";
 import { UserForChat } from "../../models";
 import bcrypt from "bcryptjs";
 import { mailService } from "../../services/mail.service";
+import { count } from "console";
+import { configs } from "../../config";
 const cookieOptions: {
   maxAge: number;
   sameSite: "none" | "lax" | "strict";
@@ -39,7 +43,8 @@ export class AuthController {
         firstName,
         lastName,
         email,
-        password,
+        countryCode,
+        phoneNumber,
         role,
         loginType,
         isSocialLogin,
@@ -48,7 +53,7 @@ export class AuthController {
       } = req.body;
 
       if (isSocialLogin) {
-        if (!socialId || !profileImage) {
+        if (!socialId || loginType == LOGIN_TYPE.LOCAL) {
           throw new ApiError(
             "Please provide socialId and profileImage for social login.",
             HTTP_STATUS.BAD_REQUEST
@@ -76,7 +81,6 @@ export class AuthController {
               username: email,
               password: "",
               bio: "",
-              avatar: profileImage,
             });
             socketUser = newUserChat;
             const usersocketId = socketUser._id;
@@ -95,23 +99,23 @@ export class AuthController {
             { expiresIn: "24h" }
           );
 
-          res
-            .status(HTTP_STATUS.OK)
-            .cookie(CHAT_COOKIE, token, cookieOptions)
-            .json(
-              handleResponse("Social Login successful", {
-                token,
-                user: existingUser,
-              })
-            );
+          res.status(HTTP_STATUS.OK).json(
+            handleResponse("Social Login successful", {
+              token,
+              user: existingUser,
+            })
+          );
           return next();
         }
 
         const user = new User();
-        user.name = lastName ? `${firstName} ${lastName}` : firstName;
+        user.firstName = firstName;
+        user.lastName = lastName;
         user.email = email;
-        user.profileImage = profileImage;
         user.loginType = loginType;
+        user.countryCode = countryCode;
+        user.phoneNumber = phoneNumber;
+        user.profileImage = profileImage;
         user.isSocialLogin = true;
         user.role = role;
         user.userChatId = "";
@@ -124,47 +128,40 @@ export class AuthController {
 
         const newUserChat = await UserForChat.create({
           name: firstName + " " + lastName,
+          avatar: profileImage,
           accountId: newUser.id,
           username: email,
           password: "",
           bio: "",
-          avatar: profileImage,
         });
         socketUser = newUserChat;
 
         const usersocketId = socketUser._id;
         newUser.userChatId = usersocketId.toString();
         await this.usersRepo.save(newUser);
-        // Generate JWT for new social login user
-        const token = jwt.sign(
-          {
-            id: newUser.id,
-            email: newUser.email,
-            role: newUser.role,
-            _id: socketUser._id,
-          },
-          process.env.JWT_SECRET!,
-          { expiresIn: "24h" }
-        );
 
+        const { token, expiresAt } = generateToken(
+          { userId: newUser.id, newEmail: newUser.email },
+          "1h"
+        );
+        const verifyLink = `${process.env.FRONTEND_URL}verify-email?token=${token}&expiresAt=${expiresAt}`;
+        user.passwordResetExpire = expiresAt;
+        await this.usersRepo.save(user);
+
+        await mailService.verifyEmail({
+          name: user.firstName + " " + user.lastName,
+          email: email,
+          link: verifyLink,
+        });
         res
           .status(HTTP_STATUS.CREATED)
           .cookie(CHAT_COOKIE, token, cookieOptions)
           .json(
-            handleResponse("Social Sign Up Successfully", {
-              token,
+            handleResponse("Verification Link Sent Successfully", {
               user: newUser,
             })
           );
         return next();
-      }
-
-      // Standard Login Flow
-      if (!password) {
-        throw new ApiError(
-          "Password is required for standard login.",
-          HTTP_STATUS.BAD_REQUEST
-        );
       }
 
       const existingUser = await this.usersRepo.findOne({ where: { email } });
@@ -174,17 +171,26 @@ export class AuthController {
           HTTP_STATUS.ALREADY_EXISTS
         );
       }
-      const hashedPassword = await bcrypt.hash(password, 10);
 
       const user = new User();
-      user.name = firstName + " " + lastName;
+      user.firstName = firstName;
+      user.lastName = lastName;
+      user.phoneNumber = phoneNumber;
+      user.countryCode = countryCode;
       user.email = email;
-      user.password = hashedPassword;
       user.role = role;
-      user.loginType = loginType;
+      user.loginType = LoginType.LOCAL;
       user.isSocialLogin = false;
 
+
+
       const newUser = await this.usersRepo.save(user);
+
+      const { token, expiresAt } = generateToken(
+        { userId: newUser.id, newEmail: newUser.email },
+        "1h"
+      );
+      const verifyLink = `${process.env.FRONTEND_URL}verify-email?token=${token}&expiresAt=${expiresAt}`;
 
       const userChat = await UserForChat.findOne({
         where: { accountId: newUser.id },
@@ -197,33 +203,26 @@ export class AuthController {
           username: email,
           password: "",
           bio: "",
-          avatar: profileImage,
         });
         socketUser = newUserChat;
         const usersocketId = socketUser._id;
         newUser.userChatId = usersocketId.toString();
+        newUser.passwordResetExpire = expiresAt;
+
         await this.usersRepo.save(newUser);
       }
-
-      const token = jwt.sign(
-        {
-          id: newUser.id,
-          email: newUser.email,
-          role: newUser.role,
-          _id: socketUser._id,
-        },
-        process.env.JWT_SECRET!,
-        { expiresIn: "24h" }
-      );
-      const { password: _, ...userWithoutPassword } = newUser;
+      await mailService.verifyEmail({
+        name: user.firstName + " " + user.lastName,
+        email: email,
+        link: verifyLink,
+      });
 
       res
         .status(HTTP_STATUS.CREATED)
         .cookie(CHAT_COOKIE, token, cookieOptions)
         .json(
-          handleResponse("Sign Up Successfully", {
-            token,
-            user: userWithoutPassword,
+          handleResponse("Verification Link Sent Successfully", {
+            user: newUser,
           })
         );
     } catch (error) {
@@ -315,7 +314,7 @@ export class AuthController {
         .status(HTTP_STATUS.OK)
         .cookie(CHAT_COOKIE, token, cookieOptions)
         .json(
-          handleResponse("Login successful", { token, userWithoutPassword })
+          handleResponse("Login successful", { token, user:userWithoutPassword })
         );
       return next();
     } catch (error) {
@@ -357,7 +356,7 @@ export class AuthController {
       await this.usersRepo.save(user);
 
       await mailService.forgotPassword({
-        name: user.name,
+        name: user.firstName + " " + user.lastName,
         email: email,
         link: resetLink,
       });
@@ -375,6 +374,94 @@ export class AuthController {
       return next(error);
     }
   }
+  async verifyRegisteredDevice(
+      req: Request,
+      res: Response,
+      next: NextFunction
+    ): Promise<void> {
+      try {
+        const { token, expiresAt } = req.params;
+  
+        if (!token || !expiresAt) {
+          throw new ApiError(
+            "Token and expiration time are required",
+            HTTP_STATUS.BAD_REQUEST
+          );
+        }
+  
+
+  
+        const currentTime = new Date();
+        const expirationTime = new Date(expiresAt as string);
+        if (currentTime > expirationTime) {
+          throw new ApiError("The token has expired", HTTP_STATUS.BAD_REQUEST);
+        }
+  
+        let payload: {
+          userId: string;
+          newEmail: string;
+        };
+  
+        try {
+          payload = verifyToken(token as string) as {
+            userId: string;
+            newEmail: string;
+          };
+        } catch (error) {
+          throw new ApiError(
+            "Invalid or tampered token",
+            HTTP_STATUS.BAD_REQUEST
+          );
+        }
+  
+        if (!payload) {
+          throw new ApiError("Invalid token", HTTP_STATUS.BAD_REQUEST);
+        }
+  
+        const user = await this.usersRepo.findOne({
+          where: { id: payload.userId },
+        });
+  
+        if (!user) {
+          throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
+        }
+        if (user.passwordResetExpire != expiresAt) {
+          throw new ApiError(
+            "Invalid token or Link Expired",
+            HTTP_STATUS.BAD_REQUEST
+          );
+        }
+
+      const secret = otplib.authenticator.generateSecret();
+      const otpauthUrl = otplib.authenticator.keyuri(
+        user.email,
+        configs.QR_ISSUER,
+        secret
+      );
+      user.secret = secret;
+
+  
+        
+  
+        user.passwordResetExpire = null;
+   await this.usersRepo.save(user);
+      const qrcode = await qrCode.toDataURL(otpauthUrl);
+  
+     
+  
+        res.status(HTTP_STATUS.OK).json(
+          handleResponse("QR Code Generated For NEw 2FA Device", {
+        qrcode,
+        secret,
+          })
+        );
+      } catch (error) {
+        logger.error(
+          `AuthController :: NEW Device Registered For 2FA :: "${(error as Error)?.message}"`
+        );
+        return next(error);
+      }
+    }
 
   async resetPassword(
     req: Request,
@@ -460,6 +547,102 @@ export class AuthController {
     } catch (error) {
       logger.error(
         `AuthController :: resetPassword :: "${(error as Error)?.message}"`
+      );
+      return next(error);
+    }
+  }
+
+  async setPassword(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { token, expiresAt } = req.params;
+      const { newPassword } = req.body;
+
+      if (!token || !expiresAt) {
+        throw new ApiError(
+          "Token and expiration time are required",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      if (!newPassword) {
+        throw new ApiError("Please provide password", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      const currentTime = new Date();
+      const expirationTime = new Date(expiresAt as string);
+      if (currentTime > expirationTime) {
+        throw new ApiError("The token has expired", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      let payload: {
+        userId: string;
+        newEmail: string;
+      };
+
+      try {
+        payload = verifyToken(token as string) as {
+          userId: string;
+          newEmail: string;
+        };
+      } catch (error) {
+        throw new ApiError(
+          "Invalid or tampered token",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      if (!payload) {
+        throw new ApiError("Invalid token", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      const user = await this.usersRepo.findOne({
+        where: { id: payload.userId },
+      });
+
+      if (!user) {
+        throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
+      }
+      if (user.passwordResetExpire != expiresAt) {
+        throw new ApiError(
+          "Invalid token or Link Expired",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+      user.password = hashedPassword;
+      user.passwordResetExpire = null;
+      user.isEmailVerified = true;
+    const existingUser=  await this.usersRepo.save(user);
+
+      const loginToken = jwt.sign(
+        {
+          id: existingUser.id,
+          email: existingUser.email,
+          role: existingUser.role,
+          _id: existingUser.userChatId,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "24h" }
+      );
+
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Password Set successfully", {
+       token:loginToken,
+          user: existingUser,
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `AuthController :: setPassword :: "${(error as Error)?.message}"`
       );
       return next(error);
     }

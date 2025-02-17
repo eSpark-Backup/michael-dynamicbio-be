@@ -26,6 +26,7 @@ const userController = new UserController(
 
 
 
+
 /**
  * @swagger
  * /user/profile:
@@ -263,41 +264,37 @@ router.put(
 
 /**
  * @swagger
- * /user/profileImage:
+ * /user/add-profile:
  *   put:
- *     summary: Update User Profile Image
+ *     summary: Update User Profile Details
  *     description: This endpoint allows users with the USER role to Update User Profile Image.
  *     security:
  *       - bearerAuth: []
  *     tags:
  *       - User
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
- *               about:
- *                 type: object
+ *               country:
+ *                 type: string
  *                 description: Details about the User.
- *               isProfile:
- *                 type: boolean
+ *               designation:
+ *                 type: string
+ *                 description: Details about the User.
+ *               industry:
+ *                 type: string
+ *                 description: Details about the User.
+ *               company:
+ *                 type: string
+ *                 description: Details about the User.
  *               image:
  *                 type: string
  *                 format: binary
  *                 description: Profile image of the User.
- *               cover:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: binary
- *                 description: Array of cover images for the User.
- *               coverKeys:
- *                 type: array
- *                 items:
- *                   type: string
- *                 description: Array of cover keys for the space.
  *
  *     responses:
  *       201:
@@ -310,14 +307,12 @@ router.put(
  *         description: Server error.
  */
 router.put(
-  "/profileImage",
+  "/add-profile",
   checkJwt,
   validateRoles([ROLES.USER]),
   handleMultipleFiles([
-    { name: FILE_FIELDS.COVER, maxCount: 3 },
     { name: FILE_FIELDS.IMAGE, maxCount: 1 },
   ]),
-  parseJsonFields(["about"]),
   (req, res, next) => userController.updateProfileImage(req, res, next)
 );
 
@@ -538,6 +533,168 @@ router.get("/confirm-email", checkJwt, (req, res, next) =>
 );
 
 
+
+
+
+/**
+ * @swagger
+ * /user/generate-qr:
+ *   get:
+ *     summary: Generate QR code for 2FA
+ *     description: This endpoint generates a QR code for 2FA using the user's email address.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *     - User 
+ *     responses:
+ *       200:
+ *         description: QR code generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 secret:
+ *                   type: string
+ *                 qrCode:
+ *                   type: string
+ *       500:
+ *         description: Error generating QR code
+ */
+router.get(
+  "/generate-qr",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  (req, res, next) => userController.generateQr(req, res, next)
+);
+
+
+
+/**
+ * @swagger
+ * /user/verify-qr:
+ *   post:
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *     - User
+ *     summary: Verify token for 2FA
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Token verified successfully
+ *       401:
+ *         description: Invalid token
+ *       500:
+ *         description: Error verifying token
+ */
+router.post(
+  "/verify-qr",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  validate(UserValidation.verifyQr, "body"),
+  (req, res, next) => userController.verifyQr(req, res, next)
+);
+
+
+
+/**
+ * @swagger
+ * /user/resync-qr:
+ *   post:
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *     - User
+ *     summary: Verify token for 2FA
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               firstToken:
+ *                 type: string
+ *                 example: "123456"
+ *               secondToken:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: QR resync successfully
+ *       401:
+ *         description: Invalid token
+ *       500:
+ *         description: Error verifying token
+ */
+router.post(
+  "/resync-qr",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  validate(UserValidation.verifyResyncQr, "body"),
+  (req, res, next) => userController.verifyResync(req, res, next)
+);
+
+
+/**
+ * @swagger
+ * /user/verify-new-device:
+ *   get:
+ *     security:
+ *       - bearerAuth: []
+ *     summary: Verify Device for Authentication
+ *     description: Send a verification email to the user's email address to verify the device for authentication.
+ *     tags:
+ *      - User
+ *     responses:
+ *       200:
+ *         description: Password reset email sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Email Sent successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     email:
+ *                       type: string
+ *                       format: email
+ *                       example: user@example.com
+ *       404:
+ *         description: User not found
+ *       400:
+ *         description: Validation error or social login email
+ *       500:
+ *         description: Server error
+ */
+router.get(
+  "/verify-new-device", 
+  (req, res, next) =>
+    userController.verifyNewDevice(req, res, next)
+);
 
 
 
