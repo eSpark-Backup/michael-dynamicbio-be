@@ -10,7 +10,7 @@ on:
 concurrency: ci-${{ github.repository }}-docker-pipeline
 
 env:
-  path_to_dockerfile: "server/Dockerfile"
+  path_to_dockerfile: "Dockerfile"
   docker_build_dir: "."
   image_tag: "stg-latest"
   lifecycle_policy_file: "policy.json"
