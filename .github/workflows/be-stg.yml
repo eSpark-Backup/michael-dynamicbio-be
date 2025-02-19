@@ -112,7 +112,7 @@ jobs:
           echo "MYSQL_PORT: ${{ secrets.STG_MYSQL_PORT }}" >> .env
           echo "MYSQL_USER: ${{ secrets.STG_MYSQL_USER }}" >> .env
           echo "MYSQL_PASSWORD: ${{ secrets.STG_MYSQL_PASSWORD }}" >> .env
-          echo "STG_ME_CONFIG_MONGODB_URL: ${{ secrets.STG_ME_CONFIG_MONGODB_URL }}" >> .env
+          echo "ME_CONFIG_MONGODB_URL: ${{ secrets.STG_ME_CONFIG_MONGODB_URL }}" >> .env
           echo "LINK_SECRET_KEY: ${{ secrets.LINK_SECRET_KEY }}" >> .env
           echo "FRONTEND_URL: ${{ secrets.FRONTEND_URL }}" >> .env
           echo "SMTP_HOST: ${{ secrets.SMTP_HOST }}" >> .env
