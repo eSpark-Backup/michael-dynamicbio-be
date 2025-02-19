@@ -11,15 +11,15 @@ const swaggerDefinition: SwaggerDefinition = {
   servers: [
     {
       url: `${process.env.DEV_SERVER_URL}/api/`,
-      description: "Local Development server",
+      description: "Development server",
     },
     {
       url: `${process.env.PROD_SERVER_URL}/api/`,
       description: "Production server",
     },
     {
-      url: "https://fusion-dev.esparkconsultants.com/api/",
-      description: "Live Development server",
+      url: "localhost:3000/api/",
+      description: "Local Server",
     },
   ],
   components: {
