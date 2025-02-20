@@ -18,7 +18,7 @@ const swaggerDefinition: SwaggerDefinition = {
       description: "Production server",
     },
     {
-      url: "localhost:3000/api/",
+      url: "http://localhost:3001/api/",
       description: "Local Server",
     },
   ],
