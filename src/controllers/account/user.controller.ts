@@ -1,5 +1,5 @@
 import { NextFunction, Request, RequestHandler, Response } from "express";
-import { User } from "../../entity";
+import { ProfileStatus, User } from "../../entity";
 
 import { ApiError } from "../../errors";
 import { Repository } from "typeorm";
@@ -250,6 +250,7 @@ export class UserController {
       user.industry = industry || user.industry;
       user.company = company || user.company;
       user.designation = designation || user.designation;
+      user.profileStatus=ProfileStatus.COMPLETED
 
       await this.usersRepo.save(user);
       const { password: _, ...userProfile } = user;

@@ -17,6 +17,7 @@ export enum ProfileStatus {
  EMIL_VERIFIED = "email_verified",
   BOTH_VERIFIED = "both_verified",
   PASSWORD_SET = "password_set",
+  COMPLETED = "completed",
   
   NONE = "none",
   
