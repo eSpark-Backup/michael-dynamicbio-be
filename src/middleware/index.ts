@@ -1,5 +1,6 @@
 export * from "./errorHandler";
 export * from "./checkJwt";
+export * from "./qrCheckJwt";
 export * from "./validateRoles";
 export * from "./handleFiles";
 export * from "./pagination.middleware";

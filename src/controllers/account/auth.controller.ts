@@ -1,5 +1,5 @@
 import { NextFunction, Request, RequestHandler, Response } from "express";
-import { LoginType, User } from "../../entity";
+import { LoginType, ProfileStatus, User } from "../../entity";
 import { ApiError } from "../../errors";
 import { Repository } from "typeorm";
 import * as otplib from "otplib";
@@ -7,6 +7,7 @@ import qrCode from "qrcode";
 import {
   decrypt,
   generateToken,
+  generateTokenForRegistration,
   handleResponse,
   logger,
   verifyToken,
@@ -43,11 +44,12 @@ export class AuthController {
         firstName,
         lastName,
         email,
-        countryCode,
-        phoneNumber,
+        // countryCode,
+        // phoneNumber,
         role,
         loginType,
         isSocialLogin,
+        password,
         socialId,
         profileImage,
       } = req.body;
@@ -113,8 +115,8 @@ export class AuthController {
         user.lastName = lastName;
         user.email = email;
         user.loginType = loginType;
-        user.countryCode = countryCode;
-        user.phoneNumber = phoneNumber;
+        // user.countryCode = countryCode;
+        // user.phoneNumber = phoneNumber;
         user.profileImage = profileImage;
         user.isSocialLogin = true;
         user.role = role;
@@ -175,42 +177,46 @@ export class AuthController {
       const user = new User();
       user.firstName = firstName;
       user.lastName = lastName;
-      user.phoneNumber = phoneNumber;
-      user.countryCode = countryCode;
+      // user.phoneNumber = phoneNumber;
+      // user.countryCode = countryCode;
       user.email = email;
+      user.password = password;
       user.role = role;
       user.loginType = LoginType.LOCAL;
       user.isSocialLogin = false;
 
+      // const newUser = await this.usersRepo.save(user);
 
-
-      const newUser = await this.usersRepo.save(user);
-
-      const { token, expiresAt } = generateToken(
-        { userId: newUser.id, newEmail: newUser.email },
+      const { token, expiresAt } = generateTokenForRegistration(
+        {
+          email: user.email,
+          password: user.password,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
         "1h"
       );
       const verifyLink = `${process.env.FRONTEND_URL}verify-email?token=${token}&expiresAt=${expiresAt}`;
 
-      const userChat = await UserForChat.findOne({
-        where: { accountId: newUser.id },
-      });
-      let socketUser = userChat;
-      if (!userChat) {
-        const newUserChat = await UserForChat.create({
-          name: firstName + " " + lastName,
-          accountId: newUser.id,
-          username: email,
-          password: "",
-          bio: "",
-        });
-        socketUser = newUserChat;
-        const usersocketId = socketUser._id;
-        newUser.userChatId = usersocketId.toString();
-        newUser.passwordResetExpire = expiresAt;
+      // const userChat = await UserForChat.findOne({
+      //   where: { accountId: newUser.id },
+      // });
+      // let socketUser = userChat;
+      // if (!userChat) {
+      //   const newUserChat = await UserForChat.create({
+      //     name: firstName + " " + lastName,
+      //     accountId: newUser.id,
+      //     username: email,
+      //     password: "",
+      //     bio: "",
+      //   });
+      //   socketUser = newUserChat;
+      //   const usersocketId = socketUser._id;
+      //   newUser.userChatId = usersocketId.toString();
+      //   newUser.passwordResetExpire = expiresAt;
 
-        await this.usersRepo.save(newUser);
-      }
+      //   await this.usersRepo.save(newUser);
+      // }
       await mailService.verifyEmail({
         name: user.firstName + " " + user.lastName,
         email: email,
@@ -220,11 +226,7 @@ export class AuthController {
       res
         .status(HTTP_STATUS.CREATED)
         .cookie(CHAT_COOKIE, token, cookieOptions)
-        .json(
-          handleResponse("Verification Link Sent Successfully", {
-            user: newUser,
-          })
-        );
+        .json(handleResponse("Verification Link Sent Successfully"));
     } catch (error) {
       logger.error(
         `AuthController :: registerUser :: ${(error as Error)?.message}`
@@ -298,6 +300,7 @@ export class AuthController {
       }
       const userChat = await UserForChat.findById(user.userChatId);
       let socketUser = userChat;
+      if(!user.is2FAEnabled){
       const token = jwt.sign(
         {
           id: user.id,
@@ -314,9 +317,31 @@ export class AuthController {
         .status(HTTP_STATUS.OK)
         .cookie(CHAT_COOKIE, token, cookieOptions)
         .json(
-          handleResponse("Login successful", { token, user:userWithoutPassword })
+          handleResponse("Login successful", {
+            token,
+            user: userWithoutPassword,
+          })
         );
       return next();
+      }else if (user.is2FAEnabled) {
+        const QrToken = jwt.sign(
+          {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            _id: socketUser._id,
+          },
+          process.env.JWT_QR_SECRET!,
+          { expiresIn: "24h" }
+        );
+        const { password: _, ...userWithoutPassword } = user;
+        res.status(HTTP_STATUS.OK).json(
+          handleResponse("2FA Token Required", {
+            token: QrToken,
+            user: userWithoutPassword,
+          })
+        );
+      }
     } catch (error) {
       logger.error(
         `AuthController :: loginUser :: ${(error as Error)?.message}`
@@ -375,62 +400,60 @@ export class AuthController {
     }
   }
   async verifyRegisteredDevice(
-      req: Request,
-      res: Response,
-      next: NextFunction
-    ): Promise<void> {
-      try {
-        const { token, expiresAt } = req.params;
-  
-        if (!token || !expiresAt) {
-          throw new ApiError(
-            "Token and expiration time are required",
-            HTTP_STATUS.BAD_REQUEST
-          );
-        }
-  
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { token, expiresAt } = req.params;
 
-  
-        const currentTime = new Date();
-        const expirationTime = new Date(expiresAt as string);
-        if (currentTime > expirationTime) {
-          throw new ApiError("The token has expired", HTTP_STATUS.BAD_REQUEST);
-        }
-  
-        let payload: {
+      if (!token || !expiresAt) {
+        throw new ApiError(
+          "Token and expiration time are required",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      const currentTime = new Date();
+      const expirationTime = new Date(expiresAt as string);
+      if (currentTime > expirationTime) {
+        throw new ApiError("The token has expired", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      let payload: {
+        userId: string;
+        newEmail: string;
+      };
+
+      try {
+        payload = verifyToken(token as string) as {
           userId: string;
           newEmail: string;
         };
-  
-        try {
-          payload = verifyToken(token as string) as {
-            userId: string;
-            newEmail: string;
-          };
-        } catch (error) {
-          throw new ApiError(
-            "Invalid or tampered token",
-            HTTP_STATUS.BAD_REQUEST
-          );
-        }
-  
-        if (!payload) {
-          throw new ApiError("Invalid token", HTTP_STATUS.BAD_REQUEST);
-        }
-  
-        const user = await this.usersRepo.findOne({
-          where: { id: payload.userId },
-        });
-  
-        if (!user) {
-          throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
-        }
-        if (user.passwordResetExpire != expiresAt) {
-          throw new ApiError(
-            "Invalid token or Link Expired",
-            HTTP_STATUS.BAD_REQUEST
-          );
-        }
+      } catch (error) {
+        throw new ApiError(
+          "Invalid or tampered token",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      if (!payload) {
+        throw new ApiError("Invalid token", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      const user = await this.usersRepo.findOne({
+        where: { id: payload.userId },
+      });
+
+      if (!user) {
+        throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
+      }
+      if (user.passwordResetExpire != expiresAt) {
+        throw new ApiError(
+          "Invalid token or Link Expired",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
 
       const secret = otplib.authenticator.generateSecret();
       const otpauthUrl = otplib.authenticator.keyuri(
@@ -440,28 +463,25 @@ export class AuthController {
       );
       user.secret = secret;
 
-  
-        
-  
-        user.passwordResetExpire = null;
-   await this.usersRepo.save(user);
+      user.passwordResetExpire = null;
+      await this.usersRepo.save(user);
       const qrcode = await qrCode.toDataURL(otpauthUrl);
-  
-     
-  
-        res.status(HTTP_STATUS.OK).json(
-          handleResponse("QR Code Generated For NEw 2FA Device", {
-        qrcode,
-        secret,
-          })
-        );
-      } catch (error) {
-        logger.error(
-          `AuthController :: NEW Device Registered For 2FA :: "${(error as Error)?.message}"`
-        );
-        return next(error);
-      }
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("QR Code Generated For NEw 2FA Device", {
+          qrcode,
+          secret,
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `AuthController :: NEW Device Registered For 2FA :: "${
+          (error as Error)?.message
+        }"`
+      );
+      return next(error);
     }
+  }
 
   async resetPassword(
     req: Request,
@@ -559,7 +579,6 @@ export class AuthController {
   ): Promise<void> {
     try {
       const { token, expiresAt } = req.params;
-      const { newPassword } = req.body;
 
       if (!token || !expiresAt) {
         throw new ApiError(
@@ -568,9 +587,6 @@ export class AuthController {
         );
       }
 
-      if (!newPassword) {
-        throw new ApiError("Please provide password", HTTP_STATUS.BAD_REQUEST);
-      }
 
       const currentTime = new Date();
       const expirationTime = new Date(expiresAt as string);
@@ -579,15 +595,20 @@ export class AuthController {
       }
 
       let payload: {
-        userId: string;
-        newEmail: string;
+        email: string;
+        password: string;
+        firstName: string;
+        lastName: string;
       };
 
       try {
         payload = verifyToken(token as string) as {
-          userId: string;
-          newEmail: string;
+          email: string;
+          password: string;
+          firstName: string;
+          lastName: string;
         };
+
       } catch (error) {
         throw new ApiError(
           "Invalid or tampered token",
@@ -598,29 +619,45 @@ export class AuthController {
       if (!payload) {
         throw new ApiError("Invalid token", HTTP_STATUS.BAD_REQUEST);
       }
-
-      const user = await this.usersRepo.findOne({
-        where: { id: payload.userId },
-      });
-
-      if (!user) {
-        throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
+      const findUser = await this.usersRepo.createQueryBuilder("user")
+        .where("user.email = :email", { email: payload.email })
+        .getOne();
+      if (findUser) {
+        throw new ApiError("Invalid or Used Link", HTTP_STATUS.BAD_REQUEST);
       }
-      if (user.passwordResetExpire != expiresAt) {
-        throw new ApiError(
-          "Invalid token or Link Expired",
-          HTTP_STATUS.BAD_REQUEST
-        );
-      }
+      const user = new User();
+      user.firstName = payload.firstName;
+      user.lastName = payload.lastName;
+      user.email = payload.email;
 
 
+      
       const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(newPassword, salt);
+      const hashedPassword = await bcrypt.hash(payload.password, salt);
 
       user.password = hashedPassword;
       user.passwordResetExpire = null;
       user.isEmailVerified = true;
-    const existingUser=  await this.usersRepo.save(user);
+      const existingUser = await this.usersRepo.save(user);
+         const userChat = await UserForChat.findOne({
+        where: { accountId: user.id },
+      });
+      let socketUser = userChat;
+      if (!userChat) {
+        const newUserChat = await UserForChat.create({
+          name: user.firstName + " " + user.lastName,
+          accountId: user.id,
+          username: user.email,
+          password: "",
+          bio: "",
+        });
+        socketUser = newUserChat;
+        const usersocketId = socketUser._id;
+        user.userChatId = usersocketId.toString();
+        user.profileStatus=ProfileStatus.BOTH_VERIFIED;
+
+        await this.usersRepo.save(user);
+      }
 
       const loginToken = jwt.sign(
         {
@@ -633,10 +670,9 @@ export class AuthController {
         { expiresIn: "24h" }
       );
 
-
       res.status(HTTP_STATUS.OK).json(
-        handleResponse("Password Set successfully", {
-       token:loginToken,
+        handleResponse("Account Created Successfully", {
+          token: loginToken,
           user: existingUser,
         })
       );

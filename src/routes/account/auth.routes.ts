@@ -19,7 +19,7 @@ const authController = new AuthController(userRepository);
  *     tags:
  *      - Auth
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         application/json:
  *           schema:
@@ -43,6 +43,8 @@ const authController = new AuthController(userRepository);
  *               isSocialLogin:
  *                 type: boolean
  *               phoneNumber:
+ *                 type: string
+ *               password:
  *                 type: string
  *               socialId:
  *                 type: string
@@ -212,19 +214,6 @@ router.post(
  *           type: string
  *           format: date-time
  *         description: The expiration time of the token.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               newPassword:
- *                 type: string
- *                 minLength: 8
- *                 description: The new password to be set.
- *             required:
- *               - newPassword
  *     responses:
  *       200:
  *         description: Password Set successfully

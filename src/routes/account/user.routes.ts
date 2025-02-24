@@ -8,6 +8,7 @@ import { AppDataSource } from "../../typeorm.config";
 import {
   checkJwt,
   handleMultipleFiles,
+  QrCheckJwt,
   setPagination,
   validateRoles,
 } from "../../middleware";
@@ -25,6 +26,42 @@ const userController = new UserController(
 );
 
 
+/**
+ * @swagger
+ * /user/verify-qr:
+ *   post:
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *     - User
+ *     summary: Verify token for 2FA
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Token verified successfully
+ *       401:
+ *         description: Invalid token
+ *       500:
+ *         description: Error verifying token
+ */
+router.post(
+  "/verify-qr",
+  QrCheckJwt,
+  validateRoles([ROLES.USER]),
+  validate(UserValidation.verifyQr, "body"),
+  (req, res, next) => userController.verifyQr(req, res, next)
+);
 
 
 /**
@@ -66,7 +103,7 @@ const userController = new UserController(
  *       500:
  *         description: Server error.
  */
-router.get("/profile", (req, res, next) =>
+router.get("/profile",checkJwt, (req, res, next) =>
   userController.getUserProfile(req, res, next)
 );
 
@@ -147,7 +184,7 @@ router.get("/profile", (req, res, next) =>
  *       500:
  *         description: Server error.
  */
-router.get("/notifications", setPagination, (req, res, next) =>
+router.get("/notifications",checkJwt, setPagination, (req, res, next) =>
   userController.fetchNotifications(req, res, next)
 );
 
@@ -572,42 +609,6 @@ router.get(
 
 
 
-/**
- * @swagger
- * /user/verify-qr:
- *   post:
- *     security:
- *       - bearerAuth: []
- *     tags:
- *     - User
- *     summary: Verify token for 2FA
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - token
- *             properties:
- *               token:
- *                 type: string
- *                 example: "123456"
- *     responses:
- *       200:
- *         description: Token verified successfully
- *       401:
- *         description: Invalid token
- *       500:
- *         description: Error verifying token
- */
-router.post(
-  "/verify-qr",
-  checkJwt,
-  validateRoles([ROLES.USER]),
-  validate(UserValidation.verifyQr, "body"),
-  (req, res, next) => userController.verifyQr(req, res, next)
-);
 
 
 
@@ -645,7 +646,7 @@ router.post(
  */
 router.post(
   "/resync-qr",
-  checkJwt,
+  QrCheckJwt,
   validateRoles([ROLES.USER]),
   validate(UserValidation.verifyResyncQr, "body"),
   (req, res, next) => userController.verifyResync(req, res, next)
@@ -692,6 +693,7 @@ router.post(
  */
 router.get(
   "/verify-new-device", 
+  QrCheckJwt,
   (req, res, next) =>
     userController.verifyNewDevice(req, res, next)
 );
