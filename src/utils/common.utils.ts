@@ -146,7 +146,7 @@ export const getTime = (
 };
 
 export const generateToken = (
-  payload: { userId: string; newEmail: string },
+  payload: {userId: string,newEmail:string },
   expiresIn: string = "1h"
 ) => {
   // Handle expiration time
@@ -162,6 +162,30 @@ export const generateToken = (
     token,
     userId: payload.userId,
     newEmail: payload.newEmail,
+    expiresAt: expirationDate.toISOString(), // Add expiration time to the payload
+  };
+
+  return payloadWithExpiration;
+};
+export const generateTokenForRegistration = (
+  payload: {email: string,password:string,firstName:string,lastName:string },
+  expiresIn: string = "1h"
+) => {
+  // Handle expiration time
+  const expirationDate = new Date();
+  const expirationTime = convertToMilliseconds(expiresIn);
+  expirationDate.setTime(expirationDate.getTime() + expirationTime);
+
+  // Generate a random token
+  const token = encrypt(JSON.stringify(payload));
+
+  // Combine token with user data and expiration time (this will be your payload)
+  const payloadWithExpiration = {
+    token,
+    newEmail: payload.email,
+    password: payload.password,
+    firstName: payload.firstName,
+    lastName: payload.lastName,
     expiresAt: expirationDate.toISOString(), // Add expiration time to the payload
   };
 
@@ -213,7 +237,7 @@ export function encrypt(text: any) {
 
   const encrypted = Buffer.concat([cipher.update(text), cipher.final()]);
 
-  return `${iv.toString("hex")}SHWCASE${encrypted.toString("hex")}`;
+  return `${iv.toString("hex")}FUSION${encrypted.toString("hex")}`;
 }
 export function decrypt(encryptedText: any) {
   try {
@@ -224,12 +248,12 @@ export function decrypt(encryptedText: any) {
     if (
       !encryptedText ||
       typeof encryptedText !== "string" ||
-      !encryptedText.includes("SHWCASE")
+      !encryptedText.includes("FUSION")
     ) {
       throw new Error("Invalid input for decryption");
     }
 
-    const parts = encryptedText.split("SHWCASE");
+    const parts = encryptedText.split("FUSION");
     const iv = Buffer.from(parts[0], "hex");
     const encrypted = Buffer.from(parts[1], "hex");
 

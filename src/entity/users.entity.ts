@@ -13,6 +13,14 @@ export enum LoginType {
   GOOGLE = "google",
   LINKEDIN = "linkedin",
 }
+export enum ProfileStatus {
+ EMIL_VERIFIED = "email_verified",
+  BOTH_VERIFIED = "both_verified",
+  PASSWORD_SET = "password_set",
+  
+  NONE = "none",
+  
+}
 @Entity()
 export class User extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
@@ -28,10 +36,10 @@ export class User extends BaseEntity {
   @Column({ type: "varchar", length: 100 })
   email: string;
 
-  @Column({ type: "varchar", length: 5, unique: false })
+  @Column({ type: "varchar", length: 5, nullable: true })
   countryCode: string;
 
-  @Column({ type: "varchar", length: 15, unique: false })
+  @Column({ type: "varchar", length: 15, nullable: true })
   phoneNumber: string;
 
   @Column({ type: "varchar", length: 100, nullable: true })
@@ -102,6 +110,14 @@ export class User extends BaseEntity {
     default: LoginType.LOCAL,
   })
   loginType: LoginType;
+
+
+  @Column({
+    type: "enum",
+    enum: ProfileStatus,
+    default: ProfileStatus.NONE,
+  })
+  profileStatus: ProfileStatus;
 
   @Column({
     type: "boolean",
