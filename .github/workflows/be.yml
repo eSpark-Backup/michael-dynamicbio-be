@@ -104,6 +104,7 @@ jobs:
           echo "SALT: ${{ secrets.SALT }}" >> .env
           echo "EXPIRES_IN: ${{ secrets.EXPIRES_IN }}" >> .env
           echo "QR_ISSUER: ${{ secrets.QR_ISSUER }}" >> .env
+          echo "JWT_QR_SECRET: ${{ secrets.JWT_QR_SECRET }}" >> .env
           echo "CLOUD_NAME: ${{ secrets.CLOUD_NAME }}" >> .env
           echo "CLOUD_SECRET: ${{ secrets.CLOUD_SECRET }}" >> .env
           echo "CLOUD_API_KEY: ${{ secrets.CLOUD_API_KEY }}" >> .env
