@@ -12,6 +12,7 @@ export const configs = {
 
   // JWT Configs
   JWT_SECRET_KEY: <string>getEnv("JWT_SECRET"),
+  JWT_QR_SECRET_KEY: <string>getEnv("JWT_QR_SECRET"),
   EXPIRES_IN: <string>getEnv("EXPIRES_IN"),
   LINK_SECRET_KEY: <string>getEnv("LINK_SECRET_KEY"),
   QR_ISSUER: <string>getEnv("QR_ISSUER"),

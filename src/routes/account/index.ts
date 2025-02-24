@@ -9,6 +9,6 @@ router.get("/", (req, res) => {
   res.json({ message: "Welcome to the API!" });
 });
 router.use("/auth", authRoutes);
-router.use("/user", checkJwt, validateRoles([ROLES.USER]), UserRoutes);
+router.use("/user", UserRoutes);
 
 export { router };

@@ -300,6 +300,7 @@ export class AuthController {
       }
       const userChat = await UserForChat.findById(user.userChatId);
       let socketUser = userChat;
+      if(!user.is2FAEnabled){
       const token = jwt.sign(
         {
           id: user.id,
@@ -322,6 +323,25 @@ export class AuthController {
           })
         );
       return next();
+      }else if (user.is2FAEnabled) {
+        const QrToken = jwt.sign(
+          {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            _id: socketUser._id,
+          },
+          process.env.JWT_QR_SECRET!,
+          { expiresIn: "24h" }
+        );
+        const { password: _, ...userWithoutPassword } = user;
+        res.status(HTTP_STATUS.OK).json(
+          handleResponse("2FA Token Required", {
+            token: QrToken,
+            user: userWithoutPassword,
+          })
+        );
+      }
     } catch (error) {
       logger.error(
         `AuthController :: loginUser :: ${(error as Error)?.message}`

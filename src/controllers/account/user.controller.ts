@@ -4,13 +4,14 @@ import { ProfileStatus, User } from "../../entity";
 import { ApiError } from "../../errors";
 import { Repository } from "typeorm";
 import {
+  cookieOptions,
   decrypt,
   generateToken,
   handleResponse,
   logger,
   verifyToken,
 } from "../../utils";
-import { CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
+import { CHAT_COOKIE, CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
 import jwt from "jsonwebtoken";
 import { UserForChat } from "../../models";
 
@@ -250,7 +251,7 @@ export class UserController {
       user.industry = industry || user.industry;
       user.company = company || user.company;
       user.designation = designation || user.designation;
-      user.profileStatus=ProfileStatus.COMPLETED
+      user.profileStatus = ProfileStatus.COMPLETED;
 
       await this.usersRepo.save(user);
       const { password: _, ...userProfile } = user;
@@ -334,8 +335,6 @@ export class UserController {
     }
   }
 
- 
-
   async verifyNewDevice(
     req: ICustomRequest,
     res: Response,
@@ -343,16 +342,15 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.user?.id;
-  
-      const user = await this.usersRepo
-        .createQueryBuilder('user')
-        .where('user.id = :userId', { userId })
-        .getOne();
-  
-      if (!user) {
-        throw new ApiError('User or secret not found', HTTP_STATUS.NOT_FOUND);
-      }
 
+      const user = await this.usersRepo
+        .createQueryBuilder("user")
+        .where("user.id = :userId", { userId })
+        .getOne();
+
+      if (!user) {
+        throw new ApiError("User or secret not found", HTTP_STATUS.NOT_FOUND);
+      }
 
       const { token, expiresAt } = generateToken(
         { userId: user.id, newEmail: user.email },
@@ -377,7 +375,9 @@ export class UserController {
       );
     } catch (error) {
       logger.error(
-        `AuthController :: Register New Device For 2FA :: "${(error as Error)?.message}"`
+        `AuthController :: Register New Device For 2FA :: "${
+          (error as Error)?.message
+        }"`
       );
       return next(error);
     }
@@ -461,7 +461,6 @@ export class UserController {
     }
   }
 
-
   async verifyResync(
     req: ICustomRequest,
     res: Response,
@@ -470,32 +469,36 @@ export class UserController {
     try {
       const { firstToken, secondToken } = req.body;
       const userId = req.user?.id;
-  
+
       const user = await this.usersRepo
-        .createQueryBuilder('user')
-        .where('user.id = :userId', { userId })
+        .createQueryBuilder("user")
+        .where("user.id = :userId", { userId })
         .getOne();
-  
+
       if (!user || !user.secret) {
-        throw new ApiError('User or secret not found', HTTP_STATUS.NOT_FOUND);
+        throw new ApiError("User or secret not found", HTTP_STATUS.NOT_FOUND);
       }
       otplib.authenticator.options = { window: 1 };
 
-  
       const isFirstValid = otplib.authenticator.check(firstToken, user.secret);
-  
+
       const nextToken = otplib.authenticator.generate(user.secret);
       const isSecondValid = secondToken === nextToken;
-  
+
       if (isFirstValid && isSecondValid) {
-        res.status(HTTP_STATUS.OK).json(
-          handleResponse('2FA resynchronized successfully')
-        );
+        res
+          .status(HTTP_STATUS.OK)
+          .json(handleResponse("2FA resynchronized successfully"));
       } else {
-        throw new ApiError('Failed to resynchronize 2FA', HTTP_STATUS.BAD_REQUEST);
+        throw new ApiError(
+          "Failed to resynchronize 2FA",
+          HTTP_STATUS.BAD_REQUEST
+        );
       }
     } catch (error) {
-      logger.error(`UserController :: verifyResync :: ${(error as Error)?.message}`);
+      logger.error(
+        `UserController :: verifyResync :: ${(error as Error)?.message}`
+      );
       return next(error);
     }
   }
@@ -515,25 +518,62 @@ export class UserController {
         throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
       }
       if (!user.secret) {
-        throw new ApiError("Register to a Authenticator First", HTTP_STATUS.BAD_REQUEST);
+        throw new ApiError(
+          "Register to a Authenticator First",
+          HTTP_STATUS.BAD_REQUEST
+        );
       }
 
-      const isValid = otplib.authenticator.check(
-        req.body.token,
-        user.secret
-      );
+      const isValid = otplib.authenticator.check(req.body.token, user.secret);
       if (!isValid) {
         throw new ApiError("Invalid token", HTTP_STATUS.BAD_REQUEST);
       }
+      if (!user.is2FAEnabled) {
+        user.is2FAEnabled = true;
+        await this.usersRepo.save(user);
+          const token = jwt.sign(
+                {
+                  id: user.id,
+                  email: user.email,
+                  role: user.role,
+                  _id: user.userChatId,
+                },
+                process.env.JWT_SECRET!,
+                { expiresIn: "24h" }
+              );
+              const { password: _, ...userWithoutPassword } = user;
+        
+              res
+                .status(HTTP_STATUS.OK)
+                .json(
+                  handleResponse("Login successful", {
+                    token,
+                    user: userWithoutPassword,
+                  })
+                );
+      } else {
+        const token = jwt.sign(
+          {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            _id: user.userChatId,
+          },
+          process.env.JWT_SECRET!,
+          { expiresIn: "24h" }
+        );
+        const { password: _, ...userWithoutPassword } = user;
 
-      user.is2FAEnabled = true;
-      await this.usersRepo.save(user);
-      res.status(HTTP_STATUS.OK).json(
-        handleResponse("2FA enabled successfully", {
-          is2FAEnabled: user.is2FAEnabled,
-        })
-      );
-
+        res
+          .status(HTTP_STATUS.OK)
+          .json(
+            handleResponse("Login successful", {
+              token,
+              user: userWithoutPassword,
+            })
+          );
+        return next();
+      }
     } catch (error) {
       logger.error(
         `UserController :: verifyQr :: ${(error as Error)?.message}`
@@ -570,10 +610,24 @@ export class UserController {
       await this.usersRepo.save(user);
 
       const qrcode = await qrCode.toDataURL(otpauthUrl);
+         const QrToken = jwt.sign(
+                {
+                  id: user.id,
+                  email: user.email,
+                  role: user.role,
+                  _id: user.userChatId,
+                },
+                process.env.JWT_QR_SECRET!,
+                { expiresIn: "24h" }
+              );
+              const { password: _, ...userWithoutPassword } = user;
+
       res.status(HTTP_STATUS.OK).json(
         handleResponse("QR Code generated successfully", {
           qrcode,
           secret,
+          token: QrToken,
+          user: userWithoutPassword,
         })
       );
     } catch (error) {
