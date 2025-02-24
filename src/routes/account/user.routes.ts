@@ -646,7 +646,7 @@ router.get(
  */
 router.post(
   "/resync-qr",
-  checkJwt,
+  QrCheckJwt,
   validateRoles([ROLES.USER]),
   validate(UserValidation.verifyResyncQr, "body"),
   (req, res, next) => userController.verifyResync(req, res, next)
@@ -693,6 +693,7 @@ router.post(
  */
 router.get(
   "/verify-new-device", 
+  QrCheckJwt,
   (req, res, next) =>
     userController.verifyNewDevice(req, res, next)
 );
