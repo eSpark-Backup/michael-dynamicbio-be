@@ -1,5 +1,5 @@
 import { NextFunction, Request, RequestHandler, Response } from "express";
-import { LoginType, User } from "../../entity";
+import { LoginType, ProfileStatus, User } from "../../entity";
 import { ApiError } from "../../errors";
 import { Repository } from "typeorm";
 import * as otplib from "otplib";
@@ -634,6 +634,7 @@ export class AuthController {
         socketUser = newUserChat;
         const usersocketId = socketUser._id;
         user.userChatId = usersocketId.toString();
+        user.profileStatus=ProfileStatus.BOTH_VERIFIED;
 
         await this.usersRepo.save(user);
       }
