@@ -349,7 +349,38 @@ export class AuthController {
       return next(error);
     }
   }
+async findEmail(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { email } = req.body;
 
+      const user = await this.usersRepo.createQueryBuilder("user")
+      .where("user.email = :email", { email: email })
+      .andWhere("user.isEmailVerified = :isEmailVerified", { isEmailVerified: true })
+      .andWhere("user.isSocialLogin = :isSocialLogin", { isSocialLogin: false })
+      .getOne();
+      if (!user) {
+        throw new ApiError("User not found.", HTTP_STATUS.NOT_FOUND);
+      }
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Email Found", {
+          id: user.id,
+          name:user.firstName + " " + user.lastName,
+          email: user.email,
+          image: user.profileImage,
+          
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `AuthController :: findEmail :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
   async forgotPassword(
     req: Request,
     res: Response,

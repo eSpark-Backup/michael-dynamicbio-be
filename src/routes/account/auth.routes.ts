@@ -192,6 +192,64 @@ router.post(
 );
 
 
+
+/**
+ * @swagger
+ * /auth/find-email:
+ *   post:
+ *     summary: Find Account Email
+ *     description: Sends a password reset email to the user if the email exists and is not a social login.
+ *     tags:
+ *      - Auth
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *             required:
+ *               - email
+ *     responses:
+ *       200:
+ *         description: Account Email Found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Account fetched successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     email:
+ *                       type: string
+ *                       format: email
+ *                       example: user@example.com
+ *       404:
+ *         description: User not found
+ *       400:
+ *         description: Validation error or social login email
+ *       500:
+ *         description: Server error
+ */
+router.post(
+  "/find-email", 
+  validate(AuthValidation.findEmail, "body"),
+  (req, res, next) =>
+  authController.findEmail(req, res, next)
+);
+
+
+
 /**
  * @swagger
  * /auth/set-password/{token}/{expiresAt}:

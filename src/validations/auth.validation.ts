@@ -50,6 +50,9 @@ export class AuthValidation {
   static forgotPassword = Joi.object({
     email: Joi.string().email().required(),
   });
+  static findEmail = Joi.object({
+    email: Joi.string().email().required(),
+  });
 
   static passwordReset = Joi.object({
     newPassword: Joi.string().min(8),
