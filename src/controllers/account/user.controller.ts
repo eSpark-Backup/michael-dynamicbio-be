@@ -357,7 +357,7 @@ export class UserController {
         "1h"
       );
 
-      const resetLink = `${process.env.FRONTEND_URL}verify-device?token=${token}&expiresAt=${expiresAt}`;
+      const resetLink = `${process.env.FRONTEND_URL}google-auth?token=${token}&expiresAt=${expiresAt}`;
       user.passwordResetExpire = expiresAt;
       await this.usersRepo.save(user);
 

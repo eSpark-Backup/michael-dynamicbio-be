@@ -196,7 +196,7 @@ export class AuthController {
         },
         "1h"
       );
-      const verifyLink = `${process.env.FRONTEND_URL}verify-email?token=${token}&expiresAt=${expiresAt}`;
+      const verifyLink = `${process.env.FRONTEND_URL}email-verified?token=${token}&expiresAt=${expiresAt}`;
 
       // const userChat = await UserForChat.findOne({
       //   where: { accountId: newUser.id },
@@ -407,7 +407,7 @@ async findEmail(
         "1h"
       );
 
-      const resetLink = `${process.env.FRONTEND_URL}reset-password?token=${token}&expiresAt=${expiresAt}`;
+      const resetLink = `${process.env.FRONTEND_URL}forget-password?token=${token}&expiresAt=${expiresAt}`;
       user.passwordResetExpire = expiresAt;
       await this.usersRepo.save(user);
 

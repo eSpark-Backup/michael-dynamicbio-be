@@ -7,6 +7,7 @@ import {
   OneToMany,
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import { Post } from ".";
 export enum LoginType {
   LOCAL = "local",
   FACEBOOK = "facebook",
@@ -102,6 +103,9 @@ export class User extends BaseEntity {
 
   @Column({ type: "varchar", length: 100, nullable: true })
   passwordResetExpire: string;
+
+ @OneToMany(() => Post, (post) => post.author, { onDelete: "CASCADE" })
+ posts: Post;
 
   @Column({ type: "varchar", length: 50, nullable: true, default: "user" })
   role: string;
