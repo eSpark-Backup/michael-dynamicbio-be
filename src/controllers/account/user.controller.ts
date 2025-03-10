@@ -485,10 +485,25 @@ export class UserController {
       const nextToken = otplib.authenticator.generate(user.secret);
       const isSecondValid = secondToken === nextToken;
 
+        const token = jwt.sign(
+              {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                _id: user.userChatId,
+              },
+              process.env.JWT_SECRET!,
+              { expiresIn: "24h" }
+            );
+            const { password: _, ...userWithoutPassword } = user;
+
       if (isFirstValid && isSecondValid) {
         res
           .status(HTTP_STATUS.OK)
-          .json(handleResponse("2FA resynchronized successfully"));
+          .json(handleResponse("2FA resynchronized successfully",{
+            token,
+            user: userWithoutPassword,
+          }));
       } else {
         throw new ApiError(
           "Failed to resynchronize 2FA",
