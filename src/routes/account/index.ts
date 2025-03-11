@@ -2,6 +2,7 @@ import { Router } from "express";
 import { router as authRoutes } from "./auth.routes";
 import { checkJwt, validateRoles } from "../../middleware";
 import { router as UserRoutes } from "./user.routes";
+import { router as PostRoutes } from "./post.routes";
 import { ROLES } from "../../constants";
 const router = Router();
 
@@ -10,5 +11,6 @@ router.get("/", (req, res) => {
 });
 router.use("/auth", authRoutes);
 router.use("/user", UserRoutes);
+router.use("/post", PostRoutes);
 
 export { router };

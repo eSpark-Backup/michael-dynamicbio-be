@@ -22,13 +22,13 @@ export const MULTER_ERROR: Record<string, string> = {
 
 export enum FILE_FIELDS {
   FILE = "file",
-  IMAGE = "image",
+  IMAGE = "images",
   COVER = "cover",
   PROFILE = "profile",
 }
 
 export enum CLOUD_FOLDERS {
-  BRAND = "Brand",
+  POST = "Post",
   EVENT = "Event",
   SPACE = "Space",
   FILES = "Files",

@@ -18,6 +18,11 @@ export enum HTTP_STATUS {
   PAYMENT_FAILED = 402,
   INTERNAL_SERVER_ERROR = 500,
 }
+export enum POST_STATUS {
+  ARCHIVE = "ARCHIVE",
+  DRAFT = "DRAFT",
+  PUBLISH = "PUBLISH",
+}
 
 export const enum ERROR_MESSAGES {
   SUCCESS = "Success",

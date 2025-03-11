@@ -485,25 +485,25 @@ export class UserController {
       const nextToken = otplib.authenticator.generate(user.secret);
       const isSecondValid = secondToken === nextToken;
 
-        const token = jwt.sign(
-              {
-                id: user.id,
-                email: user.email,
-                role: user.role,
-                _id: user.userChatId,
-              },
-              process.env.JWT_SECRET!,
-              { expiresIn: "24h" }
-            );
-            const { password: _, ...userWithoutPassword } = user;
+      const token = jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          _id: user.userChatId,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "24h" }
+      );
+      const { password: _, ...userWithoutPassword } = user;
 
       if (isFirstValid && isSecondValid) {
-        res
-          .status(HTTP_STATUS.OK)
-          .json(handleResponse("2FA resynchronized successfully",{
+        res.status(HTTP_STATUS.OK).json(
+          handleResponse("2FA resynchronized successfully", {
             token,
             user: userWithoutPassword,
-          }));
+          })
+        );
       } else {
         throw new ApiError(
           "Failed to resynchronize 2FA",
@@ -546,26 +546,24 @@ export class UserController {
       if (!user.is2FAEnabled) {
         user.is2FAEnabled = true;
         await this.usersRepo.save(user);
-          const token = jwt.sign(
-                {
-                  id: user.id,
-                  email: user.email,
-                  role: user.role,
-                  _id: user.userChatId,
-                },
-                process.env.JWT_SECRET!,
-                { expiresIn: "24h" }
-              );
-              const { password: _, ...userWithoutPassword } = user;
-        
-              res
-                .status(HTTP_STATUS.OK)
-                .json(
-                  handleResponse("Login successful", {
-                    token,
-                    user: userWithoutPassword,
-                  })
-                );
+        const token = jwt.sign(
+          {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            _id: user.userChatId,
+          },
+          process.env.JWT_SECRET!,
+          { expiresIn: "24h" }
+        );
+        const { password: _, ...userWithoutPassword } = user;
+
+        res.status(HTTP_STATUS.OK).json(
+          handleResponse("Login successful", {
+            token,
+            user: userWithoutPassword,
+          })
+        );
       } else {
         const token = jwt.sign(
           {
@@ -579,14 +577,12 @@ export class UserController {
         );
         const { password: _, ...userWithoutPassword } = user;
 
-        res
-          .status(HTTP_STATUS.OK)
-          .json(
-            handleResponse("Login successful", {
-              token,
-              user: userWithoutPassword,
-            })
-          );
+        res.status(HTTP_STATUS.OK).json(
+          handleResponse("Login successful", {
+            token,
+            user: userWithoutPassword,
+          })
+        );
         return next();
       }
     } catch (error) {
@@ -625,17 +621,17 @@ export class UserController {
       await this.usersRepo.save(user);
 
       const qrcode = await qrCode.toDataURL(otpauthUrl);
-         const QrToken = jwt.sign(
-                {
-                  id: user.id,
-                  email: user.email,
-                  role: user.role,
-                  _id: user.userChatId,
-                },
-                process.env.JWT_QR_SECRET!,
-                { expiresIn: "24h" }
-              );
-              const { password: _, ...userWithoutPassword } = user;
+      const QrToken = jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          _id: user.userChatId,
+        },
+        process.env.JWT_QR_SECRET!,
+        { expiresIn: "24h" }
+      );
+      const { password: _, ...userWithoutPassword } = user;
 
       res.status(HTTP_STATUS.OK).json(
         handleResponse("QR Code generated successfully", {
