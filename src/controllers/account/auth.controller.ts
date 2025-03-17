@@ -217,12 +217,13 @@ export class AuthController {
 
       //   await this.usersRepo.save(newUser);
       // }
+      logger.info("User Created");
       await mailService.verifyEmail({
         name: user.firstName + " " + user.lastName,
         email: email,
         link: verifyLink,
       });
-
+      logger.info("Email Sent");
       res
         .status(HTTP_STATUS.CREATED)
         .cookie(CHAT_COOKIE, token, cookieOptions)
