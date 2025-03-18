@@ -11,6 +11,9 @@ export class PostValidation {
    imageOrder: Joi.alternatives()
       .try(Joi.string(), Joi.array().items(Joi.string()))
       .optional(),
+      videoOrder: Joi.alternatives()
+      .try(Joi.string(), Joi.array().items(Joi.string()))
+      .optional(),
     status: Joi.string()
       .valid(...Object.values(POST_STATUS))
       .required(),
@@ -19,16 +22,15 @@ export class PostValidation {
   static UpdatePost = Joi.object({
   
     imageOrder: Joi.array().items(Joi.string()).optional(),
+    videoOrder: Joi.array().items(Joi.string()).optional(),
     content: Joi.object({
       description: Joi.string().optional(),
       htmlContent: Joi.string().optional(),
     }).optional(),
-    location: Joi.object({
-      long: Joi.number().optional(),
-      lat: Joi.number().optional(),
-      additional: Joi.string().optional(),
-    }).optional(),
     imageKeys: Joi.alternatives()
+      .try(Joi.string(), Joi.array().items(Joi.string()))
+      .optional(),
+    videoKeys: Joi.alternatives()
       .try(Joi.string(), Joi.array().items(Joi.string()))
       .optional(),
     status: Joi.string()
