@@ -255,9 +255,7 @@ export class UserController {
 
       await this.usersRepo.save(user);
       const { password: _, ...userProfile } = user;
-      userProfile.coverImage = JSON.parse(
-        userProfile.coverImage as Object as string
-      );
+  
 
       const chatUser = await UserForChat.findById(req.user?._id);
       chatUser.avatar = imageUrls[0]?.url;
@@ -296,7 +294,7 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.user?.id;
-      const { about,country, } = req.body;
+      const { about,country,industry,designation,company } = req.body;
 
       // const name = [firstName, lastName].filter(Boolean).join(" ");
       const imageFilesPath = path.join(process.cwd(), "uploads");
@@ -355,6 +353,11 @@ export class UserController {
       user.coverImageKey = coverUrls[0]?.public_id || user.coverImageKey;
 
       user.about = about || user.about;
+
+      user.country = country || user.country;
+      user.industry = industry || user.industry;
+      user.company = company || user.company;
+      user.designation = designation || user.designation;
 
       // const chatUser = await UserForChat.findById(req.user?._id);
       // chatUser.name = name;
