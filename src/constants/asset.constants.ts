@@ -5,6 +5,22 @@ export const ALLOWED_IMG_TYPES = [
   "image/png",
 ];
 
+export const ALLOWED_VIDEO_TYPES = [
+  "video/mp4",
+  "video/mpeg",
+  "video/quicktime",
+  "video/3gpp",
+];
+
+const ALLOWED_FILE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "video/mp4",
+  "video/mpeg",
+  "video/quicktime",
+];
+
 export enum MAX_FILES_COUNTS {
   FIVE = 5,
   TEN = 10,
@@ -25,6 +41,8 @@ export enum FILE_FIELDS {
   IMAGE = "images",
   COVER = "cover",
   PROFILE = "profile",
+  VIDEO = "videos",
+  SINGLE_IMAGE="image"
 }
 
 export enum CLOUD_FOLDERS {

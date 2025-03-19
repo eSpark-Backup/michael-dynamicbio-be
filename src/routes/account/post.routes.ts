@@ -74,6 +74,13 @@ const postController = new PostController(
  *                   type: string
  *                   format: binary
  *                 description: Array of cover images for the post.
+ *               videos:
+ *                 type: array
+ *                 required: false
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Array of video files for the post.
  *     responses:
  *       201:
  *         description: Post created successfully.
@@ -91,7 +98,10 @@ router.post(
     validateRoles([ROLES.USER]),
     handleMultipleFiles([
       { name: FILE_FIELDS.IMAGE, maxCount: 10 },
+      { name: FILE_FIELDS.VIDEO, maxCount: 5 }, // Handle videos
+
     ]),
+    
     parseJsonFields(["content"]),
     validate(PostValidation.CreatePost, "body"),
     (req, res, next) => postController.createPost(req, req as any, res, next)
@@ -122,7 +132,7 @@ router.post(
  *           schema:
  *             type: object
  *             properties:
- *               details:
+ *               content:
  *                  type: object
  *                  properties:
  *                    description:
@@ -139,10 +149,24 @@ router.post(
  *                   - ARCHIVE
  *               images:
  *                 type: array
+ *                 required: false
  *                 items:
  *                   type: string
  *                   format: binary
+ *                 description: Array of cover images for the post.
  *               imageKeys:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of cover keys for the post.
+ *               videos:
+ *                 type: array
+ *                 required: false
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Array of video files for the post.
+ *               videoKeys:
  *                 type: array
  *                 items:
  *                   type: string
@@ -165,6 +189,7 @@ router.put(
   validateRoles([ROLES.USER]),
   handleMultipleFiles([
     { name: FILE_FIELDS.IMAGE, maxCount: 10 },
+    { name: FILE_FIELDS.VIDEO, maxCount: 5 }, 
   ]),
   parseJsonFields(["content"]),
   validate(PostValidation.UpdatePost, "body"),

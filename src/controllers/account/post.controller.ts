@@ -27,24 +27,28 @@ export class PostController {
     next: NextFunction
   ): Promise<void> {
     try {
-      let { content, status, imagesOrder } = req.body;
+      let { content, status, imagesOrder, videosOrder } = req.body;
       const postFilesPath = path.join(process.cwd(), "uploads");
+
       let postFiles = fs
         .readdirSync(postFilesPath)
         .filter((file) => file.startsWith("images"));
 
-      if (!postFiles.length && status == PostStatus.PUBLISH) {
-        throw new ApiError(
-          "Missing required files: 'cover' or 'image'",
-          HTTP_STATUS.BAD_REQUEST
-        );
-      }
+      let videoFiles = fs
+        .readdirSync(postFilesPath)
+        .filter((file) => file.startsWith("videos"));
+
+      videosOrder = videosOrder || [];
 
       imagesOrder = imagesOrder || [];
       postFiles = commonHelper.reorderCoverFiles(postFiles, imagesOrder);
+      videoFiles = commonHelper.reorderCoverFiles(videoFiles, videosOrder);
 
       const postFileObjects: IFileObject[] = postFiles.map((file) =>
         commonHelper.createFileObject(path.join(postFilesPath, file), "images")
+      );
+      const videoFileObjects: IFileObject[] = videoFiles.map((file) =>
+        commonHelper.createFileObject(path.join(postFilesPath, file), "videos")
       );
       const userId = req.user?.id;
       const user = await this.usersRepo.findOne({ where: { id: userId } });
@@ -55,11 +59,20 @@ export class PostController {
         FolderName
       )) as UploadResult[];
 
+      const uploadedVideoUrls = await uploadService.uploadMultipleFiles(
+        videoFileObjects,
+        FolderName
+      );
+
       const newPost = new Post();
       newPost.author = user as User;
       newPost.content = content;
       newPost.status = status;
-      newPost.media = (JSON.stringify(coverUrls) as Object) || null;
+      newPost.media =
+        (JSON.stringify({
+          IMAGES: coverUrls,
+          VIDEOS: uploadedVideoUrls,
+        }) as Object) || null;
       const post = await this.postRepo.save(newPost);
 
       parseCoverImages(post);
@@ -105,12 +118,20 @@ export class PostController {
         .readdirSync(postFilesPath)
         .filter((file) => file.startsWith("images"));
 
+        
+      let videoFiles = fs
+      .readdirSync(postFilesPath)
+      .filter((file) => file.startsWith("videos"));
+
       const postFileObjects: IFileObject[] = postFiles.map((file) =>
         commonHelper.createFileObject(path.join(postFilesPath, file), "images")
       );
+      const videoFileObjects: IFileObject[] = videoFiles.map((file) =>
+        commonHelper.createFileObject(path.join(postFilesPath, file), "videos")
+      );
 
       const { id } = req.params;
-      let { content, status, imageKeys } = req.body;
+      let { content, status, imageKeys,videoKeys } = req.body;
 
       if (Array.isArray(imageKeys)) {
         imageKeys = imageKeys.filter((key) => typeof key === "string");
@@ -118,6 +139,12 @@ export class PostController {
 
       if (typeof imageKeys === "string" && !Array.isArray(imageKeys)) {
         imageKeys = imageKeys.split(",").map((item) => item.trim());
+      }
+      if(Array.isArray(videoKeys)){
+        videoKeys = videoKeys.filter((key) => typeof key === "string");
+      }
+      if (typeof videoKeys === "string" && !Array.isArray(videoKeys)) {
+        videoKeys = videoKeys.split(",").map((item) => item.trim());
       }
 
       const existingPost = await this.postRepo
@@ -136,11 +163,13 @@ export class PostController {
       }
 
       let oldPostImages: UploadResult[] = [];
+      let oldPostVideos: UploadResult[] = [];
 
       const FolderName = `${CLOUD_FOLDERS.POST}/${existingPost.author.firstName}_${existingPost.author.lastName}`;
       if (typeof existingPost.media === "string") {
         try {
           oldPostImages = JSON.parse(existingPost.media) as UploadResult[];
+          
         } catch (error) {
           logger.error("Failed to parse coverImages:", error);
           oldPostImages = [];
@@ -261,12 +290,12 @@ export class PostController {
           .json(handleResponse("Brand Found Successfully", singlePost));
         return next();
       }
-      if (status == PostStatus.PUBLISH) {
+      if (true) {
         const [posts, totalItems] = await this.postRepo
           .createQueryBuilder("post")
           .where("post.author = :userId", { userId: req.user?.id })
           .leftJoinAndSelect("post.author", "author")
-          .andWhere("post.status = :status", { status: PostStatus.PUBLISH })
+          // .andWhere("post.status = :status", { status: PostStatus.PUBLISH })
           .orderBy("post.createdAt", "DESC")
           .skip(skipNumber)
           .take(takeNumber)

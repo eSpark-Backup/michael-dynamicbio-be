@@ -348,7 +348,7 @@ router.put(
   checkJwt,
   validateRoles([ROLES.USER]),
   handleMultipleFiles([
-    { name: FILE_FIELDS.IMAGE, maxCount: 1 },
+    { name: FILE_FIELDS.SINGLE_IMAGE, maxCount: 1 },
   ]),
   (req, res, next) => userController.updateProfileImage(req, res, next)
 );

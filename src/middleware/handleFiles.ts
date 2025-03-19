@@ -2,6 +2,7 @@ import multer, { MulterError } from "multer";
 import { Request, Response, NextFunction } from "express";
 import {
   ALLOWED_IMG_TYPES,
+  ALLOWED_VIDEO_TYPES,
   FILE_FIELDS,
   MAX_FILES_COUNTS,
   MULTER_ERROR,
@@ -33,10 +34,10 @@ const filterFiles = (
   file: Express.Multer.File,
   cb: multer.FileFilterCallback
 ) => {
-  if (ALLOWED_IMG_TYPES.includes(file.mimetype)) {
+  if (ALLOWED_IMG_TYPES.includes(file.mimetype) || ALLOWED_VIDEO_TYPES.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error(" Invalid file type. Only images are allowed."));
+    cb(new Error("Invalid file type. Only images and videos are allowed."));
   }
 };
 /**
@@ -51,7 +52,7 @@ export const handleMultipleFiles = (
       storage,
       fileFilter: filterFiles,
       limits: {
-        fileSize: 5 * 1024 * 1024, // 5 MB per file
+        fileSize: 10 * 1024 * 1024, // 10 MB
       },
     }).fields(fields);
 
