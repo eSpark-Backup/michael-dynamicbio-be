@@ -296,7 +296,7 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.user?.id;
-      const { about } = req.body;
+      const { about,country, } = req.body;
 
       // const name = [firstName, lastName].filter(Boolean).join(" ");
       const imageFilesPath = path.join(process.cwd(), "uploads");
@@ -494,9 +494,7 @@ export class UserController {
 
       const { password: _, ...userProfile } = user as User;
 
-      userProfile.coverImage = JSON.parse(
-        userProfile.coverImage as Object as string
-      );
+
       res
         .status(HTTP_STATUS.OK)
         .json(
