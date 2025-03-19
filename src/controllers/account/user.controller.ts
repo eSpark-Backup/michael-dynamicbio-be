@@ -255,8 +255,8 @@ export class UserController {
 
       await this.usersRepo.save(user);
       const { password: _, ...userProfile } = user;
-      userProfile.coverImages = JSON.parse(
-        userProfile.coverImages as Object as string
+      userProfile.coverImage = JSON.parse(
+        userProfile.coverImage as Object as string
       );
 
       const chatUser = await UserForChat.findById(req.user?._id);
@@ -296,9 +296,25 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.user?.id;
-      const { firstName, lastName, ...rest } = req.body;
+      const { about } = req.body;
 
-      const name = [firstName, lastName].filter(Boolean).join(" ");
+      // const name = [firstName, lastName].filter(Boolean).join(" ");
+      const imageFilesPath = path.join(process.cwd(), "uploads");
+
+      const imageFiles = fs
+        .readdirSync(path.join(imageFilesPath))
+        .filter((file) => file.startsWith("image")); // Filter for image files
+
+      const coverFiles = fs
+        .readdirSync(path.join(imageFilesPath))
+        .filter((file) => file.startsWith("cover")); // Filter for image files
+
+      const imageFileObjects: IFileObject[] = imageFiles.map((file) =>
+        commonHelper.createFileObject(path.join(imageFilesPath, file), "image")
+      );
+      const coverFileObjects: IFileObject[] = coverFiles.map((file) =>
+        commonHelper.createFileObject(path.join(imageFilesPath, file), "cover")
+      );
 
       // Retrieve user
       const user = await this.usersRepo
@@ -310,17 +326,41 @@ export class UserController {
         throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
       }
 
-      const updatedData = {
-        ...user,
-        ...rest,
-        ...(name && { name }),
-      };
+      const FolderName = `${CLOUD_FOLDERS.USER}/${
+        user.firstName.trim() + user.lastName.trim()
+      }`;
+      const imageUrls = (await uploadService.uploadMultipleFiles(
+        imageFileObjects,
+        FolderName
+      )) as UploadResult[];
+      const coverUrls = (await uploadService.uploadMultipleFiles(
+        coverFileObjects,
+        FolderName
+      )) as UploadResult[];
+      const oldUserImage = user.profileImage;
+      if (user.imageKey) {
+        if (imageFileObjects && oldUserImage !== imageUrls[0]?.url) {
+          await uploadService.deleteFile(user.imageKey);
+        }
+      }
+      const oldUserCover = user.coverImage;
+      if (user.coverImageKey) {
+        if (coverFileObjects && oldUserCover !== coverUrls[0]?.url) {
+          await uploadService.deleteFile(user.coverImageKey);
+        }
+      }
+      user.profileImage = imageUrls[0]?.url || user.profileImage;
+      user.imageKey = imageUrls[0]?.public_id || user.imageKey;
+      user.coverImage = coverUrls[0]?.url || user.coverImage;
+      user.coverImageKey = coverUrls[0]?.public_id || user.coverImageKey;
 
-      const chatUser = await UserForChat.findById(req.user?._id);
-      chatUser.name = name;
-      await chatUser.save();
+      user.about = about || user.about;
 
-      const updatedUser = await this.usersRepo.save(updatedData);
+      // const chatUser = await UserForChat.findById(req.user?._id);
+      // chatUser.name = name;
+      // await chatUser.save();
+
+      const updatedUser = await this.usersRepo.save(user);
 
       const { password: _, ...userProfile } = updatedUser;
 
@@ -328,6 +368,15 @@ export class UserController {
         .status(HTTP_STATUS.OK)
         .json(handleResponse("User profile updated successfully", userProfile));
     } catch (error) {
+      const uploadsPath = path.join(process.cwd(), "uploads");
+
+      const files = fs.readdirSync(uploadsPath);
+
+      files.forEach((file) => {
+        const filePath = path.join(uploadsPath, file);
+        fs.unlinkSync(filePath);
+        logger.error(`Deleted file: ${filePath}`);
+      });
       logger.error(
         `UserController :: updateUser :: ${(error as Error)?.message}`
       );
@@ -445,8 +494,8 @@ export class UserController {
 
       const { password: _, ...userProfile } = user as User;
 
-      userProfile.coverImages = JSON.parse(
-        userProfile.coverImages as Object as string
+      userProfile.coverImage = JSON.parse(
+        userProfile.coverImage as Object as string
       );
       res
         .status(HTTP_STATUS.OK)

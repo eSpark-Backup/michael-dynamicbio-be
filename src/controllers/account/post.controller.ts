@@ -149,7 +149,7 @@ export class PostController {
 
       const existingPost = await this.postRepo
         .createQueryBuilder("post")
-        .where("brand.id = :id", { id })
+        .where("post.id = :id", { id })
         .leftJoinAndSelect("post.author", "author")
         .getOne();
       if (!existingPost) {

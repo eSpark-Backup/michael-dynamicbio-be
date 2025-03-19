@@ -15,13 +15,12 @@ export enum LoginType {
   LINKEDIN = "linkedin",
 }
 export enum ProfileStatus {
- EMIL_VERIFIED = "email_verified",
+  EMIL_VERIFIED = "email_verified",
   BOTH_VERIFIED = "both_verified",
   PASSWORD_SET = "password_set",
   COMPLETED = "completed",
-  
+
   NONE = "none",
-  
 }
 @Entity()
 export class User extends BaseEntity {
@@ -53,12 +52,14 @@ export class User extends BaseEntity {
   @Column({ type: "json", nullable: true })
   about: object;
 
-  @Column({ type: "json", nullable: true })
-  coverImages: object;
-
+  @Column({ type: "varchar", nullable: true })
+  coverImage: string;
 
   @Column({ type: "varchar", length: 500, nullable: true })
   imageKey: string;
+
+  @Column({ type: "varchar", length: 500, nullable: true })
+  coverImageKey: string;
 
   @Column({ type: "varchar", length: 255, nullable: true })
   password: string;
@@ -93,19 +94,17 @@ export class User extends BaseEntity {
   @Column({ type: "varchar", length: 100, nullable: true })
   emailLinkExpire: string;
 
-
-  @Column({ type: "boolean",nullable: true ,default: false})
+  @Column({ type: "boolean", nullable: true, default: false })
   is2FAEnabled: boolean;
 
   @Column({ type: "varchar", length: 100, nullable: true })
   secret: string;
 
-
   @Column({ type: "varchar", length: 100, nullable: true })
   passwordResetExpire: string;
 
- @OneToMany(() => Post, (post) => post.author, { onDelete: "CASCADE" })
- posts: Post;
+  @OneToMany(() => Post, (post) => post.author, { onDelete: "CASCADE" })
+  posts: Post;
 
   @Column({ type: "varchar", length: 50, nullable: true, default: "user" })
   role: string;
@@ -115,7 +114,6 @@ export class User extends BaseEntity {
     default: LoginType.LOCAL,
   })
   loginType: LoginType;
-
 
   @Column({
     type: "enum",
@@ -129,6 +127,4 @@ export class User extends BaseEntity {
     default: false,
   })
   isSocialLogin: boolean;
-
- 
 }

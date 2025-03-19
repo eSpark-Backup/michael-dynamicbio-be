@@ -188,116 +188,7 @@ router.get("/notifications",checkJwt, setPagination, (req, res, next) =>
   userController.fetchNotifications(req, res, next)
 );
 
-/**
- * @swagger
- * /user/profile:
- *   put:
- *     summary: Update user profile
- *     description: This endpoint allows users to update their profile details.
- *     security:
- *       - bearerAuth: []
- *     tags:
- *       - User
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               firstName:
- *                 type: string
- *                 description: The user's first name.
- *               lastName:
- *                 type: string
- *                 description: The user's last name.
- *               profileImage:
- *                 type: string
- *                 description: The URL of the user's profile image.
- *               loginType:
- *                 type: string
- *                 enum: [email, google, facebook]
- *                 description: The type of login used.
- *               isSocialLogin:
- *                 type: boolean
- *                 description: Indicates if the user logged in via social login.
- *               profile:
- *                 type: boolean
- *                 description: Indicates if the profile is active.
- *               sendEmails:
- *                 type: boolean
- *                 description: Whether the user opts to receive emails.
- *               socialId:
- *                 type: string
- *                 description: The social login ID.
- *     responses:
- *       200:
- *         description: User profile updated successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: User profile updated successfully.
- *                 data:
- *                   type: object
- *                   properties:
- *                     firstName:
- *                       type: string
- *                     lastName:
- *                       type: string
- *                     profileImage:
- *                       type: string
- *                     loginType:
- *                       type: string
- *                     isSocialLogin:
- *                       type: boolean
- *                     profile:
- *                       type: boolean
- *                     sendEmails:
- *                       type: boolean
- *                     socialId:
- *                       type: string
- *       400:
- *         description: Validation error.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: Validation error.
- *       404:
- *         description: User not found.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: User not found.
- *       500:
- *         description: Internal server error.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: An unexpected error occurred.
- */
-router.put(
-  "/profile",
-  checkJwt,
-  validateRoles([ROLES.USER]),
-  validate(UserValidation.updateUser, "body"),
-  (req, res, next) => userController.updateUser(req, res, next)
-);
+
 
 /**
  * @swagger
@@ -351,6 +242,65 @@ router.put(
     { name: FILE_FIELDS.SINGLE_IMAGE, maxCount: 1 },
   ]),
   (req, res, next) => userController.updateProfileImage(req, res, next)
+);
+
+
+
+/**
+ * @swagger
+ * /user/profile:
+ *   put:
+ *     summary: Update User Profile Details
+ *     description: This endpoint allows users with the USER role to Update User Profile Image.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - User
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               about:
+ *                  type: object
+ *                  required: false
+ *                  properties:
+ *                    description:
+ *                       type: string
+ *                       description: A brief description of the post
+ *                    htmlContent:
+ *                       type: string
+ *                       description: HTML content related to the post (e.g., description with HTML tags)
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Profile image of the User.
+ *               cover:
+ *                 type: string
+ *                 format: binary
+ *                 description: Cover image of the User.
+ *
+ *     responses:
+ *       201:
+ *         description: user profile updated successfully.
+ *       400:
+ *         description: Validation error.
+ *       403:
+ *         description: Forbidden.
+ *       500:
+ *         description: Server error.
+ */
+router.put(
+  "/profile",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  handleMultipleFiles([
+    { name: FILE_FIELDS.SINGLE_IMAGE, maxCount: 1 },
+    { name: FILE_FIELDS.COVER, maxCount: 1 },
+  ]),
+  (req, res, next) => userController.updateUser(req, res, next)
 );
 
 /**
