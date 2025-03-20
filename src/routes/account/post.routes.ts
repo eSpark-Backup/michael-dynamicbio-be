@@ -1,6 +1,11 @@
 import { Router } from "express";
 import Joi from "joi";
-import { AuthValidation, PostValidation, UserValidation, validate } from "../../validations";
+import {
+  AuthValidation,
+  PostValidation,
+  UserValidation,
+  validate,
+} from "../../validations";
 import { PostController, UserController } from "../../controllers/account";
 import { Post, User } from "../../entity";
 import { getRepository } from "typeorm";
@@ -20,13 +25,7 @@ const router = Router();
 const userRepository = AppDataSource.getRepository(User);
 const postRepository = AppDataSource.getRepository(Post);
 
-
-const postController = new PostController(
-  userRepository,
-  postRepository
-);
-
-
+const postController = new PostController(userRepository, postRepository);
 
 /**
  * @swagger
@@ -61,7 +60,7 @@ const postController = new PostController(
  *                   - PUBLISH
  *                   - DRAFT
  *                   - ARCHIVE
-*               imageOrder:
+ *               imageOrder:
  *                  type: array
  *                  required: false
  *                  items:
@@ -81,6 +80,16 @@ const postController = new PostController(
  *                   type: string
  *                   format: binary
  *                 description: Array of video files for the post.
+ *               thumbnails:
+ *                 type: array
+ *                 required: false
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Array of video thumbnails files for the post.
+ *               cover:
+ *                 type: string
+ *                 format: binary
  *     responses:
  *       201:
  *         description: Post created successfully.
@@ -93,23 +102,22 @@ const postController = new PostController(
  */
 
 router.post(
-    "",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    handleMultipleFiles([
-      { name: FILE_FIELDS.IMAGE, maxCount: 10 },
-      { name: FILE_FIELDS.VIDEO, maxCount: 5 }, // Handle videos
+  "",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  handleMultipleFiles([
+    { name: FILE_FIELDS.IMAGE, maxCount: 10 },
+    { name: FILE_FIELDS.VIDEO, maxCount: 5 },
+    { name: FILE_FIELDS.THUMBNAIL, maxCount: 5 },
+    { name: FILE_FIELDS.COVER, maxCount: 1 },
+  ]),
 
-    ]),
-    
-    parseJsonFields(["content"]),
-    validate(PostValidation.CreatePost, "body"),
-    (req, res, next) => postController.createPost(req, req as any, res, next)
-  );
-  
+  parseJsonFields(["content"]),
+  validate(PostValidation.CreatePost, "body"),
+  (req, res, next) => postController.createPost(req, req as any, res, next)
+);
 
-
-  /**
+/**
  * @swagger
  * /post/{id}:
  *   put:
@@ -171,6 +179,21 @@ router.post(
  *                 items:
  *                   type: string
  *                 description: Array of cover keys for the post.
+ *               thumbnails:
+ *                 type: array
+ *                 required: false
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Array of video thumbnails files for the post.
+ *               thumbnailKeys:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of cover keys for the post.
+ *               cover:
+ *                 type: string
+ *                 format: binary
  *     responses:
  *       200:
  *         description: Post updated successfully.
@@ -189,13 +212,14 @@ router.put(
   validateRoles([ROLES.USER]),
   handleMultipleFiles([
     { name: FILE_FIELDS.IMAGE, maxCount: 10 },
-    { name: FILE_FIELDS.VIDEO, maxCount: 5 }, 
+    { name: FILE_FIELDS.VIDEO, maxCount: 5 },
+    { name: FILE_FIELDS.THUMBNAIL, maxCount: 5 },
+    { name: FILE_FIELDS.COVER, maxCount: 1 },
   ]),
   parseJsonFields(["content"]),
   validate(PostValidation.UpdatePost, "body"),
   (req, res, next) => postController.updatePost(req, req as any, res, next)
 );
-
 
 /**
  * @swagger
@@ -249,8 +273,5 @@ router.get(
   setPagination,
   (req, res, next) => postController.getAllPost(req, res, next)
 );
-
-
-
 
 export { router };

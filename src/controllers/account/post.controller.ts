@@ -4,6 +4,7 @@ import {
   ICustomRequest,
   IFileObject,
   IFileRequest,
+  Media,
   UploadResult,
 } from "../../interfaces";
 import { Repository } from "typeorm";
@@ -12,7 +13,7 @@ import path from "path";
 import { ApiError } from "../../errors";
 import { CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
 import { commonHelper } from "../../helpers";
-import { handleResponse, logger, parseCoverImages } from "../../utils";
+import { handleResponse, logger, praseMedia } from "../../utils";
 import { uploadService } from "../../services";
 export class PostController {
   constructor(
@@ -27,7 +28,8 @@ export class PostController {
     next: NextFunction
   ): Promise<void> {
     try {
-      let { content, status, imagesOrder, videosOrder } = req.body;
+      let { content, status, imagesOrder, videosOrder, thumbnailsOrder } =
+        req.body;
       const postFilesPath = path.join(process.cwd(), "uploads");
 
       let postFiles = fs
@@ -37,12 +39,24 @@ export class PostController {
       let videoFiles = fs
         .readdirSync(postFilesPath)
         .filter((file) => file.startsWith("videos"));
+      let thumbnailFiles = fs
+        .readdirSync(postFilesPath)
+        .filter((file) => file.startsWith("thumbnails"));
+
+      let articleFiles = fs
+        .readdirSync(postFilesPath)
+        .filter((file) => file.startsWith("cover"));
 
       videosOrder = videosOrder || [];
 
       imagesOrder = imagesOrder || [];
+      thumbnailsOrder = thumbnailsOrder || [];
       postFiles = commonHelper.reorderCoverFiles(postFiles, imagesOrder);
       videoFiles = commonHelper.reorderCoverFiles(videoFiles, videosOrder);
+      thumbnailFiles = commonHelper.reorderCoverFiles(
+        thumbnailFiles,
+        thumbnailsOrder
+      );
 
       const postFileObjects: IFileObject[] = postFiles.map((file) =>
         commonHelper.createFileObject(path.join(postFilesPath, file), "images")
@@ -50,19 +64,31 @@ export class PostController {
       const videoFileObjects: IFileObject[] = videoFiles.map((file) =>
         commonHelper.createFileObject(path.join(postFilesPath, file), "videos")
       );
+      const videoThumbnailObjects: IFileObject[] = thumbnailFiles.map((file) =>
+        commonHelper.createFileObject(
+          path.join(postFilesPath, file),
+          "thumbnails"
+        )
+      );
+      const articleFileObjects: IFileObject[] = articleFiles.map((file) =>
+        commonHelper.createFileObject(path.join(postFilesPath, file), "cover")
+      );
       const userId = req.user?.id;
       const user = await this.usersRepo.findOne({ where: { id: userId } });
 
       const FolderName = `${CLOUD_FOLDERS.POST}/${user.firstName}_${user.lastName}`;
-      const coverUrls = (await uploadService.uploadMultipleFiles(
-        postFileObjects,
-        FolderName
-      )) as UploadResult[];
-
-      const uploadedVideoUrls = await uploadService.uploadMultipleFiles(
-        videoFileObjects,
-        FolderName
-      );
+      const coverUrls = postFileObjects
+        ? await commonHelper.uploadFiles(postFileObjects, FolderName)
+        : [];
+      const uploadedVideoUrls = videoFileObjects
+        ? await commonHelper.uploadFiles(videoFileObjects, FolderName)
+        : [];
+      const uploadedThumbnailUrls = videoThumbnailObjects
+        ? await commonHelper.uploadFiles(videoThumbnailObjects, FolderName)
+        : [];
+      const uploadedArticleUrls = articleFileObjects
+        ? await commonHelper.uploadFiles(articleFileObjects, FolderName)
+        : [];
 
       const newPost = new Post();
       newPost.author = user as User;
@@ -72,10 +98,12 @@ export class PostController {
         (JSON.stringify({
           IMAGES: coverUrls,
           VIDEOS: uploadedVideoUrls,
+          THUMBNAILS: uploadedThumbnailUrls,
+          ARTICLES: uploadedArticleUrls,
         }) as Object) || null;
       const post = await this.postRepo.save(newPost);
 
-      parseCoverImages(post);
+      praseMedia(post);
       const uploadsPath = path.join(process.cwd(), "uploads");
 
       const files = fs.readdirSync(uploadsPath);
@@ -118,10 +146,17 @@ export class PostController {
         .readdirSync(postFilesPath)
         .filter((file) => file.startsWith("images"));
 
-        
       let videoFiles = fs
-      .readdirSync(postFilesPath)
-      .filter((file) => file.startsWith("videos"));
+        .readdirSync(postFilesPath)
+        .filter((file) => file.startsWith("videos"));
+
+      let thumbnailFiles = fs
+        .readdirSync(postFilesPath)
+        .filter((file) => file.startsWith("thumbnails"));
+
+      let articleFiles = fs
+        .readdirSync(postFilesPath)
+        .filter((file) => file.startsWith("cover"));
 
       const postFileObjects: IFileObject[] = postFiles.map((file) =>
         commonHelper.createFileObject(path.join(postFilesPath, file), "images")
@@ -129,23 +164,22 @@ export class PostController {
       const videoFileObjects: IFileObject[] = videoFiles.map((file) =>
         commonHelper.createFileObject(path.join(postFilesPath, file), "videos")
       );
+      const videoThumbnailObjects: IFileObject[] = thumbnailFiles.map((file) =>
+        commonHelper.createFileObject(
+          path.join(postFilesPath, file),
+          "thumbnails"
+        )
+      );
+      const articleFileObjects: IFileObject[] = articleFiles.map((file) =>
+        commonHelper.createFileObject(path.join(postFilesPath, file), "cover")
+      );
 
       const { id } = req.params;
-      let { content, status, imageKeys,videoKeys } = req.body;
+      let { content, status, imageKeys, videoKeys, thumbnailKeys } = req.body;
 
-      if (Array.isArray(imageKeys)) {
-        imageKeys = imageKeys.filter((key) => typeof key === "string");
-      }
-
-      if (typeof imageKeys === "string" && !Array.isArray(imageKeys)) {
-        imageKeys = imageKeys.split(",").map((item) => item.trim());
-      }
-      if(Array.isArray(videoKeys)){
-        videoKeys = videoKeys.filter((key) => typeof key === "string");
-      }
-      if (typeof videoKeys === "string" && !Array.isArray(videoKeys)) {
-        videoKeys = videoKeys.split(",").map((item) => item.trim());
-      }
+      imageKeys = commonHelper.normalizeKeys(imageKeys);
+      videoKeys = commonHelper.normalizeKeys(videoKeys);
+      thumbnailKeys = commonHelper.normalizeKeys(thumbnailKeys);
 
       const existingPost = await this.postRepo
         .createQueryBuilder("post")
@@ -164,25 +198,55 @@ export class PostController {
 
       let oldPostImages: UploadResult[] = [];
       let oldPostVideos: UploadResult[] = [];
+      let oldVideoThumbnails: UploadResult[] = [];
+      let oldArticleImage: UploadResult[] = [];
 
       const FolderName = `${CLOUD_FOLDERS.POST}/${existingPost.author.firstName}_${existingPost.author.lastName}`;
       if (typeof existingPost.media === "string") {
         try {
-          oldPostImages = JSON.parse(existingPost.media) as UploadResult[];
-          
+          const parsedMedia: Media = JSON.parse(existingPost.media);
+
+          oldPostImages = parsedMedia.IMAGES ?? [];
+          oldPostVideos = parsedMedia.VIDEOS ?? [];
+          oldVideoThumbnails = parsedMedia.THUMBNAILS ?? [];
+          oldArticleImage = parsedMedia.ARTICLE ?? null;
         } catch (error) {
-          logger.error("Failed to parse coverImages:", error);
-          oldPostImages = [];
+          logger.error("Failed to parse media:", error);
         }
-      } else {
-        oldPostImages = [];
+      } else if (
+        typeof existingPost.media === "object" &&
+        existingPost.media !== null
+      ) {
+        const mediaObj = existingPost.media as Media;
+        oldPostImages = mediaObj.IMAGES ?? [];
+        oldPostVideos = mediaObj.VIDEOS ?? [];
+        oldVideoThumbnails = mediaObj.THUMBNAILS ?? [];
+        oldArticleImage = mediaObj.ARTICLE ?? [];
       }
 
-      const coverUrls = (
-        postFileObjects?.length > 0
-          ? await uploadService.uploadMultipleFiles(postFileObjects, FolderName)
-          : []
+      const coverUrls = postFileObjects
+        ? await commonHelper.uploadFiles(postFileObjects, FolderName)
+        : [];
+      const uploadedVideoUrls = videoFileObjects
+        ? await commonHelper.uploadFiles(videoFileObjects, FolderName)
+        : [];
+      const uploadedThumbnailUrls = videoThumbnailObjects
+        ? await commonHelper.uploadFiles(videoThumbnailObjects, FolderName)
+        : [];
+
+      const articleImageUrls = (
+        articleFileObjects?.length > 0
+          ? await commonHelper.uploadFiles(articleFileObjects, FolderName)
+          : [{ url: oldArticleImage[0].url,public_id: oldArticleImage[0].public_id}]
       ) as UploadResult[];
+
+      if (
+        articleFileObjects &&
+        oldArticleImage != null &&
+        oldArticleImage[0]?.url !== (articleImageUrls[0]?.url as any)
+      ) {
+        await uploadService.deleteFile(articleImageUrls[0]?.public_id);
+      }
 
       if (oldPostImages.length > 0) {
         for (const oldPostImage of oldPostImages) {
@@ -227,7 +291,106 @@ export class PostController {
         }
       }
 
-      existingPost.media = JSON.stringify(coverUrls) as Object;
+      if (oldPostVideos.length > 0) {
+        for (const oldPostVideo of oldPostVideos) {
+          if (videoKeys && videoKeys.length > 0) {
+            const videoKeyNumbers = videoKeys
+              .map((key: any) => {
+                const splitKey = key.split("+");
+                return {
+                  key: splitKey[0],
+                  order: parseInt(splitKey[1], 10),
+                };
+              })
+              .filter((keyData: any) => !isNaN(keyData.order));
+
+            const matchingKey = videoKeyNumbers.find((keyData: any) =>
+              oldPostVideo.public_id.includes(keyData.key)
+            );
+
+            if (!matchingKey) {
+              await uploadService.deleteFile(oldPostVideo.public_id);
+            } else {
+              const { order } = matchingKey;
+
+              const validOrder = Math.max(
+                1,
+                Math.min(order, uploadedVideoUrls.length + 1)
+              );
+
+              if (validOrder === uploadedVideoUrls.length + 1) {
+                uploadedVideoUrls.push(oldPostVideo);
+              } else {
+                uploadedVideoUrls.splice(validOrder - 1, 0, oldPostVideo);
+              }
+            }
+          } else {
+            if (
+              !uploadedVideoUrls.some(
+                (url) => url.public_id === oldPostVideo.public_id
+              )
+            ) {
+              await uploadService.deleteFile(oldPostVideo.public_id);
+            }
+          }
+        }
+      }
+
+      if (oldVideoThumbnails.length > 0) {
+        for (const oldVideoThumbnail of oldVideoThumbnails) {
+          if (thumbnailKeys && thumbnailKeys.length > 0) {
+            const thumbnailKeyNumbers = thumbnailKeys
+              .map((key: string) => {
+                const splitKey = key.split("+");
+                return {
+                  key: splitKey[0],
+                  order: parseInt(splitKey[1], 10),
+                };
+              })
+              .filter((keyData: any) => !isNaN(keyData.order));
+
+            const matchingKey = thumbnailKeyNumbers.find((keyData: any) =>
+              oldVideoThumbnail.public_id.includes(keyData.key)
+            );
+
+            if (!matchingKey) {
+              await uploadService.deleteFile(oldVideoThumbnail.public_id);
+            } else {
+              const { order } = matchingKey;
+
+              const validOrder = Math.max(
+                1,
+                Math.min(order, uploadedThumbnailUrls.length + 1)
+              );
+
+              if (validOrder === uploadedThumbnailUrls.length + 1) {
+                uploadedThumbnailUrls.push(oldVideoThumbnail);
+              } else {
+                uploadedThumbnailUrls.splice(
+                  validOrder - 1,
+                  0,
+                  oldVideoThumbnail
+                );
+              }
+            }
+          } else {
+            if (
+              !uploadedThumbnailUrls.some(
+                (url) => url.public_id === oldVideoThumbnail.public_id
+              )
+            ) {
+              await uploadService.deleteFile(oldVideoThumbnail.public_id);
+            }
+          }
+        }
+      }
+
+      existingPost.media = JSON.stringify({
+        IMAGES: coverUrls,
+        VIDEOS: uploadedVideoUrls,
+        THUMBNAILS: uploadedThumbnailUrls,
+        ARTICLE: articleImageUrls,
+      }) as Object;
       existingPost.content = content || existingPost.content;
       existingPost.status = status || existingPost.status;
 
@@ -239,6 +402,7 @@ export class PostController {
       files.forEach((file) => {
         const filePath = path.join(uploadsPath, file);
         fs.unlinkSync(filePath);
+        logger.error(`Deleted file: ${filePath}`);
       });
 
       res
@@ -255,7 +419,7 @@ export class PostController {
         logger.error(`Deleted file: ${filePath}`);
       });
       logger.error(
-        `BrandController :: updateBrand :: ${(error as Error)?.message}`
+        `PostController :: updatePost :: ${(error as Error)?.message}`
       );
       return next(error);
     }
@@ -284,10 +448,10 @@ export class PostController {
           res.status(200).json(handleResponse("Post not found"));
           return next();
         }
-
+        praseMedia(singlePost);
         res
           .status(200)
-          .json(handleResponse("Brand Found Successfully", singlePost));
+          .json(handleResponse("Post Found Successfully", singlePost));
         return next();
       }
       if (true) {
@@ -305,9 +469,12 @@ export class PostController {
           res.status(200).json(handleResponse("No Posts Found"));
           return next();
         }
+        posts.forEach((post) => {
+          praseMedia(post);
+        });
 
         res.status(200).json(
-          handleResponse("Brands Fetched Successfully", {
+          handleResponse("Posts Fetched Successfully", {
             posts,
             pagination: {
               totalItems,

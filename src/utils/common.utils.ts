@@ -33,9 +33,9 @@ export const handleResponse = (
   };
 };
 
-export const parseCoverImages = (obj: any) => {
-  if (obj && typeof obj.coverImages === "string") {
-    obj.coverImages = JSON.parse(obj.coverImages);
+export const praseMedia = (obj: any) => {
+  if (obj && typeof obj.media === "string") {
+    obj.media = JSON.parse(obj.media);
   }
 };
 

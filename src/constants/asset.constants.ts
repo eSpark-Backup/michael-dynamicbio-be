@@ -42,7 +42,8 @@ export enum FILE_FIELDS {
   COVER = "cover",
   PROFILE = "profile",
   VIDEO = "videos",
-  SINGLE_IMAGE="image"
+  SINGLE_IMAGE="image",
+  THUMBNAIL= "thumbnails",
 }
 
 export enum CLOUD_FOLDERS {
