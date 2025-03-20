@@ -68,3 +68,10 @@ export interface UploadResult {
   url: string;
   public_id: string;
 }
+export interface Media {
+  IMAGES?: UploadResult[];
+  VIDEOS?: UploadResult[];
+  THUMBNAILS?: UploadResult[];
+  ARTICLE?:UploadResult[];
+  
+}

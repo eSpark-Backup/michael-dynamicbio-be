@@ -33,6 +33,10 @@ export class PostValidation {
     videoKeys: Joi.alternatives()
       .try(Joi.string(), Joi.array().items(Joi.string()))
       .optional(),
+    thumbnailKeys: Joi.alternatives()
+      .try(Joi.string(), Joi.array().items(Joi.string()))
+      .optional(),
+      
     status: Joi.string()
       .valid(...Object.values(POST_STATUS))
       .optional(),

@@ -3,8 +3,9 @@ import { CLOUD_CONFIG } from "../config";
 import { IFileObject } from "../interfaces";
 import { CLOUD_FOLDERS } from "../constants";
 import { logger } from "../utils";
-import { extname } from "path";
+import { extname, resolve } from "path";
 import streamifier from "streamifier";
+import { promisify } from "util";
 cloudinary.config({
   cloud_name: CLOUD_CONFIG.cloudName,
   api_key: CLOUD_CONFIG.apiKey,
@@ -12,50 +13,52 @@ cloudinary.config({
 });
 class UploadService {
   async uploadMultipleFiles(files: IFileObject[], folderName: string) {
-    return new Promise(async (resolve, reject) => {
-      if (!files?.length) {
-        return resolve({});
-      }
-      const imagesUrl = [];
-      let uploadCount = 1;
-      for (const file of files) {
-        try {
+    if (!files?.length) {
+      return resolve();
+    }
+  
+    try {
+     
+      const uploadResults = await Promise.all(
+        files.map(async (file) => {
           const uploadFile = await this.uploadFile(file, folderName);
-          imagesUrl.push({
+          return {
             url: (uploadFile as any)?.url,
             public_id: (uploadFile as any)?.public_id,
-          });
-          uploadCount++;
-        } catch (err) {
-          logger.error(
-            `Errors in uploading file :: ${(err as Error)?.message}`
-          );
-          return reject(err);
-        }
-      }
-      return resolve(imagesUrl);
-    });
+          };
+        })
+      );
+  
+      return uploadResults;
+    } catch (err) {
+      logger.error(`Errors in uploading files: ${(err as Error)?.message}`);
+      throw err; // Throw the error instead of rejecting manually
+    }
   }
+  
   async uploadFile(file: IFileObject, folderName: string) {
+    if (!file || !file.buffer) throw new Error("Invalid file object");
+  
+    const filename = `${Date.now()}-${folderName}${extname(file.originalname)}`;
+  
     return new Promise((resolve, reject) => {
       const cloudStream = cloudinary.uploader.upload_stream(
         {
           resource_type: "auto",
           folder: folderName,
-          filename_override: `${Date.now()}-${folderName}.${extname(
-            (file as unknown as { originalname: string })?.originalname
-          )}`,
+          filename_override: filename,
         },
-        function (error: any, result: any) {
+        (error, result) => {
           if (error) {
-            reject(error);
-          } else {
-            logger.info(`Uploading file ${file?.fieldname}`);
-            resolve(result);
+            logger.error(`Upload failed for ${filename}: ${error.message}`);
+            return reject(error);
           }
+          logger.info(`Uploaded file: ${file?.fieldname}`);
+          resolve(result);
         }
       );
-      cloudStream.end(file.buffer);
+  
+      cloudStream.end(file.buffer); 
     });
   }
 
