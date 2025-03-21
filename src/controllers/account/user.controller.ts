@@ -234,7 +234,7 @@ export class UserController {
         commonHelper.createFileObject(path.join(imageFilesPath, file), "image")
       );
 
-      let { country, industry, company, designation } = req.body;
+      let { country, industry, company, designation,city } = req.body;
 
       const FolderName = `${CLOUD_FOLDERS.USER}/${
         user.firstName.trim() + user.lastName.trim()
@@ -250,6 +250,7 @@ export class UserController {
       user.country = country || user.country;
       user.industry = industry || user.industry;
       user.company = company || user.company;
+      user.city = city || user.city;
       user.designation = designation || user.designation;
       user.profileStatus = ProfileStatus.COMPLETED;
 
@@ -294,7 +295,7 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.user?.id;
-      const { about,country,industry,designation,company } = req.body;
+      const { about,country,industry,designation,company,city } = req.body;
 
       // const name = [firstName, lastName].filter(Boolean).join(" ");
       const imageFilesPath = path.join(process.cwd(), "uploads");
@@ -358,6 +359,7 @@ export class UserController {
       user.industry = industry || user.industry;
       user.company = company || user.company;
       user.designation = designation || user.designation;
+      user.city = city || user.city;
 
       // const chatUser = await UserForChat.findById(req.user?._id);
       // chatUser.name = name;

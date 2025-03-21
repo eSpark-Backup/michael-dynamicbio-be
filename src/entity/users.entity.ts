@@ -77,6 +77,9 @@ export class User extends BaseEntity {
   country: string;
 
   @Column({ type: "varchar", length: 100, nullable: true })
+  city: string;
+
+  @Column({ type: "varchar", length: 100, nullable: true })
   company: string;
 
   @Column({ type: "varchar", length: 100, nullable: true })

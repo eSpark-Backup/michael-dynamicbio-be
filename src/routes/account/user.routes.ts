@@ -210,6 +210,9 @@ router.get("/notifications",checkJwt, setPagination, (req, res, next) =>
  *               country:
  *                 type: string
  *                 description: Details about the User.
+ *               city:
+ *                 type: string
+ *                 description: Details about the User.
  *               designation:
  *                 type: string
  *                 description: Details about the User.
@@ -263,6 +266,21 @@ router.put(
  *           schema:
  *             type: object
  *             properties:
+ *               country:
+ *                 type: string
+ *                 description: Details about the User.
+ *               city:
+ *                 type: string
+ *                 description: Details about the User.
+ *               designation:
+ *                 type: string
+ *                 description: Details about the User.
+ *               industry:
+ *                 type: string
+ *                 description: Details about the User.
+ *               company:
+ *                 type: string
+ *                 description: Details about the User.
  *               about:
  *                  type: object
  *                  required: false
