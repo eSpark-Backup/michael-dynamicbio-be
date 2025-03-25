@@ -23,7 +23,22 @@ export enum POST_STATUS {
   DRAFT = "DRAFT",
   PUBLISH = "PUBLISH",
 }
-
+export enum POST_TYPE {
+  TEXT = "TEXT",
+  IMAGE = "IMAGE",
+  VIDEO = "VIDEO",
+  ARTICLE = "ARTICLE",
+  POLL = "POLL",
+  EVENT = "EVENT",
+}
+export enum POST_VISIBILITY {
+  PUBLIC = "PUBLIC",
+  CONNECTIONS = "CONNECTIONS",
+  ONLY_ME = "ONLY_ME",
+  GROUPS = "GROUPS",
+  FOLLOWERS = "FOLLOWERS",
+  
+}
 export const enum ERROR_MESSAGES {
   SUCCESS = "Success",
   FAILED = "Failed",

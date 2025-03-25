@@ -1,32 +1,34 @@
 import Joi from "joi";
-import { POST_STATUS } from "../constants";
+import { POST_STATUS, POST_TYPE, POST_VISIBILITY } from "../constants";
 
 export class PostValidation {
   static CreatePost = Joi.object({
-    content: Joi.object({
-      description: Joi.string().optional(),
-      htmlContent: Joi.string().optional(),
-    }).optional(),
+    content: Joi.object().unknown(true).optional(),
 
-   imageOrder: Joi.alternatives()
+    imageOrder: Joi.alternatives()
       .try(Joi.string(), Joi.array().items(Joi.string()))
       .optional(),
-      videoOrder: Joi.alternatives()
+    videoOrder: Joi.alternatives()
       .try(Joi.string(), Joi.array().items(Joi.string()))
       .optional(),
     status: Joi.string()
       .valid(...Object.values(POST_STATUS))
       .required(),
+    visibility: Joi.string()
+      .optional()
+      .valid(...Object.values(POST_VISIBILITY))
+      .required(),
+
+    type: Joi.string()
+      .optional()
+      .valid(...Object.values(POST_TYPE))
+      .required(),
   });
 
   static UpdatePost = Joi.object({
-  
     imageOrder: Joi.array().items(Joi.string()).optional(),
     videoOrder: Joi.array().items(Joi.string()).optional(),
-    content: Joi.object({
-      description: Joi.string().optional(),
-      htmlContent: Joi.string().optional(),
-    }).optional(),
+    content: Joi.object().unknown(true).optional(),
     imageKeys: Joi.alternatives()
       .try(Joi.string(), Joi.array().items(Joi.string()))
       .optional(),
@@ -36,10 +38,18 @@ export class PostValidation {
     thumbnailKeys: Joi.alternatives()
       .try(Joi.string(), Joi.array().items(Joi.string()))
       .optional(),
-      
+
     status: Joi.string()
       .valid(...Object.values(POST_STATUS))
       .optional(),
-  });
+    visibility: Joi.string()
+      .optional()
+      .valid(...Object.values(POST_VISIBILITY))
+      .required(),
 
+    type: Joi.string()
+      .optional()
+      .valid(...Object.values(POST_TYPE))
+      .required(),
+  });
 }

@@ -9,16 +9,29 @@ import {
 } from "typeorm";
 import { BaseEntity, User } from ".";
 
-export enum PostPrivacy {
-  PUBLIC = "public",
-  FRIENDS_ONLY = "friends_only",
-  PRIVATE = "private",
-}
+
 
 export enum PostStatus {
   ARCHIVE = "ARCHIVE",
   DRAFT = "DRAFT",
   PUBLISH = "PUBLISH",
+}
+
+export enum PostType {
+  TEXT = "TEXT",
+  IMAGE = "IMAGE",
+  VIDEO = "VIDEO",
+  ARTICLE = "ARTICLE",
+  POLL = "POLL",
+  EVENT = "EVENT",
+}
+export enum PostVisibility {
+  PUBLIC = "PUBLIC",
+  CONNECTIONS = "CONNECTIONS",
+  ONLY_ME = "ONLY_ME",
+  GROUPS = "GROUPS",
+  FOLLOWERS = "FOLLOWERS",
+  
 }
 @Entity()
 export class Post extends BaseEntity {
@@ -36,10 +49,17 @@ export class Post extends BaseEntity {
 
   @Column({
     type: "enum",
-    enum: PostPrivacy,
-    default: PostPrivacy.PUBLIC,
+    enum: PostType,
+    default: PostType.TEXT,
   })
-  privacy: PostPrivacy;
+  type: PostType;
+
+  @Column({
+    type: "enum",
+    enum: PostVisibility,
+    default: PostVisibility.PUBLIC,
+  })
+  visibility: PostVisibility;
 
   @Column({ type: "varchar", length: 100, nullable: true })
   scheduledAt: string;

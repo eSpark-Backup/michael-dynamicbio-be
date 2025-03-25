@@ -60,6 +60,23 @@ const postController = new PostController(userRepository, postRepository);
  *                   - PUBLISH
  *                   - DRAFT
  *                   - ARCHIVE
+ *               visibility:
+ *                 type: string
+ *                 enum:
+ *                   - PUBLIC
+ *                   - CONNECTIONS
+ *                   - ONLY_ME
+ *                   - GROUPS
+ *                   - FOLLOWERS
+ *               type:
+ *                 type: string
+ *                 enum:
+ *                   - TEXT
+ *                   - IMAGE
+ *                   - VIDEO
+ *                   - ARTICLE
+ *                   - POLL
+ *                   - EVENT
  *               imageOrder:
  *                  type: array
  *                  required: false
@@ -155,6 +172,23 @@ router.post(
  *                   - PUBLISH
  *                   - DRAFT
  *                   - ARCHIVE
+ *               visibility:
+ *                 type: string
+ *                 enum:
+ *                   - PUBLIC
+ *                   - CONNECTIONS
+ *                   - ONLY_ME
+ *                   - GROUPS
+ *                   - FOLLOWERS
+ *               type:
+ *                 type: string
+ *                 enum:
+ *                   - TEXT
+ *                   - IMAGE
+ *                   - VIDEO
+ *                   - ARTICLE
+ *                   - POLL
+ *                   - EVENT
  *               images:
  *                 type: array
  *                 required: false

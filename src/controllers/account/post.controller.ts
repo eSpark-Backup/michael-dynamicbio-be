@@ -28,7 +28,7 @@ export class PostController {
     next: NextFunction
   ): Promise<void> {
     try {
-      let { content, status, imagesOrder, videosOrder, thumbnailsOrder } =
+      let {visibility,type, content, status, imagesOrder, videosOrder, thumbnailsOrder } =
         req.body;
       const postFilesPath = path.join(process.cwd(), "uploads");
 
@@ -94,6 +94,8 @@ export class PostController {
       newPost.author = user as User;
       newPost.content = content;
       newPost.status = status;
+      newPost.visibility = visibility;
+      newPost.type = type;
       newPost.media =
         (JSON.stringify({
           IMAGES: coverUrls,
@@ -175,7 +177,7 @@ export class PostController {
       );
 
       const { id } = req.params;
-      let { content, status, imageKeys, videoKeys, thumbnailKeys } = req.body;
+      let {visibility,type, content, status, imageKeys, videoKeys, thumbnailKeys } = req.body;
 
       imageKeys = commonHelper.normalizeKeys(imageKeys);
       videoKeys = commonHelper.normalizeKeys(videoKeys);
@@ -393,6 +395,8 @@ export class PostController {
       }) as Object;
       existingPost.content = content || existingPost.content;
       existingPost.status = status || existingPost.status;
+      existingPost.visibility = visibility || existingPost.visibility;
+      existingPost.type = type || existingPost.type;
 
       const UpdatedPost = await this.postRepo.update(id, existingPost);
       const uploadsPath = path.join(process.cwd(), "uploads");
