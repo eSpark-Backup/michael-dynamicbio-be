@@ -1,5 +1,5 @@
 import { NextFunction, Response } from "express";
-import { Post, PostStatus, User } from "../../entity";
+import { Post, PostStatus, PostType, User } from "../../entity";
 import {
   ICustomRequest,
   IFileObject,
@@ -15,6 +15,7 @@ import { CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
 import { commonHelper } from "../../helpers";
 import { handleResponse, logger, praseMedia } from "../../utils";
 import { uploadService } from "../../services";
+
 export class PostController {
   constructor(
     private usersRepo: Repository<User>,
@@ -28,8 +29,15 @@ export class PostController {
     next: NextFunction
   ): Promise<void> {
     try {
-      let {visibility,type, content, status, imagesOrder, videosOrder, thumbnailsOrder } =
-        req.body;
+      let {
+        visibility,
+        type,
+        content,
+        status,
+        imagesOrder,
+        videosOrder,
+        thumbnailsOrder,
+      } = req.body;
       const postFilesPath = path.join(process.cwd(), "uploads");
 
       let postFiles = fs
@@ -57,6 +65,21 @@ export class PostController {
         thumbnailFiles,
         thumbnailsOrder
       );
+
+      if (thumbnailFiles.length === 0 && videoFiles.length > 0) {
+        const videoPath = path.join(postFilesPath, videoFiles[0]);
+        try {
+          const thumbnailFilename = await commonHelper.generateVideoThumbnail(
+            videoPath,
+            postFilesPath
+          );
+          if (thumbnailFilename) {
+            thumbnailFiles.push(thumbnailFilename);
+          }
+        } catch (error) {
+          logger.error("Failed to generate thumbnail:", error);
+        }
+      }
 
       const postFileObjects: IFileObject[] = postFiles.map((file) =>
         commonHelper.createFileObject(path.join(postFilesPath, file), "images")
@@ -101,7 +124,7 @@ export class PostController {
           IMAGES: coverUrls,
           VIDEOS: uploadedVideoUrls,
           THUMBNAILS: uploadedThumbnailUrls,
-          ARTICLES: uploadedArticleUrls,
+          [type === PostType.EVENT ? "EVENTS" : "ARTICLES"]: uploadedArticleUrls,
         }) as Object) || null;
       const post = await this.postRepo.save(newPost);
 
@@ -160,6 +183,21 @@ export class PostController {
         .readdirSync(postFilesPath)
         .filter((file) => file.startsWith("cover"));
 
+      if (thumbnailFiles.length === 0 && videoFiles.length > 0) {
+        const videoPath = path.join(postFilesPath, videoFiles[0]);
+        try {
+          const thumbnailFilename = await commonHelper.generateVideoThumbnail(
+            videoPath,
+            postFilesPath
+          );
+          if (thumbnailFilename) {
+            thumbnailFiles.push(thumbnailFilename);
+          }
+        } catch (error) {
+          logger.error("Failed to generate thumbnail:", error);
+        }
+      }
+
       const postFileObjects: IFileObject[] = postFiles.map((file) =>
         commonHelper.createFileObject(path.join(postFilesPath, file), "images")
       );
@@ -177,7 +215,15 @@ export class PostController {
       );
 
       const { id } = req.params;
-      let {visibility,type, content, status, imageKeys, videoKeys, thumbnailKeys } = req.body;
+      let {
+        visibility,
+        type,
+        content,
+        status,
+        imageKeys,
+        videoKeys,
+        thumbnailKeys,
+      } = req.body;
 
       imageKeys = commonHelper.normalizeKeys(imageKeys);
       videoKeys = commonHelper.normalizeKeys(videoKeys);
@@ -211,7 +257,7 @@ export class PostController {
           oldPostImages = parsedMedia.IMAGES ?? [];
           oldPostVideos = parsedMedia.VIDEOS ?? [];
           oldVideoThumbnails = parsedMedia.THUMBNAILS ?? [];
-          oldArticleImage = parsedMedia.ARTICLE ?? null;
+          oldArticleImage = parsedMedia.ARTICLES ?? null;
         } catch (error) {
           logger.error("Failed to parse media:", error);
         }
@@ -223,7 +269,10 @@ export class PostController {
         oldPostImages = mediaObj.IMAGES ?? [];
         oldPostVideos = mediaObj.VIDEOS ?? [];
         oldVideoThumbnails = mediaObj.THUMBNAILS ?? [];
-        oldArticleImage = mediaObj.ARTICLE ?? [];
+        oldArticleImage = mediaObj[existingPost.type === PostType.EVENT ? "EVENTS" : "ARTICLES"] ?? [];
+
+
+
       }
 
       const coverUrls = postFileObjects
@@ -239,7 +288,12 @@ export class PostController {
       const articleImageUrls = (
         articleFileObjects?.length > 0
           ? await commonHelper.uploadFiles(articleFileObjects, FolderName)
-          : [{ url: oldArticleImage[0].url,public_id: oldArticleImage[0].public_id}]
+          : [
+              {
+                url: oldArticleImage[0].url,
+                public_id: oldArticleImage[0].public_id,
+              },
+            ]
       ) as UploadResult[];
 
       if (
@@ -387,16 +441,18 @@ export class PostController {
         }
       }
 
-      existingPost.media = JSON.stringify({
-        IMAGES: coverUrls,
-        VIDEOS: uploadedVideoUrls,
-        THUMBNAILS: uploadedThumbnailUrls,
-        ARTICLE: articleImageUrls,
-      }) as Object;
+  
       existingPost.content = content || existingPost.content;
       existingPost.status = status || existingPost.status;
       existingPost.visibility = visibility || existingPost.visibility;
       existingPost.type = type || existingPost.type;
+      existingPost.media = JSON.stringify({
+        IMAGES: coverUrls,
+        VIDEOS: uploadedVideoUrls,
+        THUMBNAILS: uploadedThumbnailUrls,
+        [existingPost.type === PostType.EVENT ? "EVENTS" : "ARTICLES"]: articleImageUrls,
+      }) as Object;
+      
 
       const UpdatedPost = await this.postRepo.update(id, existingPost);
       const uploadsPath = path.join(process.cwd(), "uploads");

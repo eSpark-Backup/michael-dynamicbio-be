@@ -12,6 +12,7 @@ import { logger } from "../utils";
 import { commonHelper } from "../helpers";
 import fs from "fs";
 import path from "path";
+
 const uploadsPath = path.join(process.cwd(), "uploads");
 
 if (!fs.existsSync(uploadsPath)) {

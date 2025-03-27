@@ -16,6 +16,7 @@ export const configs = {
   EXPIRES_IN: <string>getEnv("EXPIRES_IN"),
   LINK_SECRET_KEY: <string>getEnv("LINK_SECRET_KEY"),
   QR_ISSUER: <string>getEnv("QR_ISSUER"),
+  FFMPEG_PATH: <string>getEnv("FFMPEG_PATH"),
 };
 
 export const MAILER_CONFIG = {

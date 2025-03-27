@@ -3,8 +3,41 @@ import fs from "fs";
 import path from "path";
 import { IFileObject, UploadResult } from "../interfaces";
 import { uploadService } from "../services";
-
+import { v4 as uuidv4 } from "uuid";
+import ffmpeg from "fluent-ffmpeg";
+import { logger } from "../utils";
+import { configs } from "../config";
+ffmpeg.setFfmpegPath(configs.FFMPEG_PATH);
 export class CommonHelper {
+  async generateVideoThumbnail(
+    videoPath: string,
+    outputFolder: string
+  ): Promise<string | null> {
+    const thumbnailFilename = `thumbnail-${uuidv4()}.jpg`;
+    const thumbnailPath = path.join(
+      outputFolder,
+      "thumbnails",
+      thumbnailFilename
+    );
+
+    return new Promise((resolve, reject) => {
+      ffmpeg(videoPath)
+        .screenshots({
+          timestamps: [1], 
+          filename: thumbnailFilename,
+          folder: path.join(outputFolder),
+        })
+        .on("end", () => {
+          logger.info(`Generated thumbnail: ${thumbnailPath}`);
+          resolve(thumbnailFilename);
+        })
+        .on("error", (err) => {
+          logger.error("Error generating thumbnail:", err);
+          reject(null);
+        });
+    });
+  }
+
   createFileObject = (filePath: string, fieldname: string): IFileObject => {
     const fileBuffer = fs.readFileSync(filePath); // Read file as Buffer
     const fileStats = fs.statSync(filePath); // Get file stats (for size)
@@ -73,14 +106,14 @@ export class CommonHelper {
     return new Date(currentDate.getTime() + days * 24 * 60 * 60 * 1000);
   }
 
-   normalizeKeys = (keys: string | string[] | undefined): string[] => {
+  normalizeKeys = (keys: string | string[] | undefined): string[] => {
     if (!keys) return []; // Ensure keys is always an array
-    if (Array.isArray(keys)) return keys.filter((key) => typeof key === "string");
-    if (typeof keys === "string") return keys.split(",").map((item) => item.trim());
+    if (Array.isArray(keys))
+      return keys.filter((key) => typeof key === "string");
+    if (typeof keys === "string")
+      return keys.split(",").map((item) => item.trim());
     return [];
   };
-  
-
 
   reorderCoverFiles = (coverFiles: string[], coverOrder: string | string[]) => {
     if (typeof coverOrder === "string" && !Array.isArray(coverOrder)) {
@@ -104,20 +137,22 @@ export class CommonHelper {
     return [...orderedFiles, ...remainingFiles];
   };
 
-  uploadFiles = async (files?: IFileObject[], folder?: string): Promise<UploadResult[]> => {
+  uploadFiles = async (
+    files?: IFileObject[],
+    folder?: string
+  ): Promise<UploadResult[]> => {
     if (!Array.isArray(files) || files.length === 0) {
-      return []; 
+      return [];
     }
-  
+
     try {
       const result = await uploadService.uploadMultipleFiles(files, folder);
-      return Array.isArray(result) ? result : []; 
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("File upload failed:", error);
-      return []; 
+      return [];
     }
   };
-  
 }
 
 export const commonHelper = new CommonHelper();

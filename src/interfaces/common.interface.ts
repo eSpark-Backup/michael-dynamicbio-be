@@ -72,6 +72,7 @@ export interface Media {
   IMAGES?: UploadResult[];
   VIDEOS?: UploadResult[];
   THUMBNAILS?: UploadResult[];
-  ARTICLE?:UploadResult[];
+  ARTICLES?:UploadResult[];
+  EVENTS?:UploadResult[];
   
 }
