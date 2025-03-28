@@ -122,6 +122,7 @@ jobs:
           echo "SMTP_SERVICE: ${{ secrets.SMTP_SERVICE }}" >> .env
           echo "SMTP_PASS: ${{ secrets.SMTP_PASS }}" >> .env
           echo "SMTP_FROM: ${{ secrets.SMTP_FROM }}" >> .env
+          echo "FFMPEG_PATH: ${{ secrets.FFMPEG_PATH }}" >> .env
         
       - name: Build, tag, and push image to Amazon ECR
         id: build-publish
