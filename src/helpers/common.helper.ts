@@ -52,6 +52,39 @@ export class CommonHelper {
     };
   };
 
+
+  
+
+ getNotificationTitle(action: string): string {
+  switch (action) {
+    case "accepted":
+      return "Bond Request Accepted 🎉";
+    case "rejected":
+      return "Bond Request Rejected ❌";
+    case "blocked":
+      return "User Blocked 🚫";
+    case "canceled":
+      return "Bond Request Cancelled 🔔";
+    default:
+      return "Bond Update";
+  }
+}
+
+ getNotificationMessage(action: string, firstName: string, lastName: string): string {
+  switch (action) {
+    case "accepted":
+      return `${firstName} ${lastName} accepted your bond request!`;
+    case "rejected":
+      return `${firstName} ${lastName} rejected your bond request.`;
+    case "blocked":
+      return `${firstName} ${lastName} blocked you.`;
+    case "canceled":
+      return `You cancelled the bond request with ${firstName} ${lastName}.`;
+    default:
+      return "Bond status updated.";
+  }
+}
+
   assignValues(target: Record<string, any>, source: Record<string, any>) {
     for (const key in source) {
       if (source?.hasOwnProperty(key)) {

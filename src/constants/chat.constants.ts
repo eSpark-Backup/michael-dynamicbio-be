@@ -8,6 +8,12 @@ export const NEW_REQUEST = "NEW_REQUEST";
 export const NEW_MESSAGE = "NEW_MESSAGE";
 export const NEW_NOTIFICATION = "NEW_NOTIFICATION";
 
+
+export const NEW_BOND = "NEW_BOND";
+export const NEW_BOND_REQUEST = "NEW_BOND_REQUEST";
+export const NEW_BOND_REQUEST_ALERT = "NEW_BOND_REQUEST_ACCEPTED";
+export const BOND_REQUEST_UPDATED = "BOND_REQUEST_UPDATED";
+
 export const START_TYPING = "START_TYPING";
 export const STOP_TYPING = "STOP_TYPING";
 
@@ -15,3 +21,5 @@ export const CHAT_JOINED = "CHAT_JOINED";
 export const CHAT_LEFT = "CHAT_LEFT";
 
 export const ONLINE_USERS = "ONLINE_USERS";
+
+
