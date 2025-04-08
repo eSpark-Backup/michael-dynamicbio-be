@@ -212,6 +212,9 @@ router.get("/notifications", checkJwt, setPagination, (req, res, next) =>
  *               city:
  *                 type: string
  *                 description: Details about the User.
+ *               about:
+ *                 type: string
+ *                 description: Details about the User.
  *               designation:
  *                 type: string
  *                 description: Details about the User.

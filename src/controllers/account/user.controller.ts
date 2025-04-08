@@ -231,13 +231,13 @@ export class UserController {
 
       const imageFiles = fs
         .readdirSync(path.join(imageFilesPath))
-        .filter((file) => file.startsWith("image")); // Filter for image files
+        .filter((file) => file.startsWith("image")); 
 
       const imageFileObjects: IFileObject[] = imageFiles.map((file) =>
         commonHelper.createFileObject(path.join(imageFilesPath, file), "image")
       );
 
-      let { country, industry, company, designation, city } = req.body;
+      let { country, industry, company, designation, city ,about} = req.body;
 
       const FolderName = `${CLOUD_FOLDERS.USER}/${
         user.firstName.trim() + user.lastName.trim()
@@ -255,6 +255,7 @@ export class UserController {
       user.company = company || user.company;
       user.city = city || user.city;
       user.designation = designation || user.designation;
+      user.about = about || user.about;
       user.profileStatus = ProfileStatus.COMPLETED;
 
       await this.usersRepo.save(user);
@@ -557,7 +558,6 @@ export class UserController {
     next: NextFunction
   ): Promise<void> {
     try {
-      // Retrieve the authenticated user's details
       const userId = req.user?.id;
       const user = (await this.usersRepo
         .createQueryBuilder("user")
