@@ -2,7 +2,7 @@ import { Router } from "express";
 import Joi from "joi";
 import { AuthValidation, UserValidation, validate } from "../../validations";
 import { UserController } from "../../controllers/account";
-import { User } from "../../entity";
+import { Bond, Post, User } from "../../entity";
 import { getRepository } from "typeorm";
 import { AppDataSource } from "../../typeorm.config";
 import {
@@ -18,13 +18,15 @@ import { parseJsonFields } from "../../utils";
 
 const router = Router();
 const userRepository = AppDataSource.getRepository(User);
-
+const postRepository = AppDataSource.getRepository(Post); // Assuming User is the correct entity for notifications
+const bondRepository = AppDataSource.getRepository(Bond);
 
 const userController = new UserController(
   userRepository,
   Notification,
+  postRepository,
+  bondRepository
 );
-
 
 /**
  * @swagger
@@ -62,7 +64,6 @@ router.post(
   validate(UserValidation.verifyQr, "body"),
   (req, res, next) => userController.verifyQr(req, res, next)
 );
-
 
 /**
  * @swagger
@@ -103,7 +104,7 @@ router.post(
  *       500:
  *         description: Server error.
  */
-router.get("/profile",checkJwt, (req, res, next) =>
+router.get("/profile", checkJwt, (req, res, next) =>
   userController.getUserProfile(req, res, next)
 );
 
@@ -184,11 +185,9 @@ router.get("/profile",checkJwt, (req, res, next) =>
  *       500:
  *         description: Server error.
  */
-router.get("/notifications",checkJwt, setPagination, (req, res, next) =>
+router.get("/notifications", checkJwt, setPagination, (req, res, next) =>
   userController.fetchNotifications(req, res, next)
 );
-
-
 
 /**
  * @swagger
@@ -241,13 +240,9 @@ router.put(
   "/add-profile",
   checkJwt,
   validateRoles([ROLES.USER]),
-  handleMultipleFiles([
-    { name: FILE_FIELDS.SINGLE_IMAGE, maxCount: 1 },
-  ]),
+  handleMultipleFiles([{ name: FILE_FIELDS.SINGLE_IMAGE, maxCount: 1 }]),
   (req, res, next) => userController.updateProfileImage(req, res, next)
 );
-
-
 
 /**
  * @swagger
@@ -537,10 +532,6 @@ router.get("/confirm-email", checkJwt, (req, res, next) =>
   userController.verifyTokenAPI(req, res, next)
 );
 
-
-
-
-
 /**
  * @swagger
  * /user/generate-qr:
@@ -550,7 +541,7 @@ router.get("/confirm-email", checkJwt, (req, res, next) =>
  *     security:
  *       - bearerAuth: []
  *     tags:
- *     - User 
+ *     - User
  *     responses:
  *       200:
  *         description: QR code generated successfully
@@ -574,11 +565,6 @@ router.get(
   validateRoles([ROLES.USER]),
   (req, res, next) => userController.generateQr(req, res, next)
 );
-
-
-
-
-
 
 /**
  * @swagger
@@ -620,7 +606,6 @@ router.post(
   (req, res, next) => userController.verifyResync(req, res, next)
 );
 
-
 /**
  * @swagger
  * /user/verify-new-device:
@@ -659,15 +644,50 @@ router.post(
  *       500:
  *         description: Server error
  */
-router.get(
-  "/verify-new-device", 
-  QrCheckJwt,
-  (req, res, next) =>
-    userController.verifyNewDevice(req, res, next)
+router.get("/verify-new-device", QrCheckJwt, (req, res, next) =>
+  userController.verifyNewDevice(req, res, next)
 );
 
-
-
-
+/**
+ * @swagger
+ * /user/timeline:
+ *   get:
+ *     summary: Get user's timeline
+ *     description: Fetch posts from user and their accepted bonds.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Timeline
+ *     parameters:
+ *       - in: query
+ *         name: pageSize
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           example: 10
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         description: Page number to retrieve (for paginated results).
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *     responses:
+ *       200:
+ *         description: Timeline fetched successfully
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Server error
+ */
+router.get(
+  "/timeline",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  setPagination,
+  (req, res, next) => userController.getTimeline(req, res, next)
+);
 
 export { router };
