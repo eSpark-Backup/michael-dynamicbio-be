@@ -102,6 +102,7 @@ export class BondController {
 
       emitEvent(req, NEW_BOND_REQUEST, members, notificationData);
 
+
       await createNotification({
         userId: recipient.userChatId,
         title: "New Bond Request 💖",
@@ -131,7 +132,7 @@ export class BondController {
   
       let query = this.usersRepo
         .createQueryBuilder("user")
-        .where("user.id != :id", { id: req.user.id }); // Exclude current user always!
+        .where("user.id != :id", { id: req.user.id }); 
   
       if (id) {
         query = query.andWhere("user.id = :userId", { userId: id });
@@ -158,6 +159,8 @@ export class BondController {
           "user.sendEmails",
           "user.profile",
           "user.userChatId",
+          "user.designation",
+          "user.about",
         ])
         .skip(skip)
         .take(pageSize)
