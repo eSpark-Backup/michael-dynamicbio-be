@@ -1,5 +1,5 @@
 import { NextFunction, Request, RequestHandler, Response } from "express";
-import { ProfileStatus, User } from "../../entity";
+import { Bond, BondStatus, Post, PostStatus, ProfileStatus, User } from "../../entity";
 
 import { ApiError } from "../../errors";
 import { Repository } from "typeorm";
@@ -9,6 +9,7 @@ import {
   generateToken,
   handleResponse,
   logger,
+  praseMedia,
   verifyToken,
 } from "../../utils";
 import { CHAT_COOKIE, CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
@@ -36,7 +37,9 @@ import qrCode from "qrcode";
 export class UserController {
   constructor(
     private usersRepo: Repository<User>,
-    private notificationModel: typeof Notification
+    private notificationModel: typeof Notification,
+    private postsRepo: Repository<Post>,
+    private bondsRepo: Repository<Bond>
   ) {}
 
   async verifyTokenAPI(
@@ -234,7 +237,7 @@ export class UserController {
         commonHelper.createFileObject(path.join(imageFilesPath, file), "image")
       );
 
-      let { country, industry, company, designation,city } = req.body;
+      let { country, industry, company, designation, city } = req.body;
 
       const FolderName = `${CLOUD_FOLDERS.USER}/${
         user.firstName.trim() + user.lastName.trim()
@@ -256,7 +259,6 @@ export class UserController {
 
       await this.usersRepo.save(user);
       const { password: _, ...userProfile } = user;
-  
 
       const chatUser = await UserForChat.findById(req.user?._id);
       chatUser.avatar = imageUrls[0]?.url;
@@ -295,7 +297,7 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.user?.id;
-      const { about,country,industry,designation,company,city } = req.body;
+      const { about, country, industry, designation, company, city } = req.body;
 
       // const name = [firstName, lastName].filter(Boolean).join(" ");
       const imageFilesPath = path.join(process.cwd(), "uploads");
@@ -437,6 +439,74 @@ export class UserController {
     }
   }
 
+  async getTimeline(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user.id;
+      const { page, take, skip } = req?.query;
+      const skipNumber = Number(skip);
+      const takeNumber = Number(take);
+
+      const bonds = await this.bondsRepo
+        .createQueryBuilder("bond")
+        .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+          userId,
+        })
+        .leftJoinAndSelect("bond.requester", "requester")
+        .leftJoinAndSelect("bond.recipient", "recipient")
+        .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
+        
+        .getMany();
+
+      const bondedUserIds = bonds.map((bond) =>
+        bond.requester.id === userId ? bond.recipient.id : bond.requester.id
+      );
+
+      bondedUserIds.push(userId);
+
+      if (bondedUserIds.length === 0) {
+        res.status(200).json({
+          status: true,
+          data: [],
+          message: "No posts found in timeline",
+          statusCode: 200,
+        });
+      }
+
+      const [posts,totalItems] = await this.postsRepo
+        .createQueryBuilder("post")
+        .where("post.status:status", { status: PostStatus.PUBLISH })
+        .where("post.author IN (:...bondedUserIds)", { bondedUserIds })
+        .leftJoinAndSelect("post.author", "author")
+        .orderBy("post.createdAt", "DESC")
+        .skip(skipNumber)
+        .take(takeNumber)
+        .getManyAndCount();
+
+      posts.forEach((post) => {
+        praseMedia(post);
+      });
+
+      res.status(200).json(
+        handleResponse("Timeline Fetched Successfully", {
+          posts,
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page as string, 10),
+            pageSize: takeNumber,
+            totalPages: Math.ceil(totalItems / takeNumber),
+          },
+        })
+      );
+      return next();
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async fetchNotifications(
     req: ICustomRequest,
     res: Response,
@@ -498,7 +568,6 @@ export class UserController {
       }
 
       const { password: _, ...userProfile } = user as User;
-
 
       res
         .status(HTTP_STATUS.OK)
