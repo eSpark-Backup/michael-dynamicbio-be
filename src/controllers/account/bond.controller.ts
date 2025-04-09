@@ -102,7 +102,6 @@ export class BondController {
 
       emitEvent(req, NEW_BOND_REQUEST, members, notificationData);
 
-
       await createNotification({
         userId: recipient.userChatId,
         title: "New Bond Request 💖",
@@ -126,14 +125,18 @@ export class BondController {
     }
   }
 
-  async getAllUsers(req: ICustomRequest, res: Response, next: NextFunction): Promise<void> {
+  async getAllUsers(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      const { page , pageSize, search = "", id ,skip} = req.query as any;
-  
+      const { page, pageSize, search = "", id, skip } = req.query as any;
+
       let query = this.usersRepo
         .createQueryBuilder("user")
-        .where("user.id != :id", { id: req.user.id }); 
-  
+        .where("user.id != :id", { id: req.user.id });
+
       if (id) {
         query = query.andWhere("user.id = :userId", { userId: id });
       } else if (search) {
@@ -142,7 +145,7 @@ export class BondController {
           { search: `%${search}%` }
         );
       }
-  
+
       const [users, total] = await query
         .select([
           "user.id",
@@ -165,7 +168,7 @@ export class BondController {
         .skip(skip)
         .take(pageSize)
         .getManyAndCount();
-  
+
       res.status(200).json({
         status: true,
         data: {
@@ -184,7 +187,6 @@ export class BondController {
       next(error);
     }
   }
-  
 
   async getAllBondRequests(
     req: ICustomRequest,
@@ -193,21 +195,33 @@ export class BondController {
   ): Promise<void> {
     try {
       const userId = req.user.id;
-      const { type = "all", skip = "0", take = "10", page = "1", pageSize = "10" } = req.query;
-  
+      const {
+        type = "all",
+        skip = "0",
+        take = "10",
+        page = "1",
+        pageSize = "10",
+      } = req.query;
+
       let whereCondition: any;
-  
+
       if (type === "sent") {
-        whereCondition = { requester: { id: userId } };
+        whereCondition = {
+          requester: { id: userId },
+          status: BondStatus.PENDING,
+        };
       } else if (type === "received") {
-        whereCondition = { recipient: { id: userId } };
+        whereCondition = {
+          recipient: { id: userId },
+          status: BondStatus.PENDING,
+        };
       } else {
         whereCondition = [
-          { requester: { id: userId } },
-          { recipient: { id: userId } },
+          { requester: { id: userId }, status: BondStatus.PENDING },
+          { recipient: { id: userId }, status: BondStatus.PENDING },
         ];
       }
-  
+
       const [bonds, totalItems] = await this.bondsRepo.findAndCount({
         where: whereCondition,
         relations: ["requester", "recipient"],
@@ -215,7 +229,7 @@ export class BondController {
         skip: Number(skip),
         take: Number(take),
       });
-  
+
       res.status(HTTP_STATUS.OK).json(
         handleResponse("Bond requests fetched successfully", {
           bonds,
@@ -223,7 +237,9 @@ export class BondController {
             totalItems,
             currentPage: parseInt(page as string, 10),
             pageSize: parseInt(pageSize as string, 10),
-            totalPages: Math.ceil(totalItems / parseInt(pageSize as string, 10)),
+            totalPages: Math.ceil(
+              totalItems / parseInt(pageSize as string, 10)
+            ),
           },
         })
       );
@@ -239,57 +255,70 @@ export class BondController {
     try {
       const { bondId, action } = req.body;
       const userId = req.user.id;
-  
+
       const bond = await this.bondsRepo.findOne({
         where: { id: bondId },
         relations: ["requester", "recipient"],
       });
-  
+
       if (!bond) {
         throw new ApiError("Bond not found", HTTP_STATUS.NOT_FOUND);
       }
-  
+
       const recipientActions = ["accepted", "rejected", "blocked"];
       const requesterActions = ["canceled"];
-  
+
       if (recipientActions.includes(action)) {
         if (bond.recipient.id !== userId) {
-          throw new ApiError("You are not authorized to perform this action", HTTP_STATUS.UN_AUTHORIZED);
+          throw new ApiError(
+            "You are not authorized to perform this action",
+            HTTP_STATUS.UN_AUTHORIZED
+          );
         }
       } else if (requesterActions.includes(action)) {
         if (bond.requester.id !== userId) {
-          throw new ApiError("You are not authorized to perform this action", HTTP_STATUS.UN_AUTHORIZED);
+          throw new ApiError(
+            "You are not authorized to perform this action",
+            HTTP_STATUS.UN_AUTHORIZED
+          );
         }
       } else {
         throw new ApiError("Invalid action", HTTP_STATUS.BAD_REQUEST);
       }
-  
+
       if (bond.status !== BondStatus.PENDING) {
-        throw new ApiError("Bond request is not pending", HTTP_STATUS.BAD_REQUEST);
+        throw new ApiError(
+          "Bond request is not pending",
+          HTTP_STATUS.BAD_REQUEST
+        );
       }
-  
+
       const statusMap: Record<string, BondStatus> = {
         accepted: BondStatus.ACCEPTED,
         rejected: BondStatus.REJECTED,
         blocked: BondStatus.BLOCKED,
         canceled: BondStatus.CANCELED,
       };
-  
+
       bond.status = statusMap[action];
       await this.bondsRepo.save(bond);
-  
+
       const members = [bond.requester.userChatId];
       const notificationData = {
         title: commonHelper.getNotificationTitle(action),
-        message: commonHelper.getNotificationMessage(action, bond.recipient.firstName, bond.recipient.lastName),
+        message: commonHelper.getNotificationMessage(
+          action,
+          bond.recipient.firstName,
+          bond.recipient.lastName
+        ),
         bondId: bond.id,
         requesterId: bond.requester.userChatId,
         requesterProfileImage: bond.requester.profileImage,
         bondStatus: bond.status,
       };
-  
+
       emitEvent(req, BOND_REQUEST_UPDATED, members, notificationData);
-  
+
       await createNotification({
         userId: bond.requester.userChatId,
         title: notificationData.title,
@@ -303,11 +332,12 @@ export class BondController {
           bondStatus: bond.status,
         },
       });
-  
-      res.status(HTTP_STATUS.OK).json(handleResponse("Bond request updated successfully", bond));
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Bond request updated successfully", bond));
     } catch (error) {
       next(error);
     }
   }
-  
 }
