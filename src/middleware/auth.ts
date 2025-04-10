@@ -18,7 +18,8 @@ const socketAuthenticator = async (error: any, socket: any, next: any) => {
   try {
     if (error) return next(error);
 
-    const authToken = socket.request.headers.authorization?.split(" ")[1];
+    const authToken = socket.request.headers.authorization?.split(" ")[1] ||   socket.handshake.auth.token;
+    
 
     if (!authToken) throw new Error("Token not found");
 
