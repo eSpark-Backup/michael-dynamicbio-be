@@ -31,6 +31,7 @@ import {
   UploadResult,
 } from "../../interfaces";
 import { createNotification } from "../../services";
+import { object } from "joi";
 
 export class BondController {
   constructor(
@@ -194,6 +195,80 @@ export class BondController {
     }
   }
 
+  async getAllUserFriends(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user.id;
+  
+      const bonds = await this.bondsRepo.find({
+        where: [
+          {
+            requester: { id: userId },
+            status: BondStatus.ACCEPTED, 
+          },
+          {
+            recipient: { id: userId },
+            status: BondStatus.ACCEPTED, 
+          },
+        ],
+        relations: ["requester", "recipient"],
+        select: {
+          requester: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            profileImage: true,
+            countryCode: true,
+            phoneNumber: true,
+            about: object,
+            coverImage: true,
+            imageKey: true,
+            sendEmails: true,
+            profile: true,
+            userChatId: true,
+            designation: true,
+            createdAt:true,
+            updatedAt:true
+          },
+          recipient: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            profileImage: true,
+            countryCode: true,
+            phoneNumber: true,
+            about: object,
+            coverImage: true,
+            imageKey: true,
+            sendEmails: true,
+            profile: true,
+            userChatId: true,
+            designation: true,
+            createdAt:true,
+            updatedAt:true
+          },
+        },
+      });
+  
+      const friends = bonds.map((bond) => {
+        return bond.requester.id === userId ? bond.recipient : bond.requester;
+      });
+  
+      res.status(HTTP_STATUS.OK).json({
+        status: true,
+        data: friends,
+        message: "User friends fetched successfully",
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+  
   async getAllBondRequests(
     req: ICustomRequest,
     res: Response,
@@ -307,7 +382,12 @@ export class BondController {
       };
 
       bond.status = statusMap[action];
+      if(action === "accepted" || action === "blocked") {
       await this.bondsRepo.save(bond);
+      }
+      if (action === "canceled" || action === "rejected" ) {
+        await this.bondsRepo.remove(bond);
+      }
 
       const members = [bond.requester.userChatId];
       const notificationData = {

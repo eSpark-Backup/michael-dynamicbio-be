@@ -1,5 +1,5 @@
 import { NextFunction, Response } from "express";
-import { Post, PostStatus, PostType, User } from "../../entity";
+import { Likes, Post, PostStatus, PostType, User } from "../../entity";
 import {
   ICustomRequest,
   IFileObject,
@@ -19,7 +19,8 @@ import { uploadService } from "../../services";
 export class PostController {
   constructor(
     private usersRepo: Repository<User>,
-    private postRepo: Repository<Post>
+    private postRepo: Repository<Post>,
+    private likesRepo: Repository<Likes>
   ) {}
 
   async createPost(
@@ -124,7 +125,8 @@ export class PostController {
           IMAGES: coverUrls,
           VIDEOS: uploadedVideoUrls,
           THUMBNAILS: uploadedThumbnailUrls,
-          [type === PostType.EVENT ? "EVENTS" : "ARTICLES"]: uploadedArticleUrls,
+          [type === PostType.EVENT ? "EVENTS" : "ARTICLES"]:
+            uploadedArticleUrls,
         }) as Object) || null;
       const post = await this.postRepo.save(newPost);
 
@@ -269,10 +271,10 @@ export class PostController {
         oldPostImages = mediaObj.IMAGES ?? [];
         oldPostVideos = mediaObj.VIDEOS ?? [];
         oldVideoThumbnails = mediaObj.THUMBNAILS ?? [];
-        oldArticleImage = mediaObj[existingPost.type === PostType.EVENT ? "EVENTS" : "ARTICLES"] ?? [];
-
-
-
+        oldArticleImage =
+          mediaObj[
+            existingPost.type === PostType.EVENT ? "EVENTS" : "ARTICLES"
+          ] ?? [];
       }
 
       const coverUrls = postFileObjects
@@ -441,7 +443,6 @@ export class PostController {
         }
       }
 
-  
       existingPost.content = content || existingPost.content;
       existingPost.status = status || existingPost.status;
       existingPost.visibility = visibility || existingPost.visibility;
@@ -450,9 +451,9 @@ export class PostController {
         IMAGES: coverUrls,
         VIDEOS: uploadedVideoUrls,
         THUMBNAILS: uploadedThumbnailUrls,
-        [existingPost.type === PostType.EVENT ? "EVENTS" : "ARTICLES"]: articleImageUrls,
+        [existingPost.type === PostType.EVENT ? "EVENTS" : "ARTICLES"]:
+          articleImageUrls,
       }) as Object;
-      
 
       const UpdatedPost = await this.postRepo.update(id, existingPost);
       const uploadsPath = path.join(process.cwd(), "uploads");
@@ -501,7 +502,10 @@ export class PostController {
           .createQueryBuilder("post")
           .where("post.id = :id", { id })
           .leftJoinAndSelect("post.author", "author")
-
+          .leftJoinAndSelect("post.likes", "like")
+          .addSelect("COUNT(like.id)", "likesCount")
+          .groupBy("post.id") // Grouping only by post.id is not enough for all columns
+          .addGroupBy("post.createdAt") // Add other fields here as needed
           .getOne();
 
         if (!singlePost) {
@@ -519,19 +523,41 @@ export class PostController {
           .createQueryBuilder("post")
           .where("post.author = :userId", { userId: req.user?.id })
           .leftJoinAndSelect("post.author", "author")
-          // .andWhere("post.status = :status", { status: PostStatus.PUBLISH })
+          .leftJoinAndSelect("post.likes", "like")
+          .leftJoinAndSelect("like.user", "likedUser")
+          .leftJoinAndSelect("like.user", "lastLikedUser") 
+
+          .select([
+            "post",
+            "author",
+            "like",
+            "likedUser.id",
+            "likedUser.firstName",
+            "likedUser.lastName",
+            "lastLikedUser.firstName", 
+            "lastLikedUser.lastName",  
+          ])
           .orderBy("post.createdAt", "DESC")
+          .addOrderBy("like.createdAt", "DESC") 
+
           .skip(skipNumber)
           .take(takeNumber)
           .getManyAndCount();
-
         if (posts.length === 0) {
           res.status(200).json(handleResponse("No Posts Found"));
           return next();
         }
         posts.forEach((post) => {
           praseMedia(post);
+          (post as any).likesCount = post.likes.length;
+
+          const lastLike = post.likes[0]; 
+          (post as any).lastLikedUser = lastLike ? `${lastLike.user.firstName} ${lastLike.user.lastName}` : null;
+
+
+
         });
+
 
         res.status(200).json(
           handleResponse("Posts Fetched Successfully", {
