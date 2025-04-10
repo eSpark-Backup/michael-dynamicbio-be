@@ -76,7 +76,7 @@ export class BondController {
         ],
       });
 
-      if (existingBond) {
+      if (existingBond && existingBond.status !== BondStatus.CANCELED) {
         throw new ApiError(
           "Bond already exists or pending",
           HTTP_STATUS.BAD_REQUEST
