@@ -82,14 +82,20 @@ export class BondController {
           HTTP_STATUS.BAD_REQUEST
         );
       }
-
-      const bond = this.bondsRepo.create({
+      let bond: Bond;
+      if(existingBond && existingBond.status === BondStatus.CANCELED) {
+        existingBond.status = BondStatus.PENDING;
+        bond= await this.bondsRepo.save(existingBond);
+      }else {
+       bond = this.bondsRepo.create({
         requester: { id: requesterId },
         recipient: { id: recipientId },
         status: BondStatus.PENDING,
       });
-
       await this.bondsRepo.save(bond);
+
+    }
+
       const members = [recipient.userChatId];
       const notificationData = {
         title: "New Bond Request 💖",
