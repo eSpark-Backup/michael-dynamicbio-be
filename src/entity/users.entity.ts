@@ -7,7 +7,7 @@ import {
   OneToMany,
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
-import { Post } from ".";
+import { Comments, Likes, Post } from ".";
 export enum LoginType {
   LOCAL = "local",
   FACEBOOK = "facebook",
@@ -78,6 +78,12 @@ export class User extends BaseEntity {
 
   @Column({ type: "varchar", length: 100, nullable: true })
   city: string;
+
+  @OneToMany(() => Likes, (like) => like.user)
+  likes: Likes[];
+
+  @OneToMany(() => Comments, (comment) => comment.user)
+  comments: Comments[]; 
 
   @Column({ type: "varchar", length: 100, nullable: true })
   company: string;

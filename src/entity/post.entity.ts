@@ -7,9 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from "typeorm";
-import { BaseEntity, User } from ".";
-
-
+import { BaseEntity, Comments, Likes, User } from ".";
 
 export enum PostStatus {
   ARCHIVE = "ARCHIVE",
@@ -31,7 +29,6 @@ export enum PostVisibility {
   ONLY_ME = "ONLY_ME",
   GROUPS = "GROUPS",
   FOLLOWERS = "FOLLOWERS",
-  
 }
 @Entity()
 export class Post extends BaseEntity {
@@ -46,6 +43,12 @@ export class Post extends BaseEntity {
 
   @Column({ type: "json", nullable: true })
   media: object;
+
+  @OneToMany(() => Likes, (like) => like.post)
+  likes: Likes[];
+
+  @OneToMany(() => Comments, (comment) => comment.post)
+  comments: Comments[]; 
 
   @Column({
     type: "enum",

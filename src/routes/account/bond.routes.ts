@@ -148,6 +148,87 @@ router.post(
   (req, res, next) => bondController.createBond(req, res, next)
 );
 
+
+
+/**
+ * @swagger
+ * /bond/user-bonds:
+ *   get:
+ *     summary: Get all Bonds (User Friends)
+ *     description: Retrieve a list of all Bonds (user Friends) with optional pagination and filters by name, email, or ID.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Bond
+ *     parameters:
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of records to fetch per page.
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Number of records to skip.
+ *       - in: query
+ *         name: id
+ *         schema:
+ *           type: string
+ *         description: Filter by specific user ID.
+ *     responses:
+ *       200:
+ *         description: Bonds fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Bonds fetched successfully.
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     users:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             example: user-id-123
+ *                           firstName:
+ *                             type: string
+ *                             example: John
+ *                           lastName:
+ *                             type: string
+ *                             example: Doe
+ *                           email:
+ *                             type: string
+ *                             example: john.doe@example.com
+ *                           profileImage:
+ *                             type: string
+ *                             example: https://example.com/profile.jpg
+ *       400:
+ *         description: Validation error.
+ *       403:
+ *         description: Forbidden.
+ *       500:
+ *         description: Server error.
+ */
+
+router.get("/user-bonds", checkJwt, validateRoles([ROLES.USER]),
+setPagination,
+
+ (req, res, next) =>
+  bondController.getAllUserFriends(req, res, next)
+);
+
+
+
 /**
  * @swagger
  * /bond/requests:
