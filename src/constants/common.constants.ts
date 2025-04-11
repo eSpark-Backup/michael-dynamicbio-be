@@ -1,3 +1,5 @@
+import {PostStatus} from "@/entity";
+
 export const enum NODE_ENVS {
   DEVELOPMENT = "development",
   PRODUCTION = "production",
@@ -22,6 +24,7 @@ export enum POST_STATUS {
   ARCHIVE = "ARCHIVE",
   DRAFT = "DRAFT",
   PUBLISH = "PUBLISH",
+  SCHEDULED = PostStatus.SCHEDULED
 }
 export enum POST_TYPE {
   TEXT = "TEXT",

@@ -23,7 +23,7 @@ export class PostValidation {
       .optional()
       .valid(...Object.values(POST_TYPE))
       .required(),
-  });
+  }).unknown(true)
 
   static UpdatePost = Joi.object({
     imageOrder: Joi.array().items(Joi.string()).optional(),
@@ -52,4 +52,16 @@ export class PostValidation {
       .valid(...Object.values(POST_TYPE))
       .required(),
   });
+  static SchedulePost = Joi.object({
+    scheduledDate: Joi.date()
+        .iso()
+        .greater('now')
+        .required()
+        .messages({
+          'date.base': 'Scheduled date must be a valid date',
+          'date.format': 'Scheduled date must be in ISO format',
+          'date.greater': 'Scheduled date must be in the future',
+          'any.required': 'Scheduled date is required'
+        })
+  })
 }

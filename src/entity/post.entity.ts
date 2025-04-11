@@ -13,6 +13,7 @@ export enum PostStatus {
   ARCHIVE = "ARCHIVE",
   DRAFT = "DRAFT",
   PUBLISH = "PUBLISH",
+  SCHEDULED = "SCHEDULED",
 }
 
 export enum PostType {
@@ -73,4 +74,10 @@ export class Post extends BaseEntity {
     default: PostStatus.DRAFT,
   })
   status: PostStatus;
+
+  @Column({ nullable: true, type: 'timestamp' })
+  scheduledFor: Date | null;
+
+  @Column({ nullable: true, type: "varchar" })
+  scheduledJobId: string;
 }

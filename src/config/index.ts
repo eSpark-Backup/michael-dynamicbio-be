@@ -17,6 +17,18 @@ export const configs = {
   LINK_SECRET_KEY: <string>getEnv("LINK_SECRET_KEY"),
   QR_ISSUER: <string>getEnv("QR_ISSUER"),
   FFMPEG_PATH: <string>getEnv("FFMPEG_PATH"),
+
+  // Redis configuration for Bull
+  REDIS_HOST: process.env.REDIS_HOST || 'localhost',
+  REDIS_PORT: process.env.REDIS_PORT || '6379',
+  REDIS_PASSWORD: process.env.REDIS_PASSWORD || '',
+
+  // Bull configuration
+  BULL_PREFIX: process.env.BULL_PREFIX || 'bull',
+
+  // Queue configuration
+  QUEUE_CLEAN_INTERVAL: parseInt(process.env.QUEUE_CLEAN_INTERVAL || '86400000', 10), // 24 hours in ms
+  QUEUE_CONCURRENCY: parseInt(process.env.QUEUE_CONCURRENCY || '5', 10),
 };
 
 export const MAILER_CONFIG = {
