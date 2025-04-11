@@ -84,18 +84,17 @@ export class BondController {
         );
       }
       let bond: Bond;
-      if(existingBond && existingBond.status === BondStatus.CANCELED) {
+      if (existingBond && existingBond.status === BondStatus.CANCELED) {
         existingBond.status = BondStatus.PENDING;
-        bond= await this.bondsRepo.save(existingBond);
-      }else {
-       bond = this.bondsRepo.create({
-        requester: { id: requesterId },
-        recipient: { id: recipientId },
-        status: BondStatus.PENDING,
-      });
-      await this.bondsRepo.save(bond);
-
-    }
+        bond = await this.bondsRepo.save(existingBond);
+      } else {
+        bond = this.bondsRepo.create({
+          requester: { id: requesterId },
+          recipient: { id: recipientId },
+          status: BondStatus.PENDING,
+        });
+        await this.bondsRepo.save(bond);
+      }
 
       const members = [recipient.userChatId];
       const notificationData = {
@@ -202,16 +201,16 @@ export class BondController {
   ): Promise<void> {
     try {
       const userId = req.user.id;
-  
+
       const bonds = await this.bondsRepo.find({
         where: [
           {
             requester: { id: userId },
-            status: BondStatus.ACCEPTED, 
+            status: BondStatus.ACCEPTED,
           },
           {
             recipient: { id: userId },
-            status: BondStatus.ACCEPTED, 
+            status: BondStatus.ACCEPTED,
           },
         ],
         relations: ["requester", "recipient"],
@@ -235,8 +234,8 @@ export class BondController {
             profile: true,
             userChatId: true,
             designation: true,
-            createdAt:true,
-            updatedAt:true
+            createdAt: true,
+            updatedAt: true,
           },
           recipient: {
             id: true,
@@ -253,24 +252,24 @@ export class BondController {
             profile: true,
             userChatId: true,
             designation: true,
-            createdAt:true,
-            updatedAt:true
+            createdAt: true,
+            updatedAt: true,
           },
         },
       });
-  
+
       const friends = bonds.map((bond) => {
-        const friend = bond.requester.id === userId ? bond.recipient : bond.requester;
+        const friend =
+          bond.requester.id === userId ? bond.recipient : bond.requester;
         return {
           bondId: bond.id,
           bondStatus: bond.status,
           createdAt: bond.createdAt,
           updatedAt: bond.updatedAt,
-          friend,  
+          friend,
         };
       });
-      
-  
+
       res.status(HTTP_STATUS.OK).json({
         status: true,
         data: friends,
@@ -280,7 +279,7 @@ export class BondController {
       next(error);
     }
   }
-  
+
   async getAllBondRequests(
     req: ICustomRequest,
     res: Response,
@@ -362,10 +361,12 @@ export class BondController {
       const requesterActions = ["canceled", "unfriend"];
       //TODO: Need to Add Optimize Logic for these conditions
       if (recipientActions.includes(action)) {
-        if(action == "unfriend") {
-            await this.bondsRepo.remove(bond);
-            res.status(HTTP_STATUS.OK).json(handleResponse("Bond removed successfully", bond));
-            return;
+        if (action == "unfriend") {
+          await this.bondsRepo.remove(bond);
+          res
+            .status(HTTP_STATUS.OK)
+            .json(handleResponse("Bond removed successfully", bond));
+          return;
         }
         if (bond.recipient.id !== userId) {
           throw new ApiError(
@@ -376,7 +377,9 @@ export class BondController {
       } else if (requesterActions.includes(action)) {
         if (action == "unfriend") {
           await this.bondsRepo.remove(bond);
-          res.status(HTTP_STATUS.OK).json(handleResponse("Bond removed successfully", bond));
+          res
+            .status(HTTP_STATUS.OK)
+            .json(handleResponse("Bond removed successfully", bond));
         }
         if (bond.requester.id !== userId) {
           throw new ApiError(
@@ -403,14 +406,16 @@ export class BondController {
       };
 
       bond.status = statusMap[action];
-      if(action === "accepted" || action === "blocked") {
-      await this.bondsRepo.save(bond);
+      if (action === "accepted" || action === "blocked") {
+        await this.bondsRepo.save(bond);
       }
-      if (action === "canceled" || action === "rejected"  ) {
+      if (action === "canceled" || action === "rejected") {
         await this.bondsRepo.remove(bond);
       }
 
       const members = [bond.requester.userChatId];
+      if (action == "accepted") {
+
       const notificationData = {
         title: commonHelper.getNotificationTitle(action),
         message: commonHelper.getNotificationMessage(
@@ -424,21 +429,22 @@ export class BondController {
         bondStatus: bond.status,
       };
 
-      emitEvent(req, BOND_REQUEST_UPDATED, members, notificationData);
+        emitEvent(req, BOND_REQUEST_UPDATED, members, notificationData);
 
-      await createNotification({
-        userId: bond.requester.userChatId,
-        title: notificationData.title,
-        message: notificationData.message,
-        type: "info",
-        metadata: {
-          bondId: bond.id,
-          requesterId: bond.requester.userChatId,
-          requesterName: `${bond.recipient.firstName} ${bond.recipient.lastName}`,
-          requesterProfileImage: bond.recipient.profileImage,
-          bondStatus: bond.status,
-        },
-      });
+        await createNotification({
+          userId: bond.requester.userChatId,
+          title: notificationData.title,
+          message: notificationData.message,
+          type: "info",
+          metadata: {
+            bondId: bond.id,
+            requesterId: bond.requester.userChatId,
+            requesterName: `${bond.recipient.firstName} ${bond.recipient.lastName}`,
+            requesterProfileImage: bond.recipient.profileImage,
+            bondStatus: bond.status,
+          },
+        });
+      }
 
       res
         .status(HTTP_STATUS.OK)
