@@ -503,9 +503,8 @@ export class PostController {
           .where("post.id = :id", { id })
           .leftJoinAndSelect("post.author", "author")
           .leftJoinAndSelect("post.likes", "like")
-          .addSelect("COUNT(like.id)", "likesCount")
-          .groupBy("post.id") // Grouping only by post.id is not enough for all columns
-          .addGroupBy("post.createdAt") // Add other fields here as needed
+          .leftJoinAndSelect("like.user", "likedUser")
+          .leftJoinAndSelect("like.user", "lastLikedUser") 
           .getOne();
 
         if (!singlePost) {
@@ -513,6 +512,9 @@ export class PostController {
           return next();
         }
         praseMedia(singlePost);
+        (singlePost as any).likesCount = singlePost.likes.length;
+        const lastLike = singlePost.likes[0];
+        (singlePost as any).lastLikedUser = lastLike ? `${lastLike.user.firstName} ${lastLike.user.lastName}` : null;
         res
           .status(200)
           .json(handleResponse("Post Found Successfully", singlePost));
