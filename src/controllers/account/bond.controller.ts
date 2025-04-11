@@ -385,7 +385,7 @@ export class BondController {
       if(action === "accepted" || action === "blocked") {
       await this.bondsRepo.save(bond);
       }
-      if (action === "canceled" || action === "rejected" ) {
+      if (action === "canceled" || action === "rejected"  || action ==="unfriend") {
         await this.bondsRepo.remove(bond);
       }
 
