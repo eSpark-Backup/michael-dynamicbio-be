@@ -346,8 +346,8 @@ export class BondController {
         throw new ApiError("Bond not found", HTTP_STATUS.NOT_FOUND);
       }
 
-      const recipientActions = ["accepted", "rejected", "blocked"];
-      const requesterActions = ["canceled"];
+      const recipientActions = ["accepted", "rejected", "blocked", "unfriend"];
+      const requesterActions = ["canceled", "unfriend"];
 
       if (recipientActions.includes(action)) {
         if (bond.recipient.id !== userId) {
