@@ -303,7 +303,7 @@ export class PostController {
         oldArticleImage != null &&
         oldArticleImage[0]?.url !== (articleImageUrls[0]?.url as any)
       ) {
-        await uploadService.deleteFile(articleImageUrls[0]?.public_id);
+        await uploadService.deleteFile(oldArticleImage[0]?.public_id);
       }
 
       if (oldPostImages.length > 0) {
@@ -447,7 +447,7 @@ export class PostController {
       existingPost.status = status || existingPost.status;
       existingPost.visibility = visibility || existingPost.visibility;
       existingPost.type = type || existingPost.type;
-      existingPost.media = JSON.stringify({
+      existingPost.media =  JSON.stringify({
         IMAGES: coverUrls,
         VIDEOS: uploadedVideoUrls,
         THUMBNAILS: uploadedThumbnailUrls,
