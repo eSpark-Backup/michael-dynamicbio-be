@@ -360,7 +360,7 @@ export class BondController {
 
       const recipientActions = ["accepted", "rejected", "blocked", "unfriend"];
       const requesterActions = ["canceled", "unfriend"];
-
+      //TODO: Need to Add Optimize Logic for these conditions
       if (recipientActions.includes(action)) {
         if(action == "unfriend") {
             await this.bondsRepo.remove(bond);
