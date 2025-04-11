@@ -216,6 +216,10 @@ export class BondController {
         ],
         relations: ["requester", "recipient"],
         select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
           requester: {
             id: true,
             firstName: true,
@@ -256,8 +260,16 @@ export class BondController {
       });
   
       const friends = bonds.map((bond) => {
-        return bond.requester.id === userId ? bond.recipient : bond.requester;
+        const friend = bond.requester.id === userId ? bond.recipient : bond.requester;
+        return {
+          bondId: bond.id,
+          bondStatus: bond.status,
+          createdAt: bond.createdAt,
+          updatedAt: bond.updatedAt,
+          friend,  
+        };
       });
+      
   
       res.status(HTTP_STATUS.OK).json({
         status: true,
@@ -350,6 +362,11 @@ export class BondController {
       const requesterActions = ["canceled", "unfriend"];
 
       if (recipientActions.includes(action)) {
+        if(action == "unfriend") {
+            await this.bondsRepo.remove(bond);
+            res.status(HTTP_STATUS.OK).json(handleResponse("Bond removed successfully", bond));
+            return;
+        }
         if (bond.recipient.id !== userId) {
           throw new ApiError(
             "You are not authorized to perform this action",
@@ -357,6 +374,10 @@ export class BondController {
           );
         }
       } else if (requesterActions.includes(action)) {
+        if (action == "unfriend") {
+          await this.bondsRepo.remove(bond);
+          res.status(HTTP_STATUS.OK).json(handleResponse("Bond removed successfully", bond));
+        }
         if (bond.requester.id !== userId) {
           throw new ApiError(
             "You are not authorized to perform this action",
@@ -385,7 +406,7 @@ export class BondController {
       if(action === "accepted" || action === "blocked") {
       await this.bondsRepo.save(bond);
       }
-      if (action === "canceled" || action === "rejected"  || action ==="unfriend") {
+      if (action === "canceled" || action === "rejected"  ) {
         await this.bondsRepo.remove(bond);
       }
 
