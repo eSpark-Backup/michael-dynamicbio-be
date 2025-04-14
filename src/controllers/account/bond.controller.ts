@@ -415,19 +415,18 @@ export class BondController {
 
       const members = [bond.requester.userChatId];
       if (action == "accepted") {
-
-      const notificationData = {
-        title: commonHelper.getNotificationTitle(action),
-        message: commonHelper.getNotificationMessage(
-          action,
-          bond.recipient.firstName,
-          bond.recipient.lastName
-        ),
-        bondId: bond.id,
-        requesterId: bond.requester.userChatId,
-        requesterProfileImage: bond.requester.profileImage,
-        bondStatus: bond.status,
-      };
+        const notificationData = {
+          title: commonHelper.getNotificationTitle(action),
+          message: commonHelper.getNotificationMessage(
+            action,
+            bond.recipient.firstName,
+            bond.recipient.lastName
+          ),
+          bondId: bond.id,
+          requesterId: bond.requester.userChatId,
+          requesterProfileImage: bond.requester.profileImage,
+          bondStatus: bond.status,
+        };
 
         emitEvent(req, BOND_REQUEST_UPDATED, members, notificationData);
 

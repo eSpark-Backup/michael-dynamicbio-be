@@ -3,7 +3,7 @@ export const ALLOWED_IMG_TYPES = [
   "image/jpg",
   "image/tiff",
   "image/png",
-  "image/WEBP",
+  "image/webp",
 ];
 
 export const ALLOWED_VIDEO_TYPES = [
