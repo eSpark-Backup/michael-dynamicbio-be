@@ -372,7 +372,7 @@ router.put(
  *         description: Server error.
  */
 router.get(
-    "/:id",
+    "/:id?",
     checkJwt,
     validateRoles([ROLES.USER]),
     setPagination,
