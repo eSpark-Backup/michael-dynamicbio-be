@@ -1,5 +1,5 @@
 import { NextFunction, Response } from "express";
-import { Likes, Post, PostStatus, PostType, User } from "../../entity";
+import {Likes, Post, PostStatus, PostType, User} from "../../entity";
 import {
   ICustomRequest,
   IFileObject,
@@ -15,6 +15,7 @@ import { CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
 import { commonHelper } from "../../helpers";
 import { handleResponse, logger, praseMedia } from "../../utils";
 import { uploadService } from "../../services";
+import {schedulerService} from "../../services/scheduler.service";
 
 export class PostController {
   constructor(
@@ -38,6 +39,7 @@ export class PostController {
         imagesOrder,
         videosOrder,
         thumbnailsOrder,
+        scheduledDate: scheduledFor
       } = req.body;
       const postFilesPath = path.join(process.cwd(), "uploads");
 
@@ -129,6 +131,26 @@ export class PostController {
             uploadedArticleUrls,
         }) as Object) || null;
       const post = await this.postRepo.save(newPost);
+
+      // If it's a scheduled post, create the job
+      if (post.status === PostStatus.SCHEDULED && scheduledFor) {
+        try {
+          const job = await schedulerService.schedulePost(
+              post.id,
+              req.user?.id,
+              new Date(scheduledFor)
+          );
+
+          // Update the post with the job ID
+          post.scheduledJobId = job.id.toString();
+          post.scheduledFor = scheduledFor
+          await this.postRepo.save(post);
+        } catch (error) {
+          // If scheduling fails, still return success but log the error
+          logger.error(`Failed to schedule post: ${(error as Error).message}`);
+          next(error)
+        }
+      }
 
       praseMedia(post);
       const uploadsPath = path.join(process.cwd(), "uploads");
@@ -527,7 +549,7 @@ export class PostController {
           .leftJoinAndSelect("post.author", "author")
           .leftJoinAndSelect("post.likes", "like")
           .leftJoinAndSelect("like.user", "likedUser")
-          .leftJoinAndSelect("like.user", "lastLikedUser") 
+          .leftJoinAndSelect("like.user", "lastLikedUser")
 
           .select([
             "post",
@@ -536,11 +558,11 @@ export class PostController {
             "likedUser.id",
             "likedUser.firstName",
             "likedUser.lastName",
-            "lastLikedUser.firstName", 
-            "lastLikedUser.lastName",  
+            "lastLikedUser.firstName",
+            "lastLikedUser.lastName",
           ])
           .orderBy("post.createdAt", "DESC")
-          .addOrderBy("like.createdAt", "DESC") 
+          .addOrderBy("like.createdAt", "DESC")
 
           .skip(skipNumber)
           .take(takeNumber)
@@ -552,12 +574,8 @@ export class PostController {
         posts.forEach((post) => {
           praseMedia(post);
           (post as any).likesCount = post.likes.length;
-
-          const lastLike = post.likes[0]; 
+          const lastLike = post.likes[0];
           (post as any).lastLikedUser = lastLike ? `${lastLike.user.firstName} ${lastLike.user.lastName}` : null;
-
-
-
         });
 
 
@@ -576,6 +594,241 @@ export class PostController {
       }
     } catch (error) {
       next(error);
+    }
+  }
+
+  // Method to schedule a post
+  async schedulePost(
+      req: ICustomRequest,
+      res: Response,
+      next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { scheduledDate } = req.body;
+
+      // Validate the date
+      const scheduledFor = new Date(scheduledDate);
+      if (isNaN(scheduledFor.getTime())) {
+        throw new ApiError("Invalid scheduled date", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      // Ensure date is in the future
+      if (scheduledFor.getTime() <= Date.now()) {
+        throw new ApiError("Scheduled date must be in the future", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      const post = await this.postRepo.findOne({
+        where: { id },
+        relations: ["author"]
+      });
+
+      if (!post) {
+        throw new ApiError("Post not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      // Check if the user owns the post
+      if (post.author.id !== req.user?.id) {
+        throw new ApiError("You can only schedule your own posts", HTTP_STATUS.FORBIDDEN);
+      }
+
+      // Schedule the post with Bull
+      const job = await schedulerService.schedulePost(
+          post.id,
+          req.user.id,
+          scheduledFor
+      );
+
+      // Update post status and save scheduled date
+      post.status = PostStatus.SCHEDULED;
+      post.scheduledFor = scheduledFor;
+      post.scheduledJobId = job.id.toString();
+      await this.postRepo.save(post);
+
+      res.status(HTTP_STATUS.OK).json(
+          handleResponse("Post scheduled successfully", {
+            post,
+            scheduledFor,
+            jobId: job.id
+          })
+      );
+    } catch (error) {
+      logger.error(`PostController :: schedulePost :: ${(error as Error)?.message}`);
+      return next(error);
+    }
+  }
+
+// Method to cancel a scheduled post
+  async cancelScheduledPost(
+      req: ICustomRequest,
+      res: Response,
+      next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+
+      const post = await this.postRepo.findOne({
+        where: { id },
+        relations: ["author"]
+      });
+
+      if (!post) {
+        throw new ApiError("Post not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      // Check if the post is scheduled
+      if (post.status !== PostStatus.SCHEDULED) {
+        throw new ApiError("Post is not scheduled", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      // Check if the user owns the post
+      if (post.author.id !== req.user?.id) {
+        throw new ApiError("You can only cancel your own scheduled posts", HTTP_STATUS.FORBIDDEN);
+      }
+
+      // Cancel the scheduled post
+      await schedulerService.cancelScheduledPost(post.id);
+
+      // Update post status to DRAFT
+      post.status = PostStatus.DRAFT;
+      post.scheduledFor = null;
+      post.scheduledJobId = null;
+      await this.postRepo.save(post);
+
+      res.status(HTTP_STATUS.OK).json(
+          handleResponse("Scheduled post canceled successfully", { post })
+      );
+    } catch (error) {
+      logger.error(`PostController :: cancelScheduledPost :: ${(error as Error)?.message}`);
+      return next(error);
+    }
+  }
+
+// Method to get all scheduled posts for the authenticated user
+  async getScheduledPosts(
+      req: ICustomRequest,
+      res: Response,
+      next: NextFunction
+  ): Promise<void> {
+    try {
+      const { page, take, skip } = req?.query;
+      const skipNumber = Number(skip);
+      const takeNumber = Number(take);
+
+      // Get scheduled posts from the database
+      const [posts, totalItems] = await this.postRepo
+          .createQueryBuilder("post")
+          .where("post.author = :userId", { userId: req.user?.id })
+          .andWhere("post.status = :status", { status: PostStatus.SCHEDULED })
+          .leftJoinAndSelect("post.author", "author")
+          .orderBy("post.scheduledFor", "ASC")
+          .skip(skipNumber)
+          .take(takeNumber)
+          .getManyAndCount()
+
+      if (posts.length === 0) {
+        res.status(HTTP_STATUS.OK).json(handleResponse("No scheduled posts found"));
+        return next();
+      }
+
+      // Process media for each post
+      posts.forEach((post) => {
+        if (typeof post.media === "string") {
+          try {
+            post.media = JSON.parse(post.media);
+          } catch (error) {
+            logger.error(`Error parsing media: ${(error as Error).message}`);
+          }
+        }
+      });
+
+      res.status(HTTP_STATUS.OK).json(
+          handleResponse("Scheduled posts fetched successfully", {
+            posts,
+            pagination: {
+              totalItems,
+              currentPage: parseInt(page as string, 10),
+              pageSize: takeNumber,
+              totalPages: Math.ceil(totalItems / takeNumber),
+            },
+          })
+      );
+      return next()
+    } catch (error) {
+      logger.error(`PostController :: getScheduledPosts :: ${(error as Error)?.message}`);
+      return next(error);
+    }
+  }
+
+// Method to update a scheduled post
+  async updateScheduledPost(
+      req: ICustomRequest,
+      res: Response,
+      next: NextFunction
+  ): Promise<void> {
+    try {
+      const {id} = req.params;
+      const {scheduledDate} = req.body;
+
+      // Validate the date if provided
+      let scheduledFor: Date | undefined;
+      if (scheduledDate) {
+        scheduledFor = new Date(scheduledDate);
+        if (isNaN(scheduledFor.getTime())) {
+          throw new ApiError("Invalid scheduled date", HTTP_STATUS.BAD_REQUEST);
+        }
+
+        // Ensure date is in the future
+        if (scheduledFor.getTime() <= Date.now()) {
+          throw new ApiError("Scheduled date must be in the future", HTTP_STATUS.BAD_REQUEST);
+        }
+      }
+
+      const post = await this.postRepo.findOne({
+        where: {id},
+        relations: ["author"]
+      });
+
+      if (!post) {
+        throw new ApiError("Post not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      // Check if the post is scheduled
+      if (post.status !== PostStatus.SCHEDULED) {
+        throw new ApiError("Post is not scheduled", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      // Check if the user owns the post
+      if (post.author.id !== req.user?.id) {
+        throw new ApiError("You can only update your own scheduled posts", HTTP_STATUS.FORBIDDEN);
+      }
+
+      if (scheduledFor) {
+        // Cancel existing job
+        await schedulerService.cancelScheduledPost(post.id);
+
+        // Create new job with updated date
+        const job = await schedulerService.schedulePost(
+            post.id,
+            req.user.id,
+            scheduledFor
+        );
+
+        // Update post
+        post.scheduledFor = scheduledFor;
+        post.scheduledJobId = job.id.toString();
+        await this.postRepo.save(post);
+      }
+
+      res.status(HTTP_STATUS.OK).json(
+          handleResponse("Scheduled post updated successfully", {
+            post,
+            scheduledFor: post.scheduledFor
+          })
+      );
+    } catch (error) {
+      logger.error(`PostController :: updateScheduledPost :: ${(error as Error)?.message}`);
+      return next(error);
     }
   }
 }

@@ -7,7 +7,7 @@ export class Comments {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({type: "varchar"})
   content: string;  
 
   @ManyToOne(() => User, (user) => user.comments)
