@@ -40,6 +40,7 @@ const emitEvent = (req: any, event: any, users: any, data: any = []) => {
   const io = req.app.get("io");
 
   const usersSocket = getSockets(users);
+  if (!usersSocket.length) return;
   io.of("/socket").to(usersSocket).emit(event, data);
 };
 
