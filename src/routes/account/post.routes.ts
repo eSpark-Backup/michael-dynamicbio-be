@@ -197,7 +197,7 @@ router.put(
  *         description: Server error
  */
 router.get(
-    "/scheduled-list",
+    "/scheduled/list",
     checkJwt,
     validateRoles([ROLES.USER]),
     setPagination,
