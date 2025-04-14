@@ -243,11 +243,23 @@ export class BondController {
           "requester.lastName",
           "requester.email",
           "requester.company",
+          "requester.profileImage",
+          "requester.designation",
+          "requester.countryCode",
+          "requester.country",
+          "requester.about",
+          "requester.city",
           "recipient.id",
           "recipient.firstName",
           "recipient.lastName",
           "recipient.email",
-          "recipient.company"
+          "recipient.company",
+          "recipient.profileImage",
+          "recipient.designation",
+          "recipient.countryCode",
+          "recipient.country",
+          "recipient.about",
+          "recipient.city",
         ])
         .skip(skip || (page - 1) * pageSize)
         .take(pageSize)
