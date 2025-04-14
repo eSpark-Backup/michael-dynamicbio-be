@@ -167,7 +167,7 @@ router.put(
 
 /**
  * @swagger
- * /post/scheduled:
+ * /post/scheduled/list:
  *   get:
  *     summary: Get all scheduled posts for the authenticated user
  *     description: This endpoint retrieves all scheduled posts for the authenticated user
