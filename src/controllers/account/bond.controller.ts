@@ -138,6 +138,7 @@ export class BondController {
   ): Promise<void> {
     try {
       const { page, pageSize, search = "", id, skip } = req.query as any;
+      const userId = req.user.id;
 
       let query = this.usersRepo
         .createQueryBuilder("user")
@@ -175,10 +176,35 @@ export class BondController {
         .take(pageSize)
         .getManyAndCount();
 
+        const bonds = await this.bondsRepo.find({
+          where: [
+            { requester: { id: userId } },
+            { recipient: { id: userId } },
+          ],
+          relations: ["requester", "recipient"],
+        });
+        const friendsSet = new Set<string>();
+        const pendingSet = new Set<string>();
+    
+        bonds.forEach(bond => {
+          const otherUserId = bond.requester.id === userId ? bond.recipient.id : bond.requester.id;
+          if (bond.status === BondStatus.ACCEPTED) {
+            friendsSet.add(otherUserId);
+          } else if (bond.status === BondStatus.PENDING) {
+            pendingSet.add(otherUserId);
+          }
+        });
+    
+        const usersWithFriendshipStatus = users.map(user => ({
+          ...user,
+          isFriend: friendsSet.has(user.id),
+          isPendingFriendRequest: pendingSet.has(user.id),
+        }));
+
       res.status(200).json({
         status: true,
         data: {
-          users,
+          users:usersWithFriendshipStatus,
           pagination: {
             totalItems: total,
             currentPage: +page,
