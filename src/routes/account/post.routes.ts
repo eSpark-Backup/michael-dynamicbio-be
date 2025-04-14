@@ -165,6 +165,45 @@ router.put(
 );
 
 
+/**
+ * @swagger
+ * /post/scheduled:
+ *   get:
+ *     summary: Get all scheduled posts for the authenticated user
+ *     description: This endpoint retrieves all scheduled posts for the authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Post
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         description: Page number for pagination
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: pageSize
+ *         required: false
+ *         description: Number of items per page
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Scheduled posts retrieved successfully
+ *       500:
+ *         description: Server error
+ */
+router.get(
+    "/scheduled",
+    checkJwt,
+    validateRoles([ROLES.USER]),
+    setPagination,
+    (req, res, next) => postController.getScheduledPosts(req, res, next)
+);
+
 
 /**
  * @swagger
@@ -340,44 +379,6 @@ router.get(
     (req, res, next) => postController.getAllPost(req, res, next)
 );
 
-/**
- * @swagger
- * /post/scheduled:
- *   get:
- *     summary: Get all scheduled posts for the authenticated user
- *     description: This endpoint retrieves all scheduled posts for the authenticated user
- *     security:
- *       - bearerAuth: []
- *     tags:
- *       - Post
- *     parameters:
- *       - in: query
- *         name: page
- *         required: false
- *         description: Page number for pagination
- *         schema:
- *           type: integer
- *           default: 1
- *       - in: query
- *         name: pageSize
- *         required: false
- *         description: Number of items per page
- *         schema:
- *           type: integer
- *           default: 10
- *     responses:
- *       200:
- *         description: Scheduled posts retrieved successfully
- *       500:
- *         description: Server error
- */
-router.get(
-    "/scheduled",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    setPagination,
-    (req, res, next) => postController.getScheduledPosts(req, res, next)
-);
 
 /**
  * @swagger
