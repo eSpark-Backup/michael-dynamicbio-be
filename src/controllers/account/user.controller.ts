@@ -482,14 +482,33 @@ export class UserController {
         .where("post.status:status", { status: PostStatus.PUBLISH })
         .where("post.author IN (:...bondedUserIds)", { bondedUserIds })
         .leftJoinAndSelect("post.author", "author")
+        .leftJoinAndSelect("post.likes", "like")
+        .leftJoinAndSelect("like.user", "likedUser")
+        .leftJoinAndSelect("like.user", "lastLikedUser")
+        .select([
+          "post",
+          "author",
+          "like",
+          "likedUser.id",
+          "likedUser.firstName",
+          "likedUser.lastName",
+          "lastLikedUser.firstName",
+          "lastLikedUser.lastName",
+        ])
         .orderBy("post.createdAt", "DESC")
+        .addOrderBy("like.createdAt", "DESC")
+
         .skip(skipNumber)
         .take(takeNumber)
         .getManyAndCount();
 
-      posts.forEach((post) => {
-        praseMedia(post);
-      });
+        posts.forEach((post) => {
+          praseMedia(post);
+          (post as any).likesCount = post.likes.length;
+          const lastLike = post.likes[0];
+          (post as any).lastLikedUser = lastLike ? `${lastLike.user.firstName} ${lastLike.user.lastName}` : null;
+        });
+
 
       res.status(200).json(
         handleResponse("Timeline Fetched Successfully", {

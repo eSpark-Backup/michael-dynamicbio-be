@@ -174,6 +174,11 @@ router.post(
  *           default: 0
  *         description: Number of records to skip.
  *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search users by first name, last name, or email.
+ *       - in: query
  *         name: id
  *         schema:
  *           type: string

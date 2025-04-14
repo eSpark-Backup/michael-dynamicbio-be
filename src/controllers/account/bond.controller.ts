@@ -200,85 +200,84 @@ export class BondController {
     next: NextFunction
   ): Promise<void> {
     try {
+      const { page = 1, pageSize = 10, search = "", id, skip = 0 } = req.query as any;
       const userId = req.user.id;
-
-      const bonds = await this.bondsRepo.find({
-        where: [
-          {
-            requester: { id: userId },
-            status: BondStatus.ACCEPTED,
-          },
-          {
-            recipient: { id: userId },
-            status: BondStatus.ACCEPTED,
-          },
-        ],
-        relations: ["requester", "recipient"],
-        select: {
-          id: true,
-          status: true,
-          createdAt: true,
-          updatedAt: true,
-          requester: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            profileImage: true,
-            countryCode: true,
-            phoneNumber: true,
-            about: object,
-            coverImage: true,
-            imageKey: true,
-            sendEmails: true,
-            profile: true,
-            userChatId: true,
-            designation: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-          recipient: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            profileImage: true,
-            countryCode: true,
-            phoneNumber: true,
-            about: object,
-            coverImage: true,
-            imageKey: true,
-            sendEmails: true,
-            profile: true,
-            userChatId: true,
-            designation: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-      });
-
-      const friends = bonds.map((bond) => {
-        const friend =
-          bond.requester.id === userId ? bond.recipient : bond.requester;
-        return {
-          bondId: bond.id,
-          bondStatus: bond.status,
-          createdAt: bond.createdAt,
-          updatedAt: bond.updatedAt,
-          friend,
-        };
-      });
-
-      res.status(HTTP_STATUS.OK).json({
-        status: true,
+  
+      const query = this.bondsRepo
+        .createQueryBuilder("bond")
+        .leftJoinAndSelect("bond.requester", "requester")
+        .leftJoinAndSelect("bond.recipient", "recipient")
+        .where(
+          "(bond.requesterId = :userId OR bond.recipientId = :userId)",
+          { userId }
+        )
+        .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED });
+  
+      if (search) {
+        query.andWhere(
+          `(requester.firstName LIKE :search OR 
+            requester.lastName LIKE :search OR 
+            requester.email LIKE :search OR
+            recipient.firstName LIKE :search OR 
+            recipient.lastName LIKE :search OR 
+            recipient.email LIKE :search)`,
+          { search: `%${search}%` }
+        );
+      }
+  
+      if (id) {
+        query.andWhere(
+          `(requester.id = :id OR recipient.id = :id)`,
+          { id }
+        );
+      }
+  
+      const [bonds, total] = await query
+        .select([
+          "bond.id",
+          "bond.status",
+          "bond.createdAt",
+          "bond.updatedAt",
+          "requester.id",
+          "requester.firstName",
+          "requester.lastName",
+          "requester.email",
+          "requester.company",
+          "recipient.id",
+          "recipient.firstName",
+          "recipient.lastName",
+          "recipient.email",
+          "recipient.company"
+        ])
+        .skip(skip || (page - 1) * pageSize)
+        .take(pageSize)
+        .getManyAndCount();
+        const friends = bonds.map((bond) => {
+          const friend =
+            bond.requester.id === userId ? bond.recipient : bond.requester;
+          return {
+            bondId: bond.id,
+            bondStatus: bond.status,
+            createdAt: bond.createdAt,
+            updatedAt: bond.updatedAt,
+            friend,
+          };
+        });
+        
+  
+      res.json({
+        success: true,
         data: friends,
-        message: "User friends fetched successfully",
+        total,
+        page: Number(page),
+        pageSize: Number(pageSize),
       });
+      return next()
     } catch (error) {
       next(error);
     }
   }
+  
 
   async getAllBondRequests(
     req: ICustomRequest,
