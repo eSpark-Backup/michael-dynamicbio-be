@@ -5,6 +5,7 @@ import { router as UserRoutes } from "./user.routes";
 import { router as PostRoutes } from "./post.routes";
 import { router as BondRoutes } from "./bond.routes";
 import { router as InteractionRoutes } from "./interaction.routes";
+import { router as PollRoutes } from "./poll.routes"
 
 import { ROLES } from "../../constants";
 const router = Router();
@@ -17,5 +18,6 @@ router.use("/user", UserRoutes);
 router.use("/post", PostRoutes);
 router.use("/bond", BondRoutes);
 router.use("/interaction", InteractionRoutes);
+router.use("/poll", PollRoutes);
 
 export { router };

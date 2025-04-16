@@ -7,7 +7,7 @@ import {
   validate,
 } from "../../validations";
 import { PostController, UserController } from "../../controllers/account";
-import { Likes, Post, User } from "../../entity";
+import {Likes, Poll, Post, User} from "../../entity";
 import { getRepository } from "typeorm";
 import { AppDataSource } from "../../typeorm.config";
 import {
@@ -25,8 +25,9 @@ const router = Router();
 const userRepository = AppDataSource.getRepository(User);
 const postRepository = AppDataSource.getRepository(Post);
 const likeRepository = AppDataSource.getRepository(Likes);
+const pollRepository = AppDataSource.getRepository(Poll);
 
-const postController = new PostController(userRepository, postRepository,likeRepository);
+const postController = new PostController(userRepository, postRepository,likeRepository, pollRepository);
 
 /**
  * @swagger
@@ -385,7 +386,7 @@ router.get(
  * /post:
  *   post:
  *     summary: Create a new post
- *     description: This endpoint allows users with the USER role to create a new post, with optional scheduling for later publication.
+ *     description: This endpoint allows users with the USER role to create a new post, including poll posts.
  *     security:
  *       - bearerAuth: []
  *     tags:
@@ -437,6 +438,42 @@ router.get(
  *                   - ARTICLE
  *                   - POLL
  *                   - EVENT
+ *                 description: Type of post. For poll posts, use POLL and include poll object.
+ *               poll:
+ *                 type: object
+ *                 description: Required when type is POLL. Contains poll settings.
+ *                 properties:
+ *                   question:
+ *                     type: string
+ *                     description: The question for the poll
+ *                     example: "What is your favorite programming language?"
+ *                   options:
+ *                     type: array
+ *                     items:
+ *                       type: string
+ *                     description: Array of options for the poll (2-10 options)
+ *                     example: ["JavaScript", "Python", "TypeScript", "Java"]
+ *                   endDate:
+ *                     type: string
+ *                     format: date-time
+ *                     description: Date when the poll ends. If null, poll never expires.
+ *                     example: "2025-04-20T14:30:00Z"
+ *                   allowMultipleVotes:
+ *                     type: boolean
+ *                     description: Whether users can vote for multiple options
+ *                     default: false
+ *                   showResults:
+ *                     type: boolean
+ *                     description: Whether to show results to voters
+ *                     default: true
+ *                   isAnonymous:
+ *                     type: boolean
+ *                     description: Whether votes are anonymous
+ *                     default: false
+ *                   allowAddOptions:
+ *                     type: boolean
+ *                     description: Whether users can add new options to the poll
+ *                     default: false
  *               imageOrder:
  *                  type: array
  *                  required: false
@@ -490,6 +527,40 @@ router.get(
  *                     status:
  *                       type: string
  *                       description: Post status (PUBLISH, DRAFT, ARCHIVE, SCHEDULED)
+ *                     type:
+ *                       type: string
+ *                       description: Post type (TEXT, IMAGE, VIDEO, ARTICLE, POLL, EVENT)
+ *                     poll:
+ *                       type: object
+ *                       description: Poll data (only when type is POLL)
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           description: Poll ID
+ *                         question:
+ *                           type: string
+ *                           description: Poll question
+ *                         options:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                           description: Poll options
+ *                         endDate:
+ *                           type: string
+ *                           format: date-time
+ *                           description: When the poll ends
+ *                         allowMultipleVotes:
+ *                           type: boolean
+ *                           description: Whether multiple votes are allowed
+ *                         showResults:
+ *                           type: boolean
+ *                           description: Whether results are visible
+ *                         isAnonymous:
+ *                           type: boolean
+ *                           description: Whether votes are anonymous
+ *                         allowAddOptions:
+ *                           type: boolean
+ *                           description: Whether users can add options
  *                     scheduledFor:
  *                       type: string
  *                       format: date-time
@@ -521,7 +592,7 @@ router.post(
     { name: FILE_FIELDS.COVER, maxCount: 1 },
   ]),
 
-  parseJsonFields(["content"]),
+  parseJsonFields(["content", "poll"]),
   validate(PostValidation.CreatePost, "body"),
   (req, res, next) => postController.createPost(req, req as any, res, next)
 );

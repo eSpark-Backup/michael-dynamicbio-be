@@ -1,5 +1,6 @@
 import Joi from "joi";
 import { POST_STATUS, POST_TYPE, POST_VISIBILITY } from "../constants";
+import {PollValidation} from "../validations/poll.validation";
 
 export class PostValidation {
   static CreatePost = Joi.object({
@@ -23,6 +24,12 @@ export class PostValidation {
       .optional()
       .valid(...Object.values(POST_TYPE))
       .required(),
+
+    poll: Joi.when('type', {
+      is: 'POLL',
+      then: PollValidation.PollSchema.required(),
+      otherwise: Joi.forbidden()
+    })
   }).unknown(true)
 
   static UpdatePost = Joi.object({

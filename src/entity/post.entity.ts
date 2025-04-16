@@ -5,9 +5,9 @@ import {
   ManyToOne,
   OneToMany,
   CreateDateColumn,
-  UpdateDateColumn,
+  UpdateDateColumn, OneToOne,
 } from "typeorm";
-import { BaseEntity, Comments, Likes, User } from ".";
+import {BaseEntity, Comments, Likes, Poll, User} from ".";
 
 export enum PostStatus {
   ARCHIVE = "ARCHIVE",
@@ -31,6 +31,13 @@ export enum PostVisibility {
   GROUPS = "GROUPS",
   FOLLOWERS = "FOLLOWERS",
 }
+
+export enum POLL_RESULT_VISIBILITY {
+  ALWAYS = "ALWAYS",         // Show results any time
+  AFTER_VOTE = "AFTER_VOTE", // Show results only after user votes
+  AFTER_END = "AFTER_END",   // Show results only after poll ends
+}
+
 @Entity()
 export class Post extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
@@ -80,4 +87,11 @@ export class Post extends BaseEntity {
 
   @Column({ nullable: true, type: "varchar" })
   scheduledJobId: string;
+
+  @OneToOne(() => Poll, (poll: Poll) => poll.post, {
+    cascade: true,
+    eager: true,
+    nullable: true,
+  })
+  poll: Poll | null;
 }

@@ -4,3 +4,5 @@ export * from "./post.entity";
 export * from "./bond.entity";
 export * from "./likes.entity";
 export * from "./comments.entity";
+export * from "./poll.entity";
+export * from "./poll-vote.entity";
