@@ -1,5 +1,5 @@
 import { NextFunction, Response } from "express";
-import {Likes, Post, PostStatus, PostType, User} from "../../entity";
+import {Likes, Poll, Post, PostStatus, PostType, User} from "../../entity";
 import {
   ICustomRequest,
   IFileObject,
@@ -21,7 +21,8 @@ export class PostController {
   constructor(
     private usersRepo: Repository<User>,
     private postRepo: Repository<Post>,
-    private likesRepo: Repository<Likes>
+    private likesRepo: Repository<Likes>,
+    private pollRepo: Repository<Poll>
   ) {}
 
   async createPost(
@@ -41,6 +42,11 @@ export class PostController {
         thumbnailsOrder,
         scheduledDate: scheduledFor
       } = req.body;
+
+      if (type === PostType.POLL) {
+        return this.createPostWithPoll(req, res, next);
+      }
+
       const postFilesPath = path.join(process.cwd(), "uploads");
 
       let postFiles = fs
@@ -509,92 +515,210 @@ export class PostController {
   }
 
   async getAllPost(
-    req: ICustomRequest,
-    res: Response,
-    next: NextFunction
+      req: ICustomRequest,
+      res: Response,
+      next: NextFunction
   ): Promise<void> {
     try {
       const { id } = req.params;
       const { page, take, skip, status } = req?.query;
+      const userId = req.user?.id;
 
       const skipNumber = Number(skip);
       const takeNumber = Number(take);
+
+      // Case 1: Get a single post by ID
       if (id && id !== "{id}") {
         const singlePost = await this.postRepo
-          .createQueryBuilder("post")
-          .where("post.id = :id", { id })
-          .leftJoinAndSelect("post.author", "author")
-          .leftJoinAndSelect("post.likes", "like")
-          .leftJoinAndSelect("like.user", "likedUser")
-          .leftJoinAndSelect("like.user", "lastLikedUser") 
-          .getOne();
+            .createQueryBuilder("post")
+            .where("post.id = :id", { id })
+            .leftJoinAndSelect("post.author", "author")
+            .leftJoinAndSelect("post.likes", "like")
+            .leftJoinAndSelect("like.user", "likedUser")
+            .leftJoinAndSelect("like.user", "lastLikedUser")
+            .leftJoinAndSelect("post.poll", "poll") // Include poll data
+            .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+            .getOne();
 
         if (!singlePost) {
           res.status(200).json(handleResponse("Post not found"));
           return next();
         }
+
         praseMedia(singlePost);
         (singlePost as any).likesCount = singlePost.likes.length;
         const lastLike = singlePost.likes[0];
         (singlePost as any).lastLikedUser = lastLike ? `${lastLike.user.firstName} ${lastLike.user.lastName}` : null;
+
+        // If the post is a poll, include vote statistics
+        if (singlePost.type === PostType.POLL && singlePost.poll) {
+          const voteCounts = await this.getPollVoteCounts(singlePost.poll);
+          const userVote = this.getUserPollVote(singlePost.poll, userId);
+
+          // Only show results if poll is configured to show results or user has voted
+          const shouldShowResults = singlePost.poll.showResults ||
+              (userVote !== null && userVote !== undefined);
+
+          (singlePost as any).pollResults = shouldShowResults ? voteCounts : null;
+          (singlePost as any).userVote = userVote;
+          (singlePost as any).hasVoted = userVote !== null; // Add hasVoted flag
+
+          // Calculate poll statistics
+          if (singlePost.poll.votes && singlePost.poll.votes.length > 0) {
+            (singlePost as any).pollStats = {
+              totalVotes: singlePost.poll.votes.length,
+              hasEnded: singlePost.poll.endDate ? new Date() > singlePost.poll.endDate : false
+            };
+          } else {
+            (singlePost as any).pollStats = {
+              totalVotes: 0,
+              hasEnded: singlePost.poll.endDate ? new Date() > singlePost.poll.endDate : false
+            };
+          }
+
+          // Remove sensitive data if poll is anonymous
+          if (singlePost.poll.isAnonymous) {
+            delete singlePost.poll.votes;
+          }
+        }
+
         res
-          .status(200)
-          .json(handleResponse("Post Found Successfully", singlePost));
+            .status(200)
+            .json(handleResponse("Post Found Successfully", singlePost));
         return next();
       }
-      if (true) {
+
+      // Case 2: Get all posts for the authenticated user
+      else {
         const [posts, totalItems] = await this.postRepo
-          .createQueryBuilder("post")
-          .where("post.author = :userId", { userId: req.user?.id })
-          .leftJoinAndSelect("post.author", "author")
-          .leftJoinAndSelect("post.likes", "like")
-          .leftJoinAndSelect("like.user", "likedUser")
-          .leftJoinAndSelect("like.user", "lastLikedUser")
+            .createQueryBuilder("post")
+            .where("post.author = :userId", { userId: req.user?.id })
+            .leftJoinAndSelect("post.author", "author")
+            .leftJoinAndSelect("post.likes", "like")
+            .leftJoinAndSelect("like.user", "likedUser")
+            .leftJoinAndSelect("like.user", "lastLikedUser")
+            .leftJoinAndSelect("post.poll", "poll") // Include poll data
+            .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+            .select([
+              "post",
+              "author",
+              "like",
+              "likedUser.id",
+              "likedUser.firstName",
+              "likedUser.lastName",
+              "lastLikedUser.firstName",
+              "lastLikedUser.lastName",
+              "poll", // Include poll fields
+              "pollVotes.id",
+              "pollVotes.optionIndex",
+              "pollVotes.userId"
+            ])
+            .orderBy("post.createdAt", "DESC")
+            .addOrderBy("like.createdAt", "DESC")
+            .skip(skipNumber)
+            .take(takeNumber)
+            .getManyAndCount();
 
-          .select([
-            "post",
-            "author",
-            "like",
-            "likedUser.id",
-            "likedUser.firstName",
-            "likedUser.lastName",
-            "lastLikedUser.firstName",
-            "lastLikedUser.lastName",
-          ])
-          .orderBy("post.createdAt", "DESC")
-          .addOrderBy("like.createdAt", "DESC")
-
-          .skip(skipNumber)
-          .take(takeNumber)
-          .getManyAndCount();
         if (posts.length === 0) {
           res.status(200).json(handleResponse("No Posts Found"));
           return next();
         }
-        posts.forEach((post) => {
+
+        // Process each post
+        for (const post of posts) {
           praseMedia(post);
           (post as any).likesCount = post.likes.length;
           const lastLike = post.likes[0];
           (post as any).lastLikedUser = lastLike ? `${lastLike.user.firstName} ${lastLike.user.lastName}` : null;
-        });
 
+          // If the post is a poll, include vote statistics
+          if (post.type === PostType.POLL && post.poll) {
+            const voteCounts = await this.getPollVoteCounts(post.poll);
+            const userVote = this.getUserPollVote(post.poll, userId);
+
+            // Only show results if poll is configured to show results or user has voted
+            const shouldShowResults = post.poll.showResults ||
+                (userVote !== null && userVote !== undefined);
+
+            (post as any).pollResults = shouldShowResults ? voteCounts : null;
+            (post as any).userVote = userVote;
+            (post as any).hasVoted = userVote !== null; // Add hasVoted flag
+
+            // Calculate poll statistics
+            if (post.poll.votes && post.poll.votes.length > 0) {
+              (post as any).pollStats = {
+                totalVotes: post.poll.votes.length,
+                hasEnded: post.poll.endDate ? new Date() > post.poll.endDate : false
+              };
+            } else {
+              (post as any).pollStats = {
+                totalVotes: 0,
+                hasEnded: post.poll.endDate ? new Date() > post.poll.endDate : false
+              };
+            }
+
+            // Remove sensitive data if poll is anonymous
+            if (post.poll.isAnonymous) {
+              delete post.poll.votes;
+            }
+          }
+        }
 
         res.status(200).json(
-          handleResponse("Posts Fetched Successfully", {
-            posts,
-            pagination: {
-              totalItems,
-              currentPage: parseInt(page as string, 10),
-              pageSize: takeNumber,
-              totalPages: Math.ceil(totalItems / takeNumber),
-            },
-          })
+            handleResponse("Posts Fetched Successfully", {
+              posts,
+              pagination: {
+                totalItems,
+                currentPage: parseInt(page as string, 10),
+                pageSize: takeNumber,
+                totalPages: Math.ceil(totalItems / takeNumber),
+              },
+            })
         );
         return next();
       }
     } catch (error) {
       next(error);
     }
+  }
+
+// Helper method to calculate poll vote statistics
+  private async getPollVoteCounts(poll: Poll): Promise<any[]> {
+    if (!poll || !poll.votes) {
+      return [];
+    }
+
+    // Get all votes for this poll
+    const votes = poll.votes;
+    const totalVotes = votes.length;
+
+    // Count votes for each option
+    const voteCounts = poll.options.map((option, index) => {
+      const optionVotes = votes.filter(vote => vote.optionIndex === index);
+      return {
+        option,
+        optionIndex: index,
+        count: optionVotes.length,
+        percentage: totalVotes > 0
+            ? Math.round((optionVotes.length / totalVotes) * 100)
+            : 0
+      };
+    });
+
+    return voteCounts;
+  }
+
+// Helper method to check if a user has voted on a poll and return their vote
+  private getUserPollVote(poll: Poll, userId: string): number | null {
+    if (!poll || !poll.votes || !userId) {
+      return null;
+    }
+
+    // Find the user's vote
+    const userVote = poll.votes.find(vote => vote.userId === userId);
+
+    // Return the option index if found, otherwise null
+    return userVote ? userVote.optionIndex : null;
   }
 
   // Method to schedule a post
@@ -828,6 +952,74 @@ export class PostController {
       );
     } catch (error) {
       logger.error(`PostController :: updateScheduledPost :: ${(error as Error)?.message}`);
+      return next(error);
+    }
+  }
+
+  async createPostWithPoll(
+      req: ICustomRequest,
+      res: Response,
+      next: NextFunction
+  ): Promise<void> {
+    try {
+      // Get the post data
+      const { poll, content, status, visibility, type } = req.body;
+
+      if (type !== PostType.POLL) {
+        throw new ApiError("Post type must be POLL", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      if (!poll || !poll.question || !poll.options || poll.options.length < 2) {
+        throw new ApiError(
+            "Poll must have a question and at least 2 options",
+            HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      const userId = req.user?.id;
+      const user = await this.usersRepo.findOne({ where: { id: userId } });
+
+      // Create the post
+      const newPost = new Post();
+      newPost.author = user as User;
+      newPost.content = content;
+      newPost.status = status;
+      newPost.visibility = visibility;
+      newPost.type = PostType.POLL;
+
+      // Save the post first to get its ID
+      const savedPost = await this.postRepo.save(newPost);
+
+      // Create the poll
+      const newPoll = new Poll();
+      newPoll.question = poll.question;
+      newPoll.options = poll.options;
+      newPoll.endDate = poll.endDate ? new Date(poll.endDate) : null;
+      newPoll.allowMultipleVotes = poll.allowMultipleVotes || false;
+      newPoll.showResults = poll.showResults !== undefined ? poll.showResults : true;
+      newPoll.isAnonymous = poll.isAnonymous || false;
+      newPoll.allowAddOptions = poll.allowAddOptions || false;
+      newPoll.postId = savedPost.id;
+
+      // Save the poll
+      const savedPoll = await this.pollRepo.save(newPoll);
+
+      // Update the post with the poll reference (if needed in your schema)
+      // This step might not be necessary depending on your entity design
+
+      // Return the created post with poll
+      const postWithPoll = await this.postRepo.findOne({
+        where: { id: savedPost.id },
+        relations: ["author", "poll"]
+      });
+
+      res
+          .status(HTTP_STATUS.CREATED)
+          .json(handleResponse("Poll post created successfully", postWithPoll));
+    } catch (error) {
+      logger.error(
+          `PostController :: createPostWithPoll :: ${(error as Error)?.message}`
+      );
       return next(error);
     }
   }

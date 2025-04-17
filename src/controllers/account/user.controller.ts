@@ -1,5 +1,5 @@
 import { NextFunction, Request, RequestHandler, Response } from "express";
-import { Bond, BondStatus, Post, PostStatus, ProfileStatus, User } from "../../entity";
+import {Bond, BondStatus, Poll, Post, PostStatus, PostType, ProfileStatus, User} from "../../entity";
 
 import { ApiError } from "../../errors";
 import { Repository } from "typeorm";
@@ -441,9 +441,9 @@ export class UserController {
   }
 
   async getTimeline(
-    req: ICustomRequest,
-    res: Response,
-    next: NextFunction
+      req: ICustomRequest,
+      res: Response,
+      next: NextFunction
   ): Promise<void> {
     try {
       const userId = req.user.id;
@@ -452,18 +452,17 @@ export class UserController {
       const takeNumber = Number(take);
 
       const bonds = await this.bondsRepo
-        .createQueryBuilder("bond")
-        .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
-          userId,
-        })
-        .leftJoinAndSelect("bond.requester", "requester")
-        .leftJoinAndSelect("bond.recipient", "recipient")
-        .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
-        
-        .getMany();
+          .createQueryBuilder("bond")
+          .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+            userId,
+          })
+          .leftJoinAndSelect("bond.requester", "requester")
+          .leftJoinAndSelect("bond.recipient", "recipient")
+          .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
+          .getMany();
 
       const bondedUserIds = bonds.map((bond) =>
-        bond.requester.id === userId ? bond.recipient.id : bond.requester.id
+          bond.requester.id === userId ? bond.recipient.id : bond.requester.id
       );
 
       bondedUserIds.push(userId);
@@ -475,56 +474,130 @@ export class UserController {
           message: "No posts found in timeline",
           statusCode: 200,
         });
+        return next();
       }
 
-      const [posts,totalItems] = await this.postsRepo
-        .createQueryBuilder("post")
-        .where("post.status:status", { status: PostStatus.PUBLISH })
-        .where("post.author IN (:...bondedUserIds)", { bondedUserIds })
-        .leftJoinAndSelect("post.author", "author")
-        .leftJoinAndSelect("post.likes", "like")
-        .leftJoinAndSelect("like.user", "likedUser")
-        .leftJoinAndSelect("like.user", "lastLikedUser")
-        .select([
-          "post",
-          "author",
-          "like",
-          "likedUser.id",
-          "likedUser.firstName",
-          "likedUser.lastName",
-          "lastLikedUser.firstName",
-          "lastLikedUser.lastName",
-        ])
-        .orderBy("post.createdAt", "DESC")
-        .addOrderBy("like.createdAt", "DESC")
+      const [posts, totalItems] = await this.postsRepo
+          .createQueryBuilder("post")
+          .where("post.status = :status", { status: PostStatus.PUBLISH })
+          .andWhere("post.author IN (:...bondedUserIds)", { bondedUserIds })
+          .leftJoinAndSelect("post.author", "author")
+          .leftJoinAndSelect("post.likes", "like")
+          .leftJoinAndSelect("like.user", "likedUser")
+          .leftJoinAndSelect("like.user", "lastLikedUser")
+          .leftJoinAndSelect("post.poll", "poll") // Include poll data
+          .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+          .select([
+            "post",
+            "author",
+            "like",
+            "likedUser.id",
+            "likedUser.firstName",
+            "likedUser.lastName",
+            "lastLikedUser.firstName",
+            "lastLikedUser.lastName",
+            "poll", // Include poll fields
+            "pollVotes.id",
+            "pollVotes.optionIndex",
+            "pollVotes.userId",
+            "pollVotes.createdAt"
+          ])
+          .orderBy("post.createdAt", "DESC")
+          .addOrderBy("like.createdAt", "DESC")
+          .skip(skipNumber)
+          .take(takeNumber)
+          .getManyAndCount();
 
-        .skip(skipNumber)
-        .take(takeNumber)
-        .getManyAndCount();
+      // Process each post
+      for (const post of posts) {
+        praseMedia(post);
+        (post as any).likesCount = post.likes.length;
+        const lastLike = post.likes[0];
+        (post as any).lastLikedUser = lastLike ? `${lastLike.user.firstName} ${lastLike.user.lastName}` : null;
 
-        posts.forEach((post) => {
-          praseMedia(post);
-          (post as any).likesCount = post.likes.length;
-          const lastLike = post.likes[0];
-          (post as any).lastLikedUser = lastLike ? `${lastLike.user.firstName} ${lastLike.user.lastName}` : null;
-        });
+        // If the post is a poll, include vote statistics
+        if (post.type === PostType.POLL && post.poll) {
+          const voteCounts = await this.getPollVoteCounts(post.poll);
+          const userVotes = this.getUserPollVotes(post.poll, userId);
+          const hasVoted = userVotes.length > 0;
 
+          // Determine if results should be shown
+          const hasEnded = post.poll.endDate ? new Date() > post.poll.endDate : false;
+          const shouldShowResults = post.poll.showResults || hasVoted || hasEnded;
+
+          (post as any).pollResults = shouldShowResults ? voteCounts : null;
+          (post as any).userVote = userVotes.length > 0 ? userVotes[userVotes.length - 1] : null;
+          (post as any).userVotes = post.poll.allowMultipleVotes ? userVotes : undefined;
+          (post as any).hasVoted = hasVoted;
+
+          // Calculate poll statistics
+          (post as any).pollStats = {
+            totalVotes: post.poll.votes?.length || 0,
+            hasEnded: hasEnded
+          };
+
+          // Remove sensitive data if poll is anonymous
+          if (post.poll.isAnonymous) {
+            delete post.poll.votes;
+          }
+        }
+      }
 
       res.status(200).json(
-        handleResponse("Timeline Fetched Successfully", {
-          posts,
-          pagination: {
-            totalItems,
-            currentPage: parseInt(page as string, 10),
-            pageSize: takeNumber,
-            totalPages: Math.ceil(totalItems / takeNumber),
-          },
-        })
+          handleResponse("Timeline Fetched Successfully", {
+            posts,
+            pagination: {
+              totalItems,
+              currentPage: parseInt(page as string, 10),
+              pageSize: takeNumber,
+              totalPages: Math.ceil(totalItems / takeNumber),
+            },
+          })
       );
       return next();
     } catch (error) {
+      logger.error(`UserController :: getTimeline :: ${(error as Error)?.message}`);
       next(error);
     }
+  }
+
+// Helper method to get all options that a user has voted on
+  private getUserPollVotes(poll: Poll, userId: string): number[] {
+    if (!poll || !poll.votes || !userId) {
+      return [];
+    }
+
+    // Find all votes by this user
+    const userVotes = poll.votes.filter(vote => vote.userId === userId);
+
+    // Extract the option indices
+    return userVotes.map(vote => vote.optionIndex);
+  }
+
+// Helper method to calculate poll vote statistics
+  private async getPollVoteCounts(poll: Poll): Promise<any[]> {
+    if (!poll || !poll.options) {
+      return [];
+    }
+
+    // Get all votes for this poll
+    const votes = poll.votes || [];
+    const totalVotes = votes.length;
+
+    // Count votes for each option
+    const voteCounts = poll.options.map((option, index) => {
+      const optionVotes = votes.filter(vote => vote.optionIndex === index);
+      return {
+        option,        // Include the actual option name
+        optionIndex: index,
+        count: optionVotes.length,
+        percentage: totalVotes > 0
+            ? Math.round((optionVotes.length / totalVotes) * 100)
+            : 0
+      };
+    });
+
+    return voteCounts;
   }
 
   async fetchNotifications(
