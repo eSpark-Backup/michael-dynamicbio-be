@@ -13,6 +13,7 @@ import { PricingTerm } from "../interfaces";
 import { config } from "dotenv";
 import { configs } from "../config";
 import { ApiError } from "../errors";
+import CryptoJS from "crypto-js";
 
 /**
  * @description : For set success response data
@@ -221,6 +222,54 @@ const convertToMilliseconds = (expiresIn: string) => {
       return value * 24 * 60 * 60 * 1000; // days
     default:
       return 0;
+  }
+};
+
+
+export const generateShareableLink = (
+  entity: { id: string; type: string, typeName: string } | { id: string; type: string, typeName: string }[]
+) => {
+  const entitiesArray = Array.isArray(entity) ? entity : [entity];
+  const jsonString = JSON.stringify(entitiesArray);
+  const encrypted = CryptoJS.AES.encrypt(
+    jsonString,
+    configs.LINK_SECRET_KEY
+  ).toString();
+  const encoded = encodeURIComponent(encrypted);
+  const firstEntity = entitiesArray[0];
+  const sanitizedTypeName = firstEntity.typeName.replace(/\s+/g, "-").toLowerCase();
+
+
+  if (entitiesArray.some((e) => e.type === "post")) {
+    return `https://fusion-stg.esparkconsultants.com/post/${sanitizedTypeName}/share?data=${encoded}`;
+  } else if (entitiesArray.some((e) => e.type === "page")) {
+    return `https://fusion-stg.esparkconsultants.com/page/${sanitizedTypeName}/share?data=${encoded}`;
+  } else if (entitiesArray.some((e) => e.type === "group")) {
+    return `https://fusion-stg.esparkconsultants.com/group/${sanitizedTypeName}/share?data=${encoded}`;
+  } else if (entitiesArray.some((e) => e.type === "user")) {
+    return `https://fusion-stg.esparkconsultants.com/profile/${sanitizedTypeName}/share?data=${encoded}`;
+  }
+
+  return `https://fusion-stg.esparkconsultants.com/share?data=${encoded}`;
+};
+
+export const decryptShareableLink = (encryptedData: string) => {
+  try {
+    const decodedData = decodeURIComponent(encryptedData);
+
+    const decrypted = CryptoJS.AES.decrypt(
+      decodedData,
+      configs.LINK_SECRET_KEY
+    ).toString(CryptoJS.enc.Utf8);
+
+    if (!decrypted) {
+      throw new Error("Decryption failed");
+    }
+
+    return JSON.parse(decrypted);
+  } catch (error) {
+    console.error("Error decrypting data:", error);
+    return null;
   }
 };
 
