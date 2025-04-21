@@ -652,6 +652,7 @@ export class PostController {
           .leftJoinAndSelect("like.user", "lastLikedUser")
           .leftJoinAndSelect("post.poll", "poll") // Include poll data
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+          .leftJoinAndSelect("post.comments", "comment")
           .select([
             "post",
             "author",
@@ -664,6 +665,7 @@ export class PostController {
             "pollVotes.id",
             "pollVotes.optionIndex",
             "pollVotes.userId",
+            "comment",
           ])
           .orderBy("post.createdAt", "DESC")
           .addOrderBy("like.createdAt", "DESC")
@@ -684,6 +686,8 @@ export class PostController {
             type: "post",
             typeName: post.type,
           }),
+
+          (post as any).commentsCount = post.comments.length;
           (post as any).likesCount = post.likes.length;
           const lastLike = post.likes[0];
           (post as any).lastLikedUser = lastLike
