@@ -509,6 +509,7 @@ export class UserController {
           "likedUser.lastName",
           "lastLikedUser.firstName",
           "lastLikedUser.lastName",
+          "comment",
           "poll", // Include poll fields
           "pollVotes.id",
           "pollVotes.optionIndex",
