@@ -498,6 +498,8 @@ export class UserController {
         .leftJoinAndSelect("like.user", "lastLikedUser")
         .leftJoinAndSelect("post.poll", "poll") // Include poll data
         .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+        .leftJoinAndSelect("post.comments", "comment")
+
         .select([
           "post",
           "author",
@@ -522,11 +524,31 @@ export class UserController {
       // Process each post
       for (const post of posts) {
         praseMedia(post);
+        (post as any).shareableLink= generateShareableLink({
+          id: post.id,
+          type: "post",
+          typeName: post.type,
+        }),
         (post as any).likesCount = post.likes.length;
         const lastLike = post.likes[0];
         (post as any).lastLikedUser = lastLike
           ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
           : null;
+          for (const like of post.likes) {
+            const likeUserId = like.user.id;
+        
+            const bond = await this.bondsRepo.findOne({
+              where: [
+                { requester: { id: userId }, recipient: { id: likeUserId } },
+                { requester: { id: likeUserId }, recipient: { id: userId } },
+              ],
+            });
+        
+            (like as any).isBond = !!bond; // true if bond exists, false otherwise
+          }
+
+          (post as any).commentsCount = post.comments.length;
+
 
         // If the post is a poll, include vote statistics
         if (post.type === PostType.POLL && post.poll) {
