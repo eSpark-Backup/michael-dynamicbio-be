@@ -147,10 +147,13 @@ export class BondController {
       if (id) {
         query = query.andWhere("user.id = :userId", { userId: id });
       } else if (search) {
-        query = query.andWhere(
-          `(user.firstName LIKE :search OR user.lastName LIKE :search OR user.email LIKE :search)`,
-          { search: `%${search}%` }
-        );
+        const terms = search.split(" ").filter(Boolean);
+        for (const [i, term] of terms.entries()) {
+          query = query.andWhere(
+            `(user.firstName LIKE :term${i} OR user.lastName LIKE :term${i} OR user.email LIKE :term${i})`,
+            { [`term${i}`]: `%${term}%` }
+          );
+        }
       }
 
       const [users, total] = await query
@@ -190,6 +193,7 @@ export class BondController {
           const otherUserId = bond.requester.id === userId ? bond.recipient.id : bond.requester.id;
           if (bond.status === BondStatus.ACCEPTED) {
             friendsSet.add(otherUserId);
+
           } else if (bond.status === BondStatus.PENDING) {
             pendingSet.add(otherUserId);
           }
@@ -197,6 +201,11 @@ export class BondController {
     
         const usersWithFriendshipStatus = users.map(user => ({
           ...user,
+          bondId: userId === user.id ? null : bonds.find(bond => {
+            return (bond.requester.id === user.id && bond.recipient.id === userId) ||
+                   (bond.recipient.id === user.id && bond.requester.id === userId);
+          },
+          )?.id || null,
           isFriend: friendsSet.has(user.id),
           isPendingFriendRequest: pendingSet.has(user.id),
         }));
@@ -239,17 +248,19 @@ export class BondController {
         )
         .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED });
   
-      if (search) {
-        query.andWhere(
-          `(requester.firstName LIKE :search OR 
-            requester.lastName LIKE :search OR 
-            requester.email LIKE :search OR
-            recipient.firstName LIKE :search OR 
-            recipient.lastName LIKE :search OR 
-            recipient.email LIKE :search)`,
-          { search: `%${search}%` }
-        );
-      }
+        if (search) {
+          const searchWords = search.trim().split(" ");
+          searchWords.forEach((word: any, index: any) => {
+            query.andWhere(
+              `(requester.firstName LIKE :search${index} OR 
+                requester.lastName LIKE :search${index} OR 
+                recipient.firstName LIKE :search${index} OR 
+                recipient.lastName LIKE :search${index})`,
+              { [`search${index}`]: `%${word}%` }
+            );
+          });
+        }
+        
   
       if (id) {
         query.andWhere(
@@ -330,45 +341,53 @@ export class BondController {
         take = "10",
         page = "1",
         pageSize = "10",
-      } = req.query;
-
-      let whereCondition: any;
-
+        search = "",
+      } = req.query as any;
+  
+      const query = this.bondsRepo
+        .createQueryBuilder("bond")
+        .leftJoinAndSelect("bond.requester", "requester")
+        .leftJoinAndSelect("bond.recipient", "recipient")
+        .where("bond.status = :status", { status: BondStatus.PENDING });
+  
       if (type === "sent") {
-        whereCondition = {
-          requester: { id: userId },
-          status: BondStatus.PENDING,
-        };
+        query.andWhere("bond.requesterId = :userId", { userId });
       } else if (type === "received") {
-        whereCondition = {
-          recipient: { id: userId },
-          status: BondStatus.PENDING,
-        };
+        query.andWhere("bond.recipientId = :userId", { userId });
       } else {
-        whereCondition = [
-          { requester: { id: userId }, status: BondStatus.PENDING },
-          { recipient: { id: userId }, status: BondStatus.PENDING },
-        ];
+        query.andWhere(
+          "(bond.requesterId = :userId OR bond.recipientId = :userId)",
+          { userId }
+        );
       }
-
-      const [bonds, totalItems] = await this.bondsRepo.findAndCount({
-        where: whereCondition,
-        relations: ["requester", "recipient"],
-        order: { createdAt: "DESC" },
-        skip: Number(skip),
-        take: Number(take),
-      });
-
+  
+      if (search) {
+        const searchWords = search.trim().split(" ");
+        searchWords.forEach((word: any, index: any) => {
+          query.andWhere(
+            `(requester.firstName LIKE :search${index} OR 
+              requester.lastName LIKE :search${index} OR 
+              recipient.firstName LIKE :search${index} OR 
+              recipient.lastName LIKE :search${index})`,
+            { [`search${index}`]: `%${word}%` }
+          );
+        });
+      }
+  
+      const [bonds, totalItems] = await query
+        .orderBy("bond.createdAt", "DESC")
+        .skip(Number(skip))
+        .take(Number(take))
+        .getManyAndCount();
+  
       res.status(HTTP_STATUS.OK).json(
         handleResponse("Bond requests fetched successfully", {
           bonds,
           pagination: {
             totalItems,
-            currentPage: parseInt(page as string, 10),
-            pageSize: parseInt(pageSize as string, 10),
-            totalPages: Math.ceil(
-              totalItems / parseInt(pageSize as string, 10)
-            ),
+            currentPage: parseInt(page, 10),
+            pageSize: parseInt(pageSize, 10),
+            totalPages: Math.ceil(totalItems / parseInt(pageSize, 10)),
           },
         })
       );
@@ -376,6 +395,7 @@ export class BondController {
       next(error);
     }
   }
+  
   async updateBondStatus(
     req: ICustomRequest,
     res: Response,

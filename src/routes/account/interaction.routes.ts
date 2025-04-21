@@ -7,7 +7,7 @@ import {
   validate,
 } from "../../validations";
 import { InteractionController } from "../../controllers/account";
-import { Post, User, Likes, Comments } from "../../entity";
+import { Post, User, Likes, Comments, Bond } from "../../entity";
 import { getRepository } from "typeorm";
 import { AppDataSource } from "../../typeorm.config";
 import {
@@ -26,12 +26,15 @@ const userRepository = AppDataSource.getRepository(User);
 const postRepository = AppDataSource.getRepository(Post);
 const likeRepository = AppDataSource.getRepository(Likes);
 const commentRepository = AppDataSource.getRepository(Comments);
+const bondRepository = AppDataSource.getRepository(Bond);
+
 
 const interactionController = new InteractionController(
   userRepository,
   postRepository,
   likeRepository,
-  commentRepository
+  commentRepository,
+  bondRepository
 );
 
 /**

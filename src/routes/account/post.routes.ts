@@ -7,7 +7,7 @@ import {
   validate,
 } from "../../validations";
 import { PostController, UserController } from "../../controllers/account";
-import {Likes, Poll, Post, User} from "../../entity";
+import {Bond, Likes, Poll, Post, User} from "../../entity";
 import { getRepository } from "typeorm";
 import { AppDataSource } from "../../typeorm.config";
 import {
@@ -26,8 +26,9 @@ const userRepository = AppDataSource.getRepository(User);
 const postRepository = AppDataSource.getRepository(Post);
 const likeRepository = AppDataSource.getRepository(Likes);
 const pollRepository = AppDataSource.getRepository(Poll);
+const bondRepository= AppDataSource.getRepository(Bond)
 
-const postController = new PostController(userRepository, postRepository,likeRepository, pollRepository);
+const postController = new PostController(userRepository, postRepository,likeRepository, pollRepository,bondRepository);
 
 /**
  * @swagger

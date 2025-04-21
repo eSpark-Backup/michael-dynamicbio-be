@@ -1,10 +1,10 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
-import { User,Post,Likes } from '.';
+import { User,Post,Likes, BaseEntity } from '.';
 
 
 @Entity()
-export class Comments {
-  @PrimaryGeneratedColumn()
+export class Comments extends BaseEntity{
+  @PrimaryGeneratedColumn("uuid")
   id: number;
 
   @Column({type: "varchar"})
