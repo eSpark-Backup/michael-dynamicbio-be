@@ -8,6 +8,7 @@ import { AppDataSource } from "../../typeorm.config";
 import {
   checkJwt,
   handleMultipleFiles,
+  optionalCheckJwt,
   QrCheckJwt,
   setPagination,
   validateRoles,
@@ -777,6 +778,7 @@ router.get(
  */
 router.get(
   "/share/:data",
+  optionalCheckJwt,
   (req, res, next) => userController.getSharedEntity(req, res, next)
 );
 

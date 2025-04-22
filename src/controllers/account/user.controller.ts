@@ -1031,8 +1031,13 @@ export class UserController {
                       { requester: { id: likeUserId }, recipient: { id: userId } },
                     ],
                   });
-              
-                  (like as any).isBond = !!bond; // true if bond exists, false otherwise
+
+                  if(userId){
+                  (like as any).isBond = !!bond; 
+                  }else {
+                    (like as any).isBond = false; 
+                  }
+
                 }
                 (singlePost as any).shareableLink= generateShareableLink({
                   id: singlePost.id,
