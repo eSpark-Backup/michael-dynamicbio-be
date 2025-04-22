@@ -7,7 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn, OneToOne,
 } from "typeorm";
-import {BaseEntity, Comments, Likes, Poll, User} from ".";
+import {BaseEntity, Comments, Likes, Page, Poll, User} from ".";
 
 export enum PostStatus {
   ARCHIVE = "ARCHIVE",
@@ -94,4 +94,14 @@ export class Post extends BaseEntity {
     nullable: true,
   })
   poll: Poll | null;
+
+  @ManyToOne(() => Page, (page) => page.posts, { nullable: true })
+  page: Page;
+
+  @Column({ nullable: true, type: 'varchar' })
+  pageId: string;
+
+  // Flag to identify if the post is a page post
+  @Column({ default: false, type: 'boolean' })
+  isPagePost: boolean;
 }

@@ -6,3 +6,4 @@ export * from "./likes.entity";
 export * from "./comments.entity";
 export * from "./poll.entity";
 export * from "./poll-vote.entity";
+export * from "./page.entity";
