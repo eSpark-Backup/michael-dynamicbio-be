@@ -5,9 +5,10 @@ import {
   Column,
   Index,
   OneToMany,
+  OneToOne,
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
-import { Comments, Likes, Post } from ".";
+import { Comments, Likes, Post,ProfileSettings } from ".";
 export enum LoginType {
   LOCAL = "local",
   FACEBOOK = "facebook",
@@ -137,4 +138,11 @@ export class User extends BaseEntity {
     default: false,
   })
   isSocialLogin: boolean;
+
+  @OneToOne(() => ProfileSettings, (settings) => settings.user, {
+    cascade: true,
+    eager: true, 
+  })
+  profileSettings: ProfileSettings;
+  
 }
