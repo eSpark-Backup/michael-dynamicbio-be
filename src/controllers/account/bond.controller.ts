@@ -179,41 +179,58 @@ export class BondController {
         .take(pageSize)
         .getManyAndCount();
 
-        const bonds = await this.bondsRepo.find({
-          where: [
-            { requester: { id: userId } },
-            { recipient: { id: userId } },
-          ],
-          relations: ["requester", "recipient"],
-        });
-        const friendsSet = new Set<string>();
-        const pendingSet = new Set<string>();
-    
-        bonds.forEach(bond => {
-          const otherUserId = bond.requester.id === userId ? bond.recipient.id : bond.requester.id;
-          if (bond.status === BondStatus.ACCEPTED) {
-            friendsSet.add(otherUserId);
+      const bonds = await this.bondsRepo.find({
+        where: [{ requester: { id: userId } }, { recipient: { id: userId } }],
+        relations: ["requester", "recipient"],
+      });
+      const friendsSet = new Set<string>();
+      const pendingSet = new Set<string>();
 
-          } else if (bond.status === BondStatus.PENDING) {
-            pendingSet.add(otherUserId);
-          }
-        });
-    
-        const usersWithFriendshipStatus = users.map(user => ({
+      bonds.forEach((bond) => {
+        const otherUserId =
+          bond.requester.id === userId ? bond.recipient.id : bond.requester.id;
+        if (bond.status === BondStatus.ACCEPTED) {
+          friendsSet.add(otherUserId);
+        } else if (bond.status === BondStatus.PENDING) {
+          pendingSet.add(otherUserId);
+        }
+      });
+
+      const usersWithFriendshipStatus = users.map((user) => {
+        if (user.id === userId) {
+          return {
+            ...user,
+            bondId: null,
+            bondStatus: null,
+            isFriend: false,
+            isPendingFriendRequest: false,
+            requestSentByMe: false,
+          };
+        }
+
+        const bond = bonds.find(
+          (bond) =>
+            (bond.requester.id === user.id && bond.recipient.id === userId) ||
+            (bond.recipient.id === user.id && bond.requester.id === userId)
+        );
+
+        const isPending = bond?.status === BondStatus.PENDING;
+        const isAccepted = bond?.status === BondStatus.ACCEPTED;
+
+        return {
           ...user,
-          bondId: userId === user.id ? null : bonds.find(bond => {
-            return (bond.requester.id === user.id && bond.recipient.id === userId) ||
-                   (bond.recipient.id === user.id && bond.requester.id === userId);
-          },
-          )?.id || null,
-          isFriend: friendsSet.has(user.id),
-          isPendingFriendRequest: pendingSet.has(user.id),
-        }));
+          bondId: bond?.id || null,
+          bondStatus: bond?.status || null,
+          isFriend: isAccepted,
+          isPendingFriendRequest: isPending,
+          requestSentByMe: isPending ? bond?.requester.id === userId : false,
+        };
+      });
 
       res.status(200).json({
         status: true,
         data: {
-          users:usersWithFriendshipStatus,
+          users: usersWithFriendshipStatus,
           pagination: {
             totalItems: total,
             currentPage: +page,
@@ -235,40 +252,41 @@ export class BondController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const { page = 1, pageSize = 10, search = "", id, skip = 0 } = req.query as any;
+      const {
+        page = 1,
+        pageSize = 10,
+        search = "",
+        id,
+        skip = 0,
+      } = req.query as any;
       const userId = req.user.id;
-  
+
       const query = this.bondsRepo
         .createQueryBuilder("bond")
         .leftJoinAndSelect("bond.requester", "requester")
         .leftJoinAndSelect("bond.recipient", "recipient")
-        .where(
-          "(bond.requesterId = :userId OR bond.recipientId = :userId)",
-          { userId }
-        )
+        .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+          userId,
+        })
         .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED });
-  
-        if (search) {
-          const searchWords = search.trim().split(" ");
-          searchWords.forEach((word: any, index: any) => {
-            query.andWhere(
-              `(requester.firstName LIKE :search${index} OR 
+
+      if (search) {
+        const searchWords = search.trim().split(" ");
+        searchWords.forEach((word: any, index: any) => {
+          query.andWhere(
+            `(requester.firstName LIKE :search${index} OR 
                 requester.lastName LIKE :search${index} OR 
                 recipient.firstName LIKE :search${index} OR 
                 recipient.lastName LIKE :search${index})`,
-              { [`search${index}`]: `%${word}%` }
-            );
-          });
-        }
-        
-  
-      if (id) {
-        query.andWhere(
-          `(requester.id = :id OR recipient.id = :id)`,
-          { id }
-        );
+            { [`search${index}`]: `%${word}%` }
+          );
+        });
       }
-  
+
+      if (id) {
+        query.andWhere(`(requester.id = :id OR recipient.id = :id)`, { id });
+      }
+
       const [bonds, total] = await query
         .select([
           "bond.id",
@@ -301,19 +319,18 @@ export class BondController {
         .skip(skip || (page - 1) * pageSize)
         .take(pageSize)
         .getManyAndCount();
-        const friends = bonds.map((bond) => {
-          const friend =
-            bond.requester.id === userId ? bond.recipient : bond.requester;
-          return {
-            bondId: bond.id,
-            bondStatus: bond.status,
-            createdAt: bond.createdAt,
-            updatedAt: bond.updatedAt,
-            friend,
-          };
-        });
-        
-  
+      const friends = bonds.map((bond) => {
+        const friend =
+          bond.requester.id === userId ? bond.recipient : bond.requester;
+        return {
+          bondId: bond.id,
+          bondStatus: bond.status,
+          createdAt: bond.createdAt,
+          updatedAt: bond.updatedAt,
+          friend,
+        };
+      });
+
       res.json({
         success: true,
         data: friends,
@@ -321,12 +338,11 @@ export class BondController {
         page: Number(page),
         pageSize: Number(pageSize),
       });
-      return next()
+      return next();
     } catch (error) {
       next(error);
     }
   }
-  
 
   async getAllBondRequests(
     req: ICustomRequest,
@@ -343,13 +359,13 @@ export class BondController {
         pageSize = "10",
         search = "",
       } = req.query as any;
-  
+
       const query = this.bondsRepo
         .createQueryBuilder("bond")
         .leftJoinAndSelect("bond.requester", "requester")
         .leftJoinAndSelect("bond.recipient", "recipient")
         .where("bond.status = :status", { status: BondStatus.PENDING });
-  
+
       if (type === "sent") {
         query.andWhere("bond.requesterId = :userId", { userId });
       } else if (type === "received") {
@@ -360,7 +376,7 @@ export class BondController {
           { userId }
         );
       }
-  
+
       if (search) {
         const searchWords = search.trim().split(" ");
         searchWords.forEach((word: any, index: any) => {
@@ -373,13 +389,13 @@ export class BondController {
           );
         });
       }
-  
+
       const [bonds, totalItems] = await query
         .orderBy("bond.createdAt", "DESC")
         .skip(Number(skip))
         .take(Number(take))
         .getManyAndCount();
-  
+
       res.status(HTTP_STATUS.OK).json(
         handleResponse("Bond requests fetched successfully", {
           bonds,
@@ -395,7 +411,7 @@ export class BondController {
       next(error);
     }
   }
-  
+
   async updateBondStatus(
     req: ICustomRequest,
     res: Response,
