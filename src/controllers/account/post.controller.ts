@@ -1,5 +1,5 @@
 import { NextFunction, Response } from "express";
-import { Bond, Likes, Poll, Post, PostStatus, PostType, User } from "../../entity";
+import {Likes, Bond, Page, Poll, Post, PostStatus, PostType, User} from "../../entity";
 import {
   ICustomRequest,
   IFileObject,
@@ -23,6 +23,7 @@ export class PostController {
     private postRepo: Repository<Post>,
     private likesRepo: Repository<Likes>,
     private pollRepo: Repository<Poll>,
+    private pageRepo: Repository<Page>,
     private bondsRepo:Repository<Bond>,
   ) {}
 
@@ -42,6 +43,7 @@ export class PostController {
         videosOrder,
         thumbnailsOrder,
         scheduledDate: scheduledFor,
+        pageId
       } = req.body;
 
       if (type === PostType.POLL) {
@@ -109,6 +111,29 @@ export class PostController {
       const userId = req.user?.id;
       const user = await this.usersRepo.findOne({ where: { id: userId } });
 
+      let page = null;
+      if (pageId) {
+        // Get the page
+        page = await this.pageRepo
+            .createQueryBuilder("page")
+            .leftJoinAndSelect("page.admins", "admin")
+            .where("page.id = :pageId", { pageId })
+            .getOne();
+
+        if (!page) {
+          throw new ApiError("Page not found", HTTP_STATUS.NOT_FOUND);
+        }
+
+        // Check if user is an admin of the page
+        const isAdmin = page.admins.some(admin => admin.id === userId);
+        if (!isAdmin) {
+          throw new ApiError(
+              "You are not authorized to post on this page",
+              HTTP_STATUS.FORBIDDEN
+          );
+        }
+      }
+
       const FolderName = `${CLOUD_FOLDERS.POST}/${user.firstName}_${user.lastName}`;
       const coverUrls = postFileObjects
         ? await commonHelper.uploadFiles(postFileObjects, FolderName)
@@ -129,6 +154,13 @@ export class PostController {
       newPost.status = status;
       newPost.visibility = visibility;
       newPost.type = type;
+
+      if (page) {
+        newPost.page = page;
+        newPost.pageId = page.id;
+        newPost.isPagePost = true;
+      }
+
       newPost.media =
         (JSON.stringify({
           IMAGES: coverUrls,
@@ -544,7 +576,7 @@ export class PostController {
             "post",
             "author",
             "like",
-     
+
             "likeUser.id",
             "likeUser.firstName",
             "likeUser.lastName",
@@ -609,7 +641,7 @@ export class PostController {
             };
           }
 
-       
+
           // Remove sensitive data if poll is anonymous
           if (singlePost.poll.isAnonymous) {
             delete singlePost.poll.votes;
@@ -619,14 +651,14 @@ export class PostController {
 
         for (const like of singlePost.likes) {
           const likeUserId = like.user.id;
-      
+
           const bond = await this.bondsRepo.findOne({
             where: [
               { requester: { id: userId }, recipient: { id: likeUserId } },
               { requester: { id: likeUserId }, recipient: { id: userId } },
             ],
           });
-      
+
           (like as any).isBond = !!bond; // true if bond exists, false otherwise
         }
         (singlePost as any).shareableLink= generateShareableLink({
@@ -696,14 +728,14 @@ export class PostController {
 
             for (const like of post.likes) {
               const likeUserId = like.user.id;
-          
+
               const bond = await this.bondsRepo.findOne({
                 where: [
                   { requester: { id: userId }, recipient: { id: likeUserId } },
                   { requester: { id: likeUserId }, recipient: { id: userId } },
                 ],
               });
-          
+
               (like as any).isBond = !!bond; // true if bond exists, false otherwise
             }
 
@@ -721,7 +753,7 @@ export class PostController {
             (post as any).userVote = userVote;
             (post as any).hasVoted = userVote !== null; // Add hasVoted flag
 
-      
+
 
             // Calculate poll statistics
             if (post.poll.votes && post.poll.votes.length > 0) {
@@ -746,7 +778,7 @@ export class PostController {
             }
           }
         }
-      
+
 
         res.status(200).json(
           handleResponse("Posts Fetched Successfully", {
@@ -1131,6 +1163,87 @@ export class PostController {
     } catch (error) {
       logger.error(
         `PostController :: createPostWithPoll :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async getPagePosts(
+      req: ICustomRequest,
+      res: Response,
+      next: NextFunction
+  ): Promise<void> {
+    try {
+      const { pageId } = req.params;
+      const { page, take, skip } = req?.query;
+
+      const skipNumber = Number(skip);
+      const takeNumber = Number(take);
+
+      // First check if the page exists
+      const pageEntity = await this.pageRepo.findOne({ where: { id: pageId } });
+      if (!pageEntity) {
+        throw new ApiError("Page not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      // Get posts for the page
+      const [posts, totalItems] = await this.postRepo
+          .createQueryBuilder("post")
+          .where("post.pageId = :pageId", { pageId })
+          .andWhere("post.status = :status", { status: PostStatus.PUBLISH })
+          .leftJoinAndSelect("post.author", "author")
+          .leftJoinAndSelect("post.likes", "like")
+          .leftJoinAndSelect("like.user", "likedUser")
+          .leftJoinAndSelect("post.page", "page")
+          .select([
+            "post",
+            "author.id",
+            "author.firstName",
+            "author.lastName",
+            "author.profileImage",
+            "like",
+            "likedUser.id",
+            "likedUser.firstName",
+            "likedUser.lastName",
+            "page.id",
+            "page.name",
+            "page.logoUrl"
+          ])
+          .orderBy("post.createdAt", "DESC")
+          .skip(skipNumber)
+          .take(takeNumber)
+          .getManyAndCount();
+
+      if (posts.length === 0) {
+        res.status(HTTP_STATUS.OK).json(handleResponse("No posts found for this page"));
+        return next();
+      }
+
+      // Process posts
+      posts.forEach((post) => {
+        praseMedia(post);
+        (post as any).likesCount = post.likes.length;
+      });
+
+      res.status(HTTP_STATUS.OK).json(
+          handleResponse("Page posts retrieved successfully", {
+            page: {
+              id: pageEntity.id,
+              name: pageEntity.name,
+              logoUrl: pageEntity.logoUrl
+            },
+            posts,
+            pagination: {
+              totalItems,
+              currentPage: parseInt(page as string, 10),
+              pageSize: takeNumber,
+              totalPages: Math.ceil(totalItems / takeNumber),
+            },
+          })
+      );
+    } catch (error) {
+      logger.error(
+          `PostController :: getPagePosts :: ${(error as Error)?.message}`
       );
       return next(error);
     }

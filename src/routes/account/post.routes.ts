@@ -7,7 +7,7 @@ import {
   validate,
 } from "../../validations";
 import { PostController, UserController } from "../../controllers/account";
-import {Bond, Likes, Poll, Post, User} from "../../entity";
+import {Bond, Likes, Page, Poll, Post, User} from "../../entity";
 import { getRepository } from "typeorm";
 import { AppDataSource } from "../../typeorm.config";
 import {
@@ -26,9 +26,10 @@ const userRepository = AppDataSource.getRepository(User);
 const postRepository = AppDataSource.getRepository(Post);
 const likeRepository = AppDataSource.getRepository(Likes);
 const pollRepository = AppDataSource.getRepository(Poll);
+const pageRepository = AppDataSource.getRepository(Page);
 const bondRepository= AppDataSource.getRepository(Bond)
 
-const postController = new PostController(userRepository, postRepository,likeRepository, pollRepository,bondRepository);
+const postController = new PostController(userRepository, postRepository,likeRepository, pollRepository, pageRepository, bondRepository);
 
 /**
  * @swagger
@@ -409,6 +410,9 @@ router.get(
  *                    htmlContent:
  *                       type: string
  *                       description: HTML content related to the post (e.g., description with HTML tags)
+ *               pageId:
+ *                  type: string
+ *                  description: Optional ID of the page to create the post for. User must be an admin of the page.
  *               status:
  *                 type: string
  *                 enum:
@@ -596,6 +600,52 @@ router.post(
   parseJsonFields(["content", "poll"]),
   validate(PostValidation.CreatePost, "body"),
   (req, res, next) => postController.createPost(req, req as any, res, next)
+);
+
+/**
+ * @swagger
+ * /post/page/{pageId}:
+ *   get:
+ *     summary: Get all posts for a specific page
+ *     description: Retrieves all published posts for a specified page with pagination.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Post
+ *     parameters:
+ *       - in: path
+ *         name: pageId
+ *         required: true
+ *         description: ID of the page to get posts for
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: pageSize
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           example: 10
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         description: Page number to retrieve (for paginated results).
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *     responses:
+ *       200:
+ *         description: Posts retrieved successfully
+ *       404:
+ *         description: Page not found
+ *       500:
+ *         description: Server error
+ */
+router.get(
+    "/page/:pageId",
+    checkJwt,
+    validateRoles([ROLES.USER]),
+    setPagination,
+    (req, res, next) => postController.getPagePosts(req, res, next)
 );
 
 

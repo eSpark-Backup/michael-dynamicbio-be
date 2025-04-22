@@ -45,6 +45,7 @@ export enum FILE_FIELDS {
   VIDEO = "videos",
   SINGLE_IMAGE="image",
   THUMBNAIL= "thumbnails",
+  LOGO = "logo"
 }
 
 export enum CLOUD_FOLDERS {
@@ -54,6 +55,7 @@ export enum CLOUD_FOLDERS {
   FILES = "Files",
   AMENITY = "Amenity",
   USER = "FusionUser",
+  PAGE = "page",
 }
 
 export const imageExtensions = [
@@ -66,3 +68,27 @@ export const imageExtensions = [
   ".tiff",
   ".webp",
 ];
+
+export const PAGE_TYPE = {
+  COMPANY: "COMPANY",
+  EDUCATIONAL_INSTITUTE: "EDUCATIONAL_INSTITUTE"
+};
+
+export const PAGE_SIZE = {
+  SMALL: "SMALL",
+  MEDIUM: "MEDIUM",
+  LARGE: "LARGE",
+  ENTERPRISE: "ENTERPRISE"
+};
+
+export const INDUSTRY_TYPE = {
+  PRODUCTION: "PRODUCTION",
+  TRANSPORTATION: "TRANSPORTATION",
+  STORAGE: "STORAGE",
+  TECHNOLOGY: "TECHNOLOGY",
+  FINANCE: "FINANCE",
+  EDUCATION: "EDUCATION",
+  HEALTHCARE: "HEALTHCARE",
+  RETAIL: "RETAIL",
+  OTHER: "OTHER"
+};
