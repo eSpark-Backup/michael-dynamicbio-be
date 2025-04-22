@@ -1,6 +1,6 @@
 import { NextFunction, Response } from "express";
 import { Repository } from "typeorm";
-import { Comments, EntityType, Likes } from "../../entity";
+import { Bond, Comments, EntityType, Likes } from "../../entity";
 import { Post } from "../../entity";
 import { User } from "../../entity";
 import { ICustomRequest } from "@/interfaces";
@@ -13,7 +13,8 @@ export class InteractionController {
     private usersRepo: Repository<User>,
     private postRepo: Repository<Post>,
     private likeRepo: Repository<Likes>,
-    private commentRepo: Repository<Comments>
+    private commentRepo: Repository<Comments>,
+    private bondsRepo: Repository<Bond>
   ) {}
 
   async toggleLike(
@@ -146,6 +147,7 @@ export class InteractionController {
     next: NextFunction
   ): Promise<void> {
     const { postId } = req.params;
+    const userId = req.user?.id;
 
     try {
       const post = await this.postRepo.findOne({ where: { id: postId } });
@@ -159,15 +161,40 @@ export class InteractionController {
         .leftJoinAndSelect("comment.user", "user")
         .leftJoinAndSelect("reply.user", "replyUser")
         .leftJoinAndSelect("comment.likes", "like")
-        
+        .leftJoinAndSelect("like.user", "likeUser")
+
         .leftJoinAndSelect("reply.likes", "replyLike")
         .where("comment.postId = :postId", { postId })
+        .select([
+          "comment",
+          "user.id",
+          "user.firstName",
+          "user.lastName",
+          "user.email",
+          "user.profileImage",
+          "reply",
+          "replyUser.id",
+          "replyUser.firstName",
+          "replyUser.lastName",
+          "replyUser.profileImage",
+          "replyUser.email",
+          "like",
+          "replyLike.id",
+          "replyLike.userId",
+          "likeUser.id",
+          "likeUser.firstName",
+          "likeUser.lastName",
+          "likeUser.profileImage",
+        ])
+        .orderBy("comment.createdAt", "DESC")
         .getMany();
 
       const uniqueCommentsMap = new Map();
       const processedComments: Array<Record<string, any>> = [];
 
-      comments.forEach((comment) => {
+      comments.forEach( (comment) => {
+    
+
         if (!uniqueCommentsMap.has(comment.id)) {
           uniqueCommentsMap.set(comment.id, true);
           const commentLikesCount = comment.likes ? comment.likes.length : 0;
@@ -179,7 +206,7 @@ export class InteractionController {
             const replyLikesCount = reply.likes ? reply.likes.length : 0;
             return {
               ...reply,
-              likesCount: replyLikesCount,  // Adding likes count to reply
+              likesCount: replyLikesCount, // Adding likes count to reply
             };
           });
 
@@ -187,17 +214,37 @@ export class InteractionController {
             ...comment,
             likesCount: commentLikesCount,
 
-            replies: processedReplies,  // Including processed replies
-
+            replies: processedReplies, // Including processed replies
           });
 
           filteredReplies.forEach((reply) =>
             uniqueCommentsMap.set(reply.id, true)
-            
           );
         }
       });
+    for (const comment of processedComments) {
+      for (const like of comment.likes) {
+          const likeUserId = like.user.id;
 
+          const bond = await this.bondsRepo.findOne({
+            where: [
+              { requester: { id: userId }, recipient: { id: likeUserId } },
+              { requester: { id: likeUserId }, recipient: { id: userId } },
+            ],
+          });
+            (like as any).isBond = !!bond; // true if bond exists, false otherwise
+          }
+          const bond = await this.bondsRepo.findOne({
+            where: [
+              { requester: { id: userId }, recipient: { id: comment.user.id } },
+              { requester: { id: comment.user.id }, recipient: { id: userId } },
+            ],
+          });
+            (comment as any).isBond = !!bond; // true if bond exists, false otherwise
+        
+        }
+        
+      
       res
         .status(HTTP_STATUS.OK)
         .json(

@@ -1,11 +1,22 @@
 import { NextFunction, Request, RequestHandler, Response } from "express";
-import {Bond, BondStatus, Poll, Post, PostStatus, PostType, ProfileStatus, User} from "../../entity";
+import {
+  Bond,
+  BondStatus,
+  Poll,
+  Post,
+  PostStatus,
+  PostType,
+  ProfileStatus,
+  User,
+} from "../../entity";
 
 import { ApiError } from "../../errors";
 import { Repository } from "typeorm";
 import {
   cookieOptions,
   decrypt,
+  decryptShareableLink,
+  generateShareableLink,
   generateToken,
   handleResponse,
   logger,
@@ -231,13 +242,13 @@ export class UserController {
 
       const imageFiles = fs
         .readdirSync(path.join(imageFilesPath))
-        .filter((file) => file.startsWith("image")); 
+        .filter((file) => file.startsWith("image"));
 
       const imageFileObjects: IFileObject[] = imageFiles.map((file) =>
         commonHelper.createFileObject(path.join(imageFilesPath, file), "image")
       );
 
-      let { country, industry, company, designation, city ,about} = req.body;
+      let { country, industry, company, designation, city, about } = req.body;
 
       const FolderName = `${CLOUD_FOLDERS.USER}/${
         user.firstName.trim() + user.lastName.trim()
@@ -441,9 +452,9 @@ export class UserController {
   }
 
   async getTimeline(
-      req: ICustomRequest,
-      res: Response,
-      next: NextFunction
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
   ): Promise<void> {
     try {
       const userId = req.user.id;
@@ -452,17 +463,17 @@ export class UserController {
       const takeNumber = Number(take);
 
       const bonds = await this.bondsRepo
-          .createQueryBuilder("bond")
-          .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
-            userId,
-          })
-          .leftJoinAndSelect("bond.requester", "requester")
-          .leftJoinAndSelect("bond.recipient", "recipient")
-          .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
-          .getMany();
+        .createQueryBuilder("bond")
+        .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+          userId,
+        })
+        .leftJoinAndSelect("bond.requester", "requester")
+        .leftJoinAndSelect("bond.recipient", "recipient")
+        .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
+        .getMany();
 
       const bondedUserIds = bonds.map((bond) =>
-          bond.requester.id === userId ? bond.recipient.id : bond.requester.id
+        bond.requester.id === userId ? bond.recipient.id : bond.requester.id
       );
 
       bondedUserIds.push(userId);
@@ -478,42 +489,67 @@ export class UserController {
       }
 
       const [posts, totalItems] = await this.postsRepo
-          .createQueryBuilder("post")
-          .where("post.status = :status", { status: PostStatus.PUBLISH })
-          .andWhere("post.author IN (:...bondedUserIds)", { bondedUserIds })
-          .leftJoinAndSelect("post.author", "author")
-          .leftJoinAndSelect("post.likes", "like")
-          .leftJoinAndSelect("like.user", "likedUser")
-          .leftJoinAndSelect("like.user", "lastLikedUser")
-          .leftJoinAndSelect("post.poll", "poll") // Include poll data
-          .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
-          .select([
-            "post",
-            "author",
-            "like",
-            "likedUser.id",
-            "likedUser.firstName",
-            "likedUser.lastName",
-            "lastLikedUser.firstName",
-            "lastLikedUser.lastName",
-            "poll", // Include poll fields
-            "pollVotes.id",
-            "pollVotes.optionIndex",
-            "pollVotes.userId",
-            "pollVotes.createdAt"
-          ])
-          .orderBy("post.createdAt", "DESC")
-          .addOrderBy("like.createdAt", "DESC")
-          .skip(skipNumber)
-          .take(takeNumber)
-          .getManyAndCount();
+        .createQueryBuilder("post")
+        .where("post.status = :status", { status: PostStatus.PUBLISH })
+        .andWhere("post.author IN (:...bondedUserIds)", { bondedUserIds })
+        .leftJoinAndSelect("post.author", "author")
+        .leftJoinAndSelect("post.likes", "like")
+        .leftJoinAndSelect("like.user", "likedUser")
+        .leftJoinAndSelect("like.user", "lastLikedUser")
+        .leftJoinAndSelect("post.poll", "poll") // Include poll data
+        .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+        .leftJoinAndSelect("post.comments", "comment")
+
+        .select([
+          "post",
+          "author",
+          "like",
+          "likedUser.id",
+          "likedUser.firstName",
+          "likedUser.lastName",
+          "lastLikedUser.firstName",
+          "lastLikedUser.lastName",
+          "comment",
+          "poll", // Include poll fields
+          "pollVotes.id",
+          "pollVotes.optionIndex",
+          "pollVotes.userId",
+          "pollVotes.createdAt",
+        ])
+        .orderBy("post.createdAt", "DESC")
+        .addOrderBy("like.createdAt", "DESC")
+        .skip(skipNumber)
+        .take(takeNumber)
+        .getManyAndCount();
 
       // Process each post
       for (const post of posts) {
         praseMedia(post);
+        (post as any).shareableLink= generateShareableLink({
+          id: post.id,
+          type: "post",
+          typeName: post.type,
+        }),
         (post as any).likesCount = post.likes.length;
         const lastLike = post.likes[0];
-        (post as any).lastLikedUser = lastLike ? `${lastLike.user.firstName} ${lastLike.user.lastName}` : null;
+        (post as any).lastLikedUser = lastLike
+          ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
+          : null;
+          for (const like of post.likes) {
+            const likeUserId = like.user.id;
+        
+            const bond = await this.bondsRepo.findOne({
+              where: [
+                { requester: { id: userId }, recipient: { id: likeUserId } },
+                { requester: { id: likeUserId }, recipient: { id: userId } },
+              ],
+            });
+        
+            (like as any).isBond = !!bond; // true if bond exists, false otherwise
+          }
+
+          (post as any).commentsCount = post.comments.length;
+
 
         // If the post is a poll, include vote statistics
         if (post.type === PostType.POLL && post.poll) {
@@ -522,18 +558,24 @@ export class UserController {
           const hasVoted = userVotes.length > 0;
 
           // Determine if results should be shown
-          const hasEnded = post.poll.endDate ? new Date() > post.poll.endDate : false;
-          const shouldShowResults = post.poll.showResults || hasVoted || hasEnded;
+          const hasEnded = post.poll.endDate
+            ? new Date() > post.poll.endDate
+            : false;
+          const shouldShowResults =
+            post.poll.showResults || hasVoted || hasEnded;
 
           (post as any).pollResults = shouldShowResults ? voteCounts : null;
-          (post as any).userVote = userVotes.length > 0 ? userVotes[userVotes.length - 1] : null;
-          (post as any).userVotes = post.poll.allowMultipleVotes ? userVotes : undefined;
+          (post as any).userVote =
+            userVotes.length > 0 ? userVotes[userVotes.length - 1] : null;
+          (post as any).userVotes = post.poll.allowMultipleVotes
+            ? userVotes
+            : undefined;
           (post as any).hasVoted = hasVoted;
 
           // Calculate poll statistics
           (post as any).pollStats = {
             totalVotes: post.poll.votes?.length || 0,
-            hasEnded: hasEnded
+            hasEnded: hasEnded,
           };
 
           // Remove sensitive data if poll is anonymous
@@ -544,37 +586,39 @@ export class UserController {
       }
 
       res.status(200).json(
-          handleResponse("Timeline Fetched Successfully", {
-            posts,
-            pagination: {
-              totalItems,
-              currentPage: parseInt(page as string, 10),
-              pageSize: takeNumber,
-              totalPages: Math.ceil(totalItems / takeNumber),
-            },
-          })
+        handleResponse("Timeline Fetched Successfully", {
+          posts,
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page as string, 10),
+            pageSize: takeNumber,
+            totalPages: Math.ceil(totalItems / takeNumber),
+          },
+        })
       );
       return next();
     } catch (error) {
-      logger.error(`UserController :: getTimeline :: ${(error as Error)?.message}`);
+      logger.error(
+        `UserController :: getTimeline :: ${(error as Error)?.message}`
+      );
       next(error);
     }
   }
 
-// Helper method to get all options that a user has voted on
+  // Helper method to get all options that a user has voted on
   private getUserPollVotes(poll: Poll, userId: string): number[] {
     if (!poll || !poll.votes || !userId) {
       return [];
     }
 
     // Find all votes by this user
-    const userVotes = poll.votes.filter(vote => vote.userId === userId);
+    const userVotes = poll.votes.filter((vote) => vote.userId === userId);
 
     // Extract the option indices
-    return userVotes.map(vote => vote.optionIndex);
+    return userVotes.map((vote) => vote.optionIndex);
   }
 
-// Helper method to calculate poll vote statistics
+  // Helper method to calculate poll vote statistics
   private async getPollVoteCounts(poll: Poll): Promise<any[]> {
     if (!poll || !poll.options) {
       return [];
@@ -586,14 +630,15 @@ export class UserController {
 
     // Count votes for each option
     const voteCounts = poll.options.map((option, index) => {
-      const optionVotes = votes.filter(vote => vote.optionIndex === index);
+      const optionVotes = votes.filter((vote) => vote.optionIndex === index);
       return {
-        option,        // Include the actual option name
+        option, // Include the actual option name
         optionIndex: index,
         count: optionVotes.length,
-        percentage: totalVotes > 0
+        percentage:
+          totalVotes > 0
             ? Math.round((optionVotes.length / totalVotes) * 100)
-            : 0
+            : 0,
       };
     });
 
@@ -860,5 +905,177 @@ export class UserController {
       );
       return next(error);
     }
+  }
+
+  async getSharedEntity(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { data } = req.params;
+      const userId=req.user?.id;
+      const entities = decryptShareableLink(data as string);
+      const { id, type } = entities[0];
+
+      let entity;
+      if (type === "user") {
+        const userId = id;
+        const user = (await this.usersRepo
+          .createQueryBuilder("user")
+          .where("user.id = :userId", { userId })
+          .getOne()) as User;
+        if (!user) {
+          throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
+        }
+        if (!user.profile) {
+          throw new ApiError(
+            "User profile is not Public",
+            HTTP_STATUS.NOT_FOUND
+          );
+        }
+      }else if (type ==="post"){
+          const singlePost = await this.postsRepo
+                  .createQueryBuilder("post")
+                  .where("post.id = :id", { id })
+                  .leftJoinAndSelect("post.author", "author")
+                  .leftJoinAndSelect("post.likes", "like")
+                  .leftJoinAndSelect("like.user", "likeUser")
+                  .leftJoinAndSelect("like.user", "lastLikedUser")
+                  .leftJoinAndSelect("post.poll", "poll") // Include poll data
+                  .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+                  .leftJoinAndSelect("post.comments", "comment")
+                  .select([
+                    "post",
+                    "author",
+                    "like",
+             
+                    "likeUser.id",
+                    "likeUser.firstName",
+                    "likeUser.lastName",
+                    "likeUser.profileImage",
+        
+                    // "lastLikedUser.firstName",
+                    // "lastLikedUser.lastName",
+                    "poll",
+                    "pollVotes.id",
+                    "pollVotes.optionIndex",
+                    "pollVotes.userId",
+                    "comment",
+                  ])
+                  .addOrderBy("like.createdAt", "DESC")
+                  .getOne();
+        
+                if (!singlePost) {
+                  res.status(200).json(handleResponse("Post not found"));
+                  return next();
+                }
+        
+                praseMedia(singlePost);
+                (singlePost as any).likesCount = singlePost.likes.length;
+                (singlePost as any).commentsCount = singlePost.comments.length;
+                //remove the comments from post
+                delete singlePost.comments;
+                const lastLike = singlePost.likes[0];
+                (singlePost as any).lastLikedUser = lastLike
+                  ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
+                  : null;
+        
+                // If the post is a poll, include vote statistics
+                if (singlePost.type === PostType.POLL && singlePost.poll) {
+                  const voteCounts = await this.getPollVoteCounts(singlePost.poll);
+                  const userVote = this.getUserPollVote(singlePost.poll, userId);
+        
+                  // Only show results if poll is configured to show results or user has voted
+                  const shouldShowResults =
+                    singlePost.poll.showResults ||
+                    (userVote !== null && userVote !== undefined);
+        
+                  (singlePost as any).pollResults = shouldShowResults
+                    ? voteCounts
+                    : null;
+                  (singlePost as any).userVote = userVote;
+                  (singlePost as any).hasVoted = userVote !== null; // Add hasVoted flag
+        
+                  // Calculate poll statistics
+                  if (singlePost.poll.votes && singlePost.poll.votes.length > 0) {
+                    (singlePost as any).pollStats = {
+                      totalVotes: singlePost.poll.votes.length,
+                      hasEnded: singlePost.poll.endDate
+                        ? new Date() > singlePost.poll.endDate
+                        : false,
+                    };
+                  } else {
+                    (singlePost as any).pollStats = {
+                      totalVotes: 0,
+                      hasEnded: singlePost.poll.endDate
+                        ? new Date() > singlePost.poll.endDate
+                        : false,
+                    };
+                  }
+        
+               
+                  // Remove sensitive data if poll is anonymous
+                  if (singlePost.poll.isAnonymous) {
+                    delete singlePost.poll.votes;
+                  }
+                }
+        
+        
+                for (const like of singlePost.likes) {
+                  const likeUserId = like.user.id;
+              
+                  const bond = await this.bondsRepo.findOne({
+                    where: [
+                      { requester: { id: userId }, recipient: { id: likeUserId } },
+                      { requester: { id: likeUserId }, recipient: { id: userId } },
+                    ],
+                  });
+
+                  if(userId){
+                  (like as any).isBond = !!bond; 
+                  }else {
+                    (like as any).isBond = false; 
+                  }
+
+                }
+                (singlePost as any).shareableLink= generateShareableLink({
+                  id: singlePost.id,
+                  type: "post",
+                  typeName: singlePost.type,
+                }),
+        
+                res
+                  .status(200)
+                  .json(handleResponse("Post Found Successfully", singlePost));
+                return next();
+      }
+
+      if (!entity) {
+        throw new ApiError("Entity not found", HTTP_STATUS.NOT_FOUND);
+      }
+      res
+        .status(200)
+        .json(handleResponse("Entity Fetched Successfully", entity));
+      return next();
+    } catch (error) {
+      logger.error(
+        `GeneralController :: Get Shared Entity :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+
+  private getUserPollVote(poll: Poll, userId: string): number | null {
+    if (!poll || !poll.votes || !userId) {
+      return null;
+    }
+
+    // Find the user's vote
+    const userVote = poll.votes.find((vote) => vote.userId === userId);
+
+    // Return the option index if found, otherwise null
+    return userVote ? userVote.optionIndex : null;
   }
 }

@@ -8,6 +8,7 @@ import { AppDataSource } from "../../typeorm.config";
 import {
   checkJwt,
   handleMultipleFiles,
+  optionalCheckJwt,
   QrCheckJwt,
   setPagination,
   validateRoles,
@@ -691,6 +692,94 @@ router.get(
   validateRoles([ROLES.USER]),
   setPagination,
   (req, res, next) => userController.getTimeline(req, res, next)
+);
+
+
+
+/**
+ * @swagger
+ * /user/share/{data}:
+ *   get:
+ *     summary: Get a specific post by ID or all spaces for the authenticated user
+ *     description: This endpoint retrieves a specific space by its ID (if provided) or all spaces associated with the authenticated user. Pagination is supported for retrieving multiple spaces.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - General
+ *     parameters:
+ *       - in: path
+ *         name: data
+ *         required: true
+ *         description: Data of Entity.
+ *     responses:
+ *       200:
+ *         description: space found by ID or all spaces for the authenticated user.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 spaces:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       spaceName:
+ *                         type: string
+ *                         description: Name of the space.
+ *                       spaceCategory:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             name:
+ *                               type: string
+ *                               description: Name of the category.
+ *                             description:
+ *                               type: string
+ *                               description: Description of the category.
+ *                         description: Categories of the space.
+ *                       details:
+ *                         type: object
+ *                         description: Details about the space.
+ *                       location:
+ *                         type: object
+ *                         properties:
+ *                           long:
+ *                             type: number
+ *                             description: Longitude of the space's location.
+ *                           lat:
+ *                             type: number
+ *                             description: Latitude of the space's location.
+ *                           additional:
+ *                             type: string
+ *                             description: Additional information about the location.
+ *                       status:
+ *                         type: string
+ *                         enum:
+ *                           - PUBLISH
+ *                           - DRAFT
+ *                           - ARCHIVE
+ *                       coverImages:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             url:
+ *                               type: string
+ *                               description: URL of the cover image.
+ *                             public_id:
+ *                               type: string
+ *                               description: Public ID of the cover image.
+ *       404:
+ *         description: space not found (if ID is provided) or no spaces found for the user.
+ *       500:
+ *         description: Server error.
+ */
+router.get(
+  "/share/:data",
+  optionalCheckJwt,
+  (req, res, next) => userController.getSharedEntity(req, res, next)
 );
 
 export { router };

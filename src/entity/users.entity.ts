@@ -14,6 +14,7 @@ export enum LoginType {
   GOOGLE = "google",
   LINKEDIN = "linkedin",
 }
+
 export enum ProfileStatus {
   EMIL_VERIFIED = "email_verified",
   BOTH_VERIFIED = "both_verified",

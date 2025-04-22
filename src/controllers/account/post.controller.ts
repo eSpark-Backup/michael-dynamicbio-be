@@ -1,5 +1,5 @@
 import { NextFunction, Response } from "express";
-import {Likes, Page, Poll, Post, PostStatus, PostType, User} from "../../entity";
+import {Likes, Bond, Page, Poll, Post, PostStatus, PostType, User} from "../../entity";
 import {
   ICustomRequest,
   IFileObject,
@@ -13,9 +13,9 @@ import path from "path";
 import { ApiError } from "../../errors";
 import { CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
 import { commonHelper } from "../../helpers";
-import { handleResponse, logger, praseMedia } from "../../utils";
+import { generateShareableLink, handleResponse, logger, praseMedia } from "../../utils";
 import { uploadService } from "../../services";
-import {schedulerService} from "../../services/scheduler.service";
+import { schedulerService } from "../../services/scheduler.service";
 
 export class PostController {
   constructor(
@@ -23,7 +23,8 @@ export class PostController {
     private postRepo: Repository<Post>,
     private likesRepo: Repository<Likes>,
     private pollRepo: Repository<Poll>,
-    private pageRepo: Repository<Page>
+    private pageRepo: Repository<Page>,
+    private bondsRepo:Repository<Bond>,
   ) {}
 
   async createPost(
@@ -174,19 +175,19 @@ export class PostController {
       if (post.status === PostStatus.SCHEDULED && scheduledFor) {
         try {
           const job = await schedulerService.schedulePost(
-              post.id,
-              req.user?.id,
-              new Date(scheduledFor)
+            post.id,
+            req.user?.id,
+            new Date(scheduledFor)
           );
 
           // Update the post with the job ID
           post.scheduledJobId = job.id.toString();
-          post.scheduledFor = scheduledFor
+          post.scheduledFor = scheduledFor;
           await this.postRepo.save(post);
         } catch (error) {
           // If scheduling fails, still return success but log the error
           logger.error(`Failed to schedule post: ${(error as Error).message}`);
-          next(error)
+          next(error);
         }
       }
 
@@ -507,7 +508,7 @@ export class PostController {
       existingPost.status = status || existingPost.status;
       existingPost.visibility = visibility || existingPost.visibility;
       existingPost.type = type || existingPost.type;
-      existingPost.media =  JSON.stringify({
+      existingPost.media = JSON.stringify({
         IMAGES: coverUrls,
         VIDEOS: uploadedVideoUrls,
         THUMBNAILS: uploadedThumbnailUrls,
@@ -547,9 +548,9 @@ export class PostController {
   }
 
   async getAllPost(
-      req: ICustomRequest,
-      res: Response,
-      next: NextFunction
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
   ): Promise<void> {
     try {
       const { id } = req.params;
@@ -562,15 +563,35 @@ export class PostController {
       // Case 1: Get a single post by ID
       if (id && id !== "{id}") {
         const singlePost = await this.postRepo
-            .createQueryBuilder("post")
-            .where("post.id = :id", { id })
-            .leftJoinAndSelect("post.author", "author")
-            .leftJoinAndSelect("post.likes", "like")
-            .leftJoinAndSelect("like.user", "likedUser")
-            .leftJoinAndSelect("like.user", "lastLikedUser")
-            .leftJoinAndSelect("post.poll", "poll") // Include poll data
-            .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
-            .getOne();
+          .createQueryBuilder("post")
+          .where("post.id = :id", { id })
+          .leftJoinAndSelect("post.author", "author")
+          .leftJoinAndSelect("post.likes", "like")
+          .leftJoinAndSelect("like.user", "likeUser")
+          .leftJoinAndSelect("like.user", "lastLikedUser")
+          .leftJoinAndSelect("post.poll", "poll") // Include poll data
+          .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+          .leftJoinAndSelect("post.comments", "comment")
+          .select([
+            "post",
+            "author",
+            "like",
+
+            "likeUser.id",
+            "likeUser.firstName",
+            "likeUser.lastName",
+            "likeUser.profileImage",
+
+            // "lastLikedUser.firstName",
+            // "lastLikedUser.lastName",
+            "poll",
+            "pollVotes.id",
+            "pollVotes.optionIndex",
+            "pollVotes.userId",
+            "comment",
+          ])
+          .addOrderBy("like.createdAt", "DESC")
+          .getOne();
 
         if (!singlePost) {
           res.status(200).json(handleResponse("Post not found"));
@@ -579,8 +600,13 @@ export class PostController {
 
         praseMedia(singlePost);
         (singlePost as any).likesCount = singlePost.likes.length;
+        (singlePost as any).commentsCount = singlePost.comments.length;
+        //remove the comments from post
+        delete singlePost.comments;
         const lastLike = singlePost.likes[0];
-        (singlePost as any).lastLikedUser = lastLike ? `${lastLike.user.firstName} ${lastLike.user.lastName}` : null;
+        (singlePost as any).lastLikedUser = lastLike
+          ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
+          : null;
 
         // If the post is a poll, include vote statistics
         if (singlePost.type === PostType.POLL && singlePost.poll) {
@@ -588,10 +614,13 @@ export class PostController {
           const userVote = this.getUserPollVote(singlePost.poll, userId);
 
           // Only show results if poll is configured to show results or user has voted
-          const shouldShowResults = singlePost.poll.showResults ||
-              (userVote !== null && userVote !== undefined);
+          const shouldShowResults =
+            singlePost.poll.showResults ||
+            (userVote !== null && userVote !== undefined);
 
-          (singlePost as any).pollResults = shouldShowResults ? voteCounts : null;
+          (singlePost as any).pollResults = shouldShowResults
+            ? voteCounts
+            : null;
           (singlePost as any).userVote = userVote;
           (singlePost as any).hasVoted = userVote !== null; // Add hasVoted flag
 
@@ -599,14 +628,19 @@ export class PostController {
           if (singlePost.poll.votes && singlePost.poll.votes.length > 0) {
             (singlePost as any).pollStats = {
               totalVotes: singlePost.poll.votes.length,
-              hasEnded: singlePost.poll.endDate ? new Date() > singlePost.poll.endDate : false
+              hasEnded: singlePost.poll.endDate
+                ? new Date() > singlePost.poll.endDate
+                : false,
             };
           } else {
             (singlePost as any).pollStats = {
               totalVotes: 0,
-              hasEnded: singlePost.poll.endDate ? new Date() > singlePost.poll.endDate : false
+              hasEnded: singlePost.poll.endDate
+                ? new Date() > singlePost.poll.endDate
+                : false,
             };
           }
+
 
           // Remove sensitive data if poll is anonymous
           if (singlePost.poll.isAnonymous) {
@@ -614,42 +648,62 @@ export class PostController {
           }
         }
 
+
+        for (const like of singlePost.likes) {
+          const likeUserId = like.user.id;
+
+          const bond = await this.bondsRepo.findOne({
+            where: [
+              { requester: { id: userId }, recipient: { id: likeUserId } },
+              { requester: { id: likeUserId }, recipient: { id: userId } },
+            ],
+          });
+
+          (like as any).isBond = !!bond; // true if bond exists, false otherwise
+        }
+        (singlePost as any).shareableLink= generateShareableLink({
+          id: singlePost.id,
+          type: "post",
+          typeName: singlePost.type,
+        }),
+
         res
-            .status(200)
-            .json(handleResponse("Post Found Successfully", singlePost));
+          .status(200)
+          .json(handleResponse("Post Found Successfully", singlePost));
         return next();
       }
 
       // Case 2: Get all posts for the authenticated user
       else {
         const [posts, totalItems] = await this.postRepo
-            .createQueryBuilder("post")
-            .where("post.author = :userId", { userId: req.user?.id })
-            .leftJoinAndSelect("post.author", "author")
-            .leftJoinAndSelect("post.likes", "like")
-            .leftJoinAndSelect("like.user", "likedUser")
-            .leftJoinAndSelect("like.user", "lastLikedUser")
-            .leftJoinAndSelect("post.poll", "poll") // Include poll data
-            .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
-            .select([
-              "post",
-              "author",
-              "like",
-              "likedUser.id",
-              "likedUser.firstName",
-              "likedUser.lastName",
-              "lastLikedUser.firstName",
-              "lastLikedUser.lastName",
-              "poll", // Include poll fields
-              "pollVotes.id",
-              "pollVotes.optionIndex",
-              "pollVotes.userId"
-            ])
-            .orderBy("post.createdAt", "DESC")
-            .addOrderBy("like.createdAt", "DESC")
-            .skip(skipNumber)
-            .take(takeNumber)
-            .getManyAndCount();
+          .createQueryBuilder("post")
+          .where("post.author = :userId", { userId: req.user?.id })
+          .leftJoinAndSelect("post.author", "author")
+          .leftJoinAndSelect("post.likes", "like")
+          .leftJoinAndSelect("like.user", "likedUser")
+          .leftJoinAndSelect("like.user", "lastLikedUser")
+          .leftJoinAndSelect("post.poll", "poll") // Include poll data
+          .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+          .leftJoinAndSelect("post.comments", "comment")
+          .select([
+            "post",
+            "author",
+            "like",
+            "likedUser.id",
+            "likedUser.firstName",
+            "likedUser.lastName",
+            "likedUser.profileImage",
+            "poll", // Include poll fields
+            "pollVotes.id",
+            "pollVotes.optionIndex",
+            "pollVotes.userId",
+            "comment",
+          ])
+          .orderBy("post.createdAt", "DESC")
+          .addOrderBy("like.createdAt", "DESC")
+          .skip(skipNumber)
+          .take(takeNumber)
+          .getManyAndCount();
 
         if (posts.length === 0) {
           res.status(200).json(handleResponse("No Posts Found"));
@@ -659,9 +713,31 @@ export class PostController {
         // Process each post
         for (const post of posts) {
           praseMedia(post);
+          (post as any).shareableLink= generateShareableLink({
+            id: post.id,
+            type: "post",
+            typeName: post.type,
+          }),
+
+          (post as any).commentsCount = post.comments.length;
           (post as any).likesCount = post.likes.length;
           const lastLike = post.likes[0];
-          (post as any).lastLikedUser = lastLike ? `${lastLike.user.firstName} ${lastLike.user.lastName}` : null;
+          (post as any).lastLikedUser = lastLike
+            ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
+            : null;
+
+            for (const like of post.likes) {
+              const likeUserId = like.user.id;
+
+              const bond = await this.bondsRepo.findOne({
+                where: [
+                  { requester: { id: userId }, recipient: { id: likeUserId } },
+                  { requester: { id: likeUserId }, recipient: { id: userId } },
+                ],
+              });
+
+              (like as any).isBond = !!bond; // true if bond exists, false otherwise
+            }
 
           // If the post is a poll, include vote statistics
           if (post.type === PostType.POLL && post.poll) {
@@ -669,23 +745,30 @@ export class PostController {
             const userVote = this.getUserPollVote(post.poll, userId);
 
             // Only show results if poll is configured to show results or user has voted
-            const shouldShowResults = post.poll.showResults ||
-                (userVote !== null && userVote !== undefined);
+            const shouldShowResults =
+              post.poll.showResults ||
+              (userVote !== null && userVote !== undefined);
 
             (post as any).pollResults = shouldShowResults ? voteCounts : null;
             (post as any).userVote = userVote;
             (post as any).hasVoted = userVote !== null; // Add hasVoted flag
 
+
+
             // Calculate poll statistics
             if (post.poll.votes && post.poll.votes.length > 0) {
               (post as any).pollStats = {
                 totalVotes: post.poll.votes.length,
-                hasEnded: post.poll.endDate ? new Date() > post.poll.endDate : false
+                hasEnded: post.poll.endDate
+                  ? new Date() > post.poll.endDate
+                  : false,
               };
             } else {
               (post as any).pollStats = {
                 totalVotes: 0,
-                hasEnded: post.poll.endDate ? new Date() > post.poll.endDate : false
+                hasEnded: post.poll.endDate
+                  ? new Date() > post.poll.endDate
+                  : false,
               };
             }
 
@@ -696,16 +779,18 @@ export class PostController {
           }
         }
 
+
         res.status(200).json(
-            handleResponse("Posts Fetched Successfully", {
-              posts,
-              pagination: {
-                totalItems,
-                currentPage: parseInt(page as string, 10),
-                pageSize: takeNumber,
-                totalPages: Math.ceil(totalItems / takeNumber),
-              },
-            })
+          handleResponse("Posts Fetched Successfully", {
+            posts,
+
+            pagination: {
+              totalItems,
+              currentPage: parseInt(page as string, 10),
+              pageSize: takeNumber,
+              totalPages: Math.ceil(totalItems / takeNumber),
+            },
+          })
         );
         return next();
       }
@@ -714,7 +799,7 @@ export class PostController {
     }
   }
 
-// Helper method to calculate poll vote statistics
+  // Helper method to calculate poll vote statistics
   private async getPollVoteCounts(poll: Poll): Promise<any[]> {
     if (!poll || !poll.votes) {
       return [];
@@ -726,28 +811,29 @@ export class PostController {
 
     // Count votes for each option
     const voteCounts = poll.options.map((option, index) => {
-      const optionVotes = votes.filter(vote => vote.optionIndex === index);
+      const optionVotes = votes.filter((vote) => vote.optionIndex === index);
       return {
         option,
         optionIndex: index,
         count: optionVotes.length,
-        percentage: totalVotes > 0
+        percentage:
+          totalVotes > 0
             ? Math.round((optionVotes.length / totalVotes) * 100)
-            : 0
+            : 0,
       };
     });
 
     return voteCounts;
   }
 
-// Helper method to check if a user has voted on a poll and return their vote
+  // Helper method to check if a user has voted on a poll and return their vote
   private getUserPollVote(poll: Poll, userId: string): number | null {
     if (!poll || !poll.votes || !userId) {
       return null;
     }
 
     // Find the user's vote
-    const userVote = poll.votes.find(vote => vote.userId === userId);
+    const userVote = poll.votes.find((vote) => vote.userId === userId);
 
     // Return the option index if found, otherwise null
     return userVote ? userVote.optionIndex : null;
@@ -755,9 +841,9 @@ export class PostController {
 
   // Method to schedule a post
   async schedulePost(
-      req: ICustomRequest,
-      res: Response,
-      next: NextFunction
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
   ): Promise<void> {
     try {
       const { id } = req.params;
@@ -771,12 +857,15 @@ export class PostController {
 
       // Ensure date is in the future
       if (scheduledFor.getTime() <= Date.now()) {
-        throw new ApiError("Scheduled date must be in the future", HTTP_STATUS.BAD_REQUEST);
+        throw new ApiError(
+          "Scheduled date must be in the future",
+          HTTP_STATUS.BAD_REQUEST
+        );
       }
 
       const post = await this.postRepo.findOne({
         where: { id },
-        relations: ["author"]
+        relations: ["author"],
       });
 
       if (!post) {
@@ -785,14 +874,17 @@ export class PostController {
 
       // Check if the user owns the post
       if (post.author.id !== req.user?.id) {
-        throw new ApiError("You can only schedule your own posts", HTTP_STATUS.FORBIDDEN);
+        throw new ApiError(
+          "You can only schedule your own posts",
+          HTTP_STATUS.FORBIDDEN
+        );
       }
 
       // Schedule the post with Bull
       const job = await schedulerService.schedulePost(
-          post.id,
-          req.user.id,
-          scheduledFor
+        post.id,
+        req.user.id,
+        scheduledFor
       );
 
       // Update post status and save scheduled date
@@ -802,30 +894,32 @@ export class PostController {
       await this.postRepo.save(post);
 
       res.status(HTTP_STATUS.OK).json(
-          handleResponse("Post scheduled successfully", {
-            post,
-            scheduledFor,
-            jobId: job.id
-          })
+        handleResponse("Post scheduled successfully", {
+          post,
+          scheduledFor,
+          jobId: job.id,
+        })
       );
     } catch (error) {
-      logger.error(`PostController :: schedulePost :: ${(error as Error)?.message}`);
+      logger.error(
+        `PostController :: schedulePost :: ${(error as Error)?.message}`
+      );
       return next(error);
     }
   }
 
-// Method to cancel a scheduled post
+  // Method to cancel a scheduled post
   async cancelScheduledPost(
-      req: ICustomRequest,
-      res: Response,
-      next: NextFunction
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
   ): Promise<void> {
     try {
       const { id } = req.params;
 
       const post = await this.postRepo.findOne({
         where: { id },
-        relations: ["author"]
+        relations: ["author"],
       });
 
       if (!post) {
@@ -839,7 +933,10 @@ export class PostController {
 
       // Check if the user owns the post
       if (post.author.id !== req.user?.id) {
-        throw new ApiError("You can only cancel your own scheduled posts", HTTP_STATUS.FORBIDDEN);
+        throw new ApiError(
+          "You can only cancel your own scheduled posts",
+          HTTP_STATUS.FORBIDDEN
+        );
       }
 
       // Cancel the scheduled post
@@ -851,20 +948,22 @@ export class PostController {
       post.scheduledJobId = null;
       await this.postRepo.save(post);
 
-      res.status(HTTP_STATUS.OK).json(
-          handleResponse("Scheduled post canceled successfully", { post })
-      );
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Scheduled post canceled successfully", { post }));
     } catch (error) {
-      logger.error(`PostController :: cancelScheduledPost :: ${(error as Error)?.message}`);
+      logger.error(
+        `PostController :: cancelScheduledPost :: ${(error as Error)?.message}`
+      );
       return next(error);
     }
   }
 
-// Method to get all scheduled posts for the authenticated user
+  // Method to get all scheduled posts for the authenticated user
   async getScheduledPosts(
-      req: ICustomRequest,
-      res: Response,
-      next: NextFunction
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
   ): Promise<void> {
     try {
       const { page, take, skip } = req?.query;
@@ -873,17 +972,19 @@ export class PostController {
 
       // Get scheduled posts from the database
       const [posts, totalItems] = await this.postRepo
-          .createQueryBuilder("post")
-          .where("post.author = :userId", { userId: req.user?.id })
-          .andWhere("post.status = :status", { status: PostStatus.SCHEDULED })
-          .leftJoinAndSelect("post.author", "author")
-          .orderBy("post.scheduledFor", "ASC")
-          .skip(skipNumber)
-          .take(takeNumber)
-          .getManyAndCount()
+        .createQueryBuilder("post")
+        .where("post.author = :userId", { userId: req.user?.id })
+        .andWhere("post.status = :status", { status: PostStatus.SCHEDULED })
+        .leftJoinAndSelect("post.author", "author")
+        .orderBy("post.scheduledFor", "ASC")
+        .skip(skipNumber)
+        .take(takeNumber)
+        .getManyAndCount();
 
       if (posts.length === 0) {
-        res.status(HTTP_STATUS.OK).json(handleResponse("No scheduled posts found"));
+        res
+          .status(HTTP_STATUS.OK)
+          .json(handleResponse("No scheduled posts found"));
         return next();
       }
 
@@ -899,32 +1000,34 @@ export class PostController {
       });
 
       res.status(HTTP_STATUS.OK).json(
-          handleResponse("Scheduled posts fetched successfully", {
-            posts,
-            pagination: {
-              totalItems,
-              currentPage: parseInt(page as string, 10),
-              pageSize: takeNumber,
-              totalPages: Math.ceil(totalItems / takeNumber),
-            },
-          })
+        handleResponse("Scheduled posts fetched successfully", {
+          posts,
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page as string, 10),
+            pageSize: takeNumber,
+            totalPages: Math.ceil(totalItems / takeNumber),
+          },
+        })
       );
-      return next()
+      return next();
     } catch (error) {
-      logger.error(`PostController :: getScheduledPosts :: ${(error as Error)?.message}`);
+      logger.error(
+        `PostController :: getScheduledPosts :: ${(error as Error)?.message}`
+      );
       return next(error);
     }
   }
 
-// Method to update a scheduled post
+  // Method to update a scheduled post
   async updateScheduledPost(
-      req: ICustomRequest,
-      res: Response,
-      next: NextFunction
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
   ): Promise<void> {
     try {
-      const {id} = req.params;
-      const {scheduledDate} = req.body;
+      const { id } = req.params;
+      const { scheduledDate } = req.body;
 
       // Validate the date if provided
       let scheduledFor: Date | undefined;
@@ -936,13 +1039,16 @@ export class PostController {
 
         // Ensure date is in the future
         if (scheduledFor.getTime() <= Date.now()) {
-          throw new ApiError("Scheduled date must be in the future", HTTP_STATUS.BAD_REQUEST);
+          throw new ApiError(
+            "Scheduled date must be in the future",
+            HTTP_STATUS.BAD_REQUEST
+          );
         }
       }
 
       const post = await this.postRepo.findOne({
-        where: {id},
-        relations: ["author"]
+        where: { id },
+        relations: ["author"],
       });
 
       if (!post) {
@@ -956,7 +1062,10 @@ export class PostController {
 
       // Check if the user owns the post
       if (post.author.id !== req.user?.id) {
-        throw new ApiError("You can only update your own scheduled posts", HTTP_STATUS.FORBIDDEN);
+        throw new ApiError(
+          "You can only update your own scheduled posts",
+          HTTP_STATUS.FORBIDDEN
+        );
       }
 
       if (scheduledFor) {
@@ -965,9 +1074,9 @@ export class PostController {
 
         // Create new job with updated date
         const job = await schedulerService.schedulePost(
-            post.id,
-            req.user.id,
-            scheduledFor
+          post.id,
+          req.user.id,
+          scheduledFor
         );
 
         // Update post
@@ -977,21 +1086,23 @@ export class PostController {
       }
 
       res.status(HTTP_STATUS.OK).json(
-          handleResponse("Scheduled post updated successfully", {
-            post,
-            scheduledFor: post.scheduledFor
-          })
+        handleResponse("Scheduled post updated successfully", {
+          post,
+          scheduledFor: post.scheduledFor,
+        })
       );
     } catch (error) {
-      logger.error(`PostController :: updateScheduledPost :: ${(error as Error)?.message}`);
+      logger.error(
+        `PostController :: updateScheduledPost :: ${(error as Error)?.message}`
+      );
       return next(error);
     }
   }
 
   async createPostWithPoll(
-      req: ICustomRequest,
-      res: Response,
-      next: NextFunction
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
   ): Promise<void> {
     try {
       // Get the post data
@@ -1003,8 +1114,8 @@ export class PostController {
 
       if (!poll || !poll.question || !poll.options || poll.options.length < 2) {
         throw new ApiError(
-            "Poll must have a question and at least 2 options",
-            HTTP_STATUS.BAD_REQUEST
+          "Poll must have a question and at least 2 options",
+          HTTP_STATUS.BAD_REQUEST
         );
       }
 
@@ -1028,7 +1139,8 @@ export class PostController {
       newPoll.options = poll.options;
       newPoll.endDate = poll.endDate ? new Date(poll.endDate) : null;
       newPoll.allowMultipleVotes = poll.allowMultipleVotes || false;
-      newPoll.showResults = poll.showResults !== undefined ? poll.showResults : true;
+      newPoll.showResults =
+        poll.showResults !== undefined ? poll.showResults : true;
       newPoll.isAnonymous = poll.isAnonymous || false;
       newPoll.allowAddOptions = poll.allowAddOptions || false;
       newPoll.postId = savedPost.id;
@@ -1042,15 +1154,15 @@ export class PostController {
       // Return the created post with poll
       const postWithPoll = await this.postRepo.findOne({
         where: { id: savedPost.id },
-        relations: ["author", "poll"]
+        relations: ["author", "poll"],
       });
 
       res
-          .status(HTTP_STATUS.CREATED)
-          .json(handleResponse("Poll post created successfully", postWithPoll));
+        .status(HTTP_STATUS.CREATED)
+        .json(handleResponse("Poll post created successfully", postWithPoll));
     } catch (error) {
       logger.error(
-          `PostController :: createPostWithPoll :: ${(error as Error)?.message}`
+        `PostController :: createPostWithPoll :: ${(error as Error)?.message}`
       );
       return next(error);
     }

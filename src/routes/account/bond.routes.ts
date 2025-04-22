@@ -263,6 +263,11 @@ setPagination,
  *           type: integer
  *           default: 10
  *         description: Number of items per page.
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search users by first name, last name, or email.
  *     responses:
  *       200:
  *         description: Bond requests fetched successfully
