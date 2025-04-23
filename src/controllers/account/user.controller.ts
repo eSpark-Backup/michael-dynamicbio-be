@@ -1155,4 +1155,63 @@ export class UserController {
     }
   }
   
+
+  async getPublicUserProfile(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.query.userId;
+  
+      const user = await this.usersRepo
+        .createQueryBuilder("user")
+        .leftJoinAndSelect("user.profileSettings", "profileSettings")
+        .where("user.id = :userId", { userId })
+        .getOne();
+  
+      if (!user) {
+        throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
+      }
+  
+      const settings = user.profileSettings;
+      const about = user.about as any;
+  
+      const filteredProfile: any = {
+        firstName: user.firstName,
+        ...(settings?.showLastName && { lastName: user.lastName }),
+        ...(settings?.showEmail && { email: user.email }),
+        ...(settings?.showProfilePhoto && { profileImage: user.profileImage }),
+        ...(settings?.showHeadline && { designation: user.designation }),
+        ...(settings?.showSummary && { bio: about?.bio }),
+        ...(settings?.showOrganizationsAndInterests && {
+          company: user.company,
+          industry: user.industry,
+        }),
+        ...(settings?.showCurrentExperience && {
+          currentExperience: about?.experience?.filter((exp: { currently: any; }) => exp?.currently),
+        }),
+        ...(settings?.showPastExperience && {
+          pastExperience: about?.experience?.filter((exp: { currently: any; }) => !exp?.currently),
+        }),
+        ...(settings?.showEducation && { education: about?.education }),
+        ...(settings?.showCertifications && { certifications: about?.certifications }),
+        ...(settings?.showProjects && { projects: about?.projects }),
+        ...(settings?.showLanguages && { languages: about?.languages }),
+        ...(settings?.showSkills && { skills: about?.skill }),
+        ...(settings?.pageVisitVisibility && {
+          city: user.city,
+          country: user.country,
+        }),
+      };
+  
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("User profile retrieved successfully", filteredProfile));
+    } catch (error) {
+      logger.error(`UserController :: getUserProfile :: ${(error as Error)?.message}`);
+      return next(error);
+    }
+  }
+  
 }

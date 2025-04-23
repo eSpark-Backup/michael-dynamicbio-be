@@ -317,6 +317,7 @@ router.put(
   "/profile",
   checkJwt,
   validateRoles([ROLES.USER]),
+  parseJsonFields(["about"]),
   handleMultipleFiles([
     { name: FILE_FIELDS.SINGLE_IMAGE, maxCount: 1 },
     { name: FILE_FIELDS.COVER, maxCount: 1 },
@@ -866,6 +867,36 @@ router.put(
   checkJwt,
   validateRoles([ROLES.USER]),
   (req, res, next) => userController.updateProfileSettings(req, res, next)
+);
+
+
+
+/**
+ * @swagger
+ * /user/public-profile:
+ *   get:
+ *     summary: Get Public User Profile
+ *     description: This endpoint retrieves a user's public profile based on their privacy settings.
+ *     tags:
+ *       - User
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the user whose public profile is being requested.
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully.
+ *       404:
+ *         description: User profile not found.
+ *       500:
+ *         description: Server error.
+ */
+router.get(
+  "/public-profile",
+  (req, res, next) => userController.getPublicUserProfile(req, res, next)
 );
 
 export { router };
