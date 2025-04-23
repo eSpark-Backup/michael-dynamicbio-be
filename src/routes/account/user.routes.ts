@@ -214,8 +214,11 @@ router.get("/notifications", checkJwt, setPagination, (req, res, next) =>
  *                 type: string
  *                 description: Details about the User.
  *               about:
- *                 type: string
- *                 description: Details about the User.
+ *                  type: object
+ *                  properties:
+ *                    dob:
+ *                       type: string
+ *                       description: Date of Birth of User
  *               designation:
  *                 type: string
  *                 description: Details about the User.
@@ -244,6 +247,7 @@ router.put(
   "/add-profile",
   checkJwt,
   validateRoles([ROLES.USER]),
+  parseJsonFields(["about"]),
   handleMultipleFiles([{ name: FILE_FIELDS.SINGLE_IMAGE, maxCount: 1 }]),
   (req, res, next) => userController.updateProfileImage(req, res, next)
 );
@@ -694,8 +698,6 @@ router.get(
   (req, res, next) => userController.getTimeline(req, res, next)
 );
 
-
-
 /**
  * @swagger
  * /user/share/{data}:
@@ -776,12 +778,9 @@ router.get(
  *       500:
  *         description: Server error.
  */
-router.get(
-  "/share/:data",
-  optionalCheckJwt,
-  (req, res, next) => userController.getSharedEntity(req, res, next)
+router.get("/share/:data", optionalCheckJwt, (req, res, next) =>
+  userController.getSharedEntity(req, res, next)
 );
-
 
 /**
  * @swagger
@@ -854,7 +853,7 @@ router.get(
  *                 type: boolean
  *     responses:
  *       200:
- *         description: User profile settings updated successfully 
+ *         description: User profile settings updated successfully
  *       400:
  *         description: Validation error
  *       403:
@@ -868,7 +867,5 @@ router.put(
   validateRoles([ROLES.USER]),
   (req, res, next) => userController.updateProfileSettings(req, res, next)
 );
-
-
 
 export { router };
