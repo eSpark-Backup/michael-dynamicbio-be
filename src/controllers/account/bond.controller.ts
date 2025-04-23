@@ -142,7 +142,9 @@ export class BondController {
 
       let query = this.usersRepo
         .createQueryBuilder("user")
-        .where("user.id != :id", { id: req.user.id });
+        .where("user.id != :id", { id: req.user.id })
+        .leftJoinAndSelect("user.profileSettings", "profileSettings")
+
 
       if (id) {
         query = query.andWhere("user.id = :userId", { userId: id });

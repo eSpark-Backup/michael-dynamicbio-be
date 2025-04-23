@@ -6,6 +6,7 @@ import {
   Post,
   PostStatus,
   PostType,
+  ProfileSettings,
   ProfileStatus,
   User,
 } from "../../entity";
@@ -351,13 +352,13 @@ export class UserController {
         FolderName
       )) as UploadResult[];
       const oldUserImage = user.profileImage;
-      if (user.imageKey) {
+      if (user.imageKey && imageFileObjects.length>0) {
         if (imageFileObjects && oldUserImage !== imageUrls[0]?.url) {
           await uploadService.deleteFile(user.imageKey);
         }
       }
       const oldUserCover = user.coverImage;
-      if (user.coverImageKey) {
+      if (user.coverImageKey && coverFileObjects.length>0) {
         if (coverFileObjects && oldUserCover !== coverUrls[0]?.url) {
           await uploadService.deleteFile(user.coverImageKey);
         }
@@ -699,6 +700,7 @@ export class UserController {
       const user = (await this.usersRepo
         .createQueryBuilder("user")
         .where("user.id = :userId", { userId })
+        .leftJoinAndSelect("user.profileSettings", "profileSettings")
         .getOne()) as User;
       if (!user) {
         throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
@@ -1078,4 +1080,79 @@ export class UserController {
     // Return the option index if found, otherwise null
     return userVote ? userVote.optionIndex : null;
   }
+
+
+  async updateProfileSettings(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const profileFields = [
+        "profileViewingOption",
+        "showProfilePhoto",
+        "pageVisitVisibility",
+        "allowPublicProfileEdit",
+        "showEmail",
+        "showConnections",
+        "showFollowedMembers",
+        "showLastName",
+        "showOrganizationsAndInterests",
+        "allowPageOwnersToExportData",
+        "discoverableOutsideLinkedIn",
+        "discoverableByEmail",
+        "discoverableByPhone",
+        "showHeadline",
+        "showSummary",
+        "showArticlesAndActivity",
+        "showCurrentExperience",
+        "showCurrentExperienceDetails",
+        "showPastExperience",
+        "showPastExperienceDetails",
+        "showEducation",
+        "showEducationDetails",
+        "showCertifications",
+        "showProjects",
+        "showLanguages",
+      ];
+  
+      const user = await this.usersRepo
+        .createQueryBuilder("user")
+        .where("user.id = :userId", { userId })
+        .leftJoinAndSelect("user.profileSettings", "profileSettings")
+        .getOne();
+  
+      if (!user) {
+        throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
+      }
+  
+      if (!user.profileSettings) {
+        const newProfileSettings = new ProfileSettings();
+        newProfileSettings.user = user;
+        user.profileSettings = newProfileSettings;
+      }
+  
+      for (const field of profileFields) {
+        if (field in req.body) {
+          (user.profileSettings as any)[field] = req.body[field];
+        }
+      }
+  
+      const updatedUser = await this.usersRepo.save(user);
+      delete updatedUser.profileSettings.user;
+  
+      res.status(HTTP_STATUS.OK).json({
+        message: "User profile settings updated successfully",
+        data: updatedUser,
+      });
+      return next();
+    } catch (error) {
+      logger.error(
+        `UserController :: updateProfileSettings :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+  
 }

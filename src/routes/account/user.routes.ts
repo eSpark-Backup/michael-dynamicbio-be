@@ -782,4 +782,93 @@ router.get(
   (req, res, next) => userController.getSharedEntity(req, res, next)
 );
 
+
+/**
+ * @swagger
+ * /user/profile/settings:
+ *   put:
+ *     summary: Update User Profile Settings
+ *     description: Update your visibility and privacy preferences for different profile sections.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - User
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               profileViewingOption:
+ *                 type: string
+ *                 enum: [Your name and headline, Private profile characteristics, Private mode]
+ *                 description: Who can see your name and headline when viewing profiles.
+ *               showProfilePhoto:
+ *                 type: boolean
+ *               pageVisitVisibility:
+ *                 type: boolean
+ *               allowPublicProfileEdit:
+ *                 type: boolean
+ *               showEmail:
+ *                 type: boolean
+ *               showConnections:
+ *                 type: boolean
+ *               showFollowedMembers:
+ *                 type: boolean
+ *               showLastName:
+ *                 type: boolean
+ *               showOrganizationsAndInterests:
+ *                 type: boolean
+ *               allowPageOwnersToExportData:
+ *                 type: boolean
+ *               discoverableOutsideLinkedIn:
+ *                 type: boolean
+ *               discoverableByEmail:
+ *                 type: boolean
+ *               discoverableByPhone:
+ *                 type: boolean
+ *               showHeadline:
+ *                 type: boolean
+ *               showSummary:
+ *                 type: boolean
+ *               showArticlesAndActivity:
+ *                 type: boolean
+ *               showCurrentExperience:
+ *                 type: boolean
+ *               showCurrentExperienceDetails:
+ *                 type: boolean
+ *               showPastExperience:
+ *                 type: boolean
+ *               showPastExperienceDetails:
+ *                 type: boolean
+ *               showEducation:
+ *                 type: boolean
+ *               showEducationDetails:
+ *                 type: boolean
+ *               showCertifications:
+ *                 type: boolean
+ *               showProjects:
+ *                 type: boolean
+ *               showLanguages:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: User profile settings updated successfully 
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Internal Server Error
+ */
+router.put(
+  "/profile/settings",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  (req, res, next) => userController.updateProfileSettings(req, res, next)
+);
+
+
+
 export { router };
