@@ -169,7 +169,7 @@ export const generateToken = (
   return payloadWithExpiration;
 };
 export const generateTokenForRegistration = (
-  payload: {email: string,password:string,firstName:string,lastName:string },
+  payload: {email: string,password:string,firstName:string,lastName:string ,about:object},
   expiresIn: string = "1h"
 ) => {
   // Handle expiration time
@@ -187,6 +187,7 @@ export const generateTokenForRegistration = (
     password: payload.password,
     firstName: payload.firstName,
     lastName: payload.lastName,
+    about:payload.about,
     expiresAt: expirationDate.toISOString(), // Add expiration time to the payload
   };
 

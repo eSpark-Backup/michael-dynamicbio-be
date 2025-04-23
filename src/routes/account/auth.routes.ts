@@ -50,6 +50,12 @@ const authController = new AuthController(userRepository);
  *                 type: string
  *               role:
  *                 type: string
+ *               about:
+ *                  type: object
+ *                  properties:
+ *                    dob:
+ *                       type: string
+ *                       description: Date of Birth of User
  *     responses:
  *       201:
  *         description: User registered successfully

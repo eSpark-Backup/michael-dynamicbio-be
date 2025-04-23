@@ -18,6 +18,7 @@ export class AuthValidation {
     socialId: Joi.string().optional(),
     password: Joi.string().min(8).optional(),
     role: Joi.string().required(),
+    about:Joi.object().unknown(true).optional(),
   });
 
   static loginUser = Joi.object({

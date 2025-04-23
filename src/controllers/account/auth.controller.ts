@@ -52,6 +52,7 @@ export class AuthController {
         password,
         socialId,
         profileImage,
+        about
       } = req.body;
 
       if (isSocialLogin) {
@@ -115,6 +116,7 @@ export class AuthController {
         user.lastName = lastName;
         user.email = email;
         user.loginType = loginType;
+        user.about=about;
         // user.countryCode = countryCode;
         // user.phoneNumber = phoneNumber;
         user.profileImage = profileImage;
@@ -177,6 +179,7 @@ export class AuthController {
       const user = new User();
       user.firstName = firstName;
       user.lastName = lastName;
+      user.about= about;
       // user.phoneNumber = phoneNumber;
       // user.countryCode = countryCode;
       user.email = email;
@@ -193,6 +196,7 @@ export class AuthController {
           password: user.password,
           firstName: user.firstName,
           lastName: user.lastName,
+          about:user.about
         },
         "1h"
       );
@@ -631,6 +635,7 @@ async findEmail(
         password: string;
         firstName: string;
         lastName: string;
+        about:object
       };
 
       try {
@@ -639,6 +644,7 @@ async findEmail(
           password: string;
           firstName: string;
           lastName: string;
+          about:object
         };
 
       } catch (error) {
@@ -661,6 +667,7 @@ async findEmail(
       user.firstName = payload.firstName;
       user.lastName = payload.lastName;
       user.email = payload.email;
+      user.about= payload.about;
 
 
       
