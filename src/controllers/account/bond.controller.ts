@@ -167,7 +167,6 @@ export class BondController {
           "user.profileImage",
           "user.countryCode",
           "user.phoneNumber",
-          "user.about",
           "user.coverImage",
           "user.imageKey",
           "user.coverImageKey",
