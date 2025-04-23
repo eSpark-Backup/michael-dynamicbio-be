@@ -4,11 +4,11 @@ import {
   PrimaryGeneratedColumn,
   Column,
   Index,
-  OneToMany,
+  OneToMany, ManyToMany,
   OneToOne,
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
-import { Comments, Likes, Post,ProfileSettings } from ".";
+import { Comments, Likes, Post } from ".";
 export enum LoginType {
   LOCAL = "local",
   FACEBOOK = "facebook",
@@ -115,7 +115,7 @@ export class User extends BaseEntity {
   passwordResetExpire: string;
 
   @OneToMany(() => Post, (post) => post.author, { onDelete: "CASCADE" })
-  posts: Post;
+  posts: Post[];
 
   @Column({ type: "varchar", length: 50, nullable: true, default: "user" })
   role: string;
@@ -145,4 +145,13 @@ export class User extends BaseEntity {
   })
   profileSettings: ProfileSettings;
   
+
+  @OneToMany(() => Page, (page) => page.creator)
+  createdPages: Page[];
+
+  @ManyToMany(() => Page, (page) => page.admins)
+  adminPages: Page[];
+
+  @ManyToMany(() => Page, (page) => page.followers)
+  followedPages: Page[];
 }
