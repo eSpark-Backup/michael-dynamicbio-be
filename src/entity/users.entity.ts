@@ -8,7 +8,7 @@ import {
   OneToOne,
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
-import { Comments, Likes, Post } from ".";
+import { Comments, Likes, Page, Post, ProfileSettings } from ".";
 export enum LoginType {
   LOCAL = "local",
   FACEBOOK = "facebook",
