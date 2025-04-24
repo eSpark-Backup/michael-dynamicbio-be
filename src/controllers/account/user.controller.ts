@@ -352,13 +352,13 @@ export class UserController {
         FolderName
       )) as UploadResult[];
       const oldUserImage = user.profileImage;
-      if (user.imageKey && imageFileObjects.length>0) {
+      if (user.imageKey && imageFileObjects.length > 0) {
         if (imageFileObjects && oldUserImage !== imageUrls[0]?.url) {
           await uploadService.deleteFile(user.imageKey);
         }
       }
       const oldUserCover = user.coverImage;
-      if (user.coverImageKey && coverFileObjects.length>0) {
+      if (user.coverImageKey && coverFileObjects.length > 0) {
         if (coverFileObjects && oldUserCover !== coverUrls[0]?.url) {
           await uploadService.deleteFile(user.coverImageKey);
         }
@@ -500,6 +500,7 @@ export class UserController {
         .leftJoinAndSelect("post.poll", "poll") // Include poll data
         .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
         .leftJoinAndSelect("post.comments", "comment")
+        .leftJoinAndSelect("comment.user","commentUser")
 
         .select([
           "post",
@@ -508,9 +509,13 @@ export class UserController {
           "likedUser.id",
           "likedUser.firstName",
           "likedUser.lastName",
-          "lastLikedUser.firstName",
-          "lastLikedUser.lastName",
+          "likedUser.profileImage",
+          "likedUser.role",
           "comment",
+          "commentUser.id",
+          "commentUser.firstName",
+          "commentUser.lastName",
+          "commentUser.profileImage",
           "poll", // Include poll fields
           "pollVotes.id",
           "pollVotes.optionIndex",
@@ -526,31 +531,30 @@ export class UserController {
       // Process each post
       for (const post of posts) {
         praseMedia(post);
-        (post as any).shareableLink= generateShareableLink({
+        ((post as any).shareableLink = generateShareableLink({
           id: post.id,
           type: "post",
           typeName: post.type,
-        }),
-        (post as any).likesCount = post.likes.length;
+        })),
+          ((post as any).likesCount = post.likes.length);
         const lastLike = post.likes[0];
         (post as any).lastLikedUser = lastLike
           ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
           : null;
-          for (const like of post.likes) {
-            const likeUserId = like.user.id;
-        
-            const bond = await this.bondsRepo.findOne({
-              where: [
-                { requester: { id: userId }, recipient: { id: likeUserId } },
-                { requester: { id: likeUserId }, recipient: { id: userId } },
-              ],
-            });
-        
-            (like as any).isBond = !!bond; // true if bond exists, false otherwise
-          }
+        for (const like of post.likes) {
+          const likeUserId = like.user.id;
 
-          (post as any).commentsCount = post.comments.length;
+          const bond = await this.bondsRepo.findOne({
+            where: [
+              { requester: { id: userId }, recipient: { id: likeUserId } },
+              { requester: { id: likeUserId }, recipient: { id: userId } },
+            ],
+          });
 
+          (like as any).isBond = !!bond; // true if bond exists, false otherwise
+        }
+
+        (post as any).commentsCount = post.comments.length;
 
         // If the post is a poll, include vote statistics
         if (post.type === PostType.POLL && post.poll) {
@@ -916,7 +920,7 @@ export class UserController {
   ): Promise<void> {
     try {
       const { data } = req.params;
-      const userId=req.user?.id;
+      const userId = req.user?.id;
       const entities = decryptShareableLink(data as string);
       const { id, type } = entities[0];
 
@@ -936,121 +940,117 @@ export class UserController {
             HTTP_STATUS.NOT_FOUND
           );
         }
-      }else if (type ==="post"){
-          const singlePost = await this.postsRepo
-                  .createQueryBuilder("post")
-                  .where("post.id = :id", { id })
-                  .leftJoinAndSelect("post.author", "author")
-                  .leftJoinAndSelect("post.likes", "like")
-                  .leftJoinAndSelect("like.user", "likeUser")
-                  .leftJoinAndSelect("like.user", "lastLikedUser")
-                  .leftJoinAndSelect("post.poll", "poll") // Include poll data
-                  .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
-                  .leftJoinAndSelect("post.comments", "comment")
-                  .select([
-                    "post",
-                    "author",
-                    "like",
-             
-                    "likeUser.id",
-                    "likeUser.firstName",
-                    "likeUser.lastName",
-                    "likeUser.profileImage",
-        
-                    // "lastLikedUser.firstName",
-                    // "lastLikedUser.lastName",
-                    "poll",
-                    "pollVotes.id",
-                    "pollVotes.optionIndex",
-                    "pollVotes.userId",
-                    "comment",
-                  ])
-                  .addOrderBy("like.createdAt", "DESC")
-                  .getOne();
-        
-                if (!singlePost) {
-                  res.status(200).json(handleResponse("Post not found"));
-                  return next();
-                }
-        
-                praseMedia(singlePost);
-                (singlePost as any).likesCount = singlePost.likes.length;
-                (singlePost as any).commentsCount = singlePost.comments.length;
-                //remove the comments from post
-                delete singlePost.comments;
-                const lastLike = singlePost.likes[0];
-                (singlePost as any).lastLikedUser = lastLike
-                  ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
-                  : null;
-        
-                // If the post is a poll, include vote statistics
-                if (singlePost.type === PostType.POLL && singlePost.poll) {
-                  const voteCounts = await this.getPollVoteCounts(singlePost.poll);
-                  const userVote = this.getUserPollVote(singlePost.poll, userId);
-        
-                  // Only show results if poll is configured to show results or user has voted
-                  const shouldShowResults =
-                    singlePost.poll.showResults ||
-                    (userVote !== null && userVote !== undefined);
-        
-                  (singlePost as any).pollResults = shouldShowResults
-                    ? voteCounts
-                    : null;
-                  (singlePost as any).userVote = userVote;
-                  (singlePost as any).hasVoted = userVote !== null; // Add hasVoted flag
-        
-                  // Calculate poll statistics
-                  if (singlePost.poll.votes && singlePost.poll.votes.length > 0) {
-                    (singlePost as any).pollStats = {
-                      totalVotes: singlePost.poll.votes.length,
-                      hasEnded: singlePost.poll.endDate
-                        ? new Date() > singlePost.poll.endDate
-                        : false,
-                    };
-                  } else {
-                    (singlePost as any).pollStats = {
-                      totalVotes: 0,
-                      hasEnded: singlePost.poll.endDate
-                        ? new Date() > singlePost.poll.endDate
-                        : false,
-                    };
-                  }
-        
-               
-                  // Remove sensitive data if poll is anonymous
-                  if (singlePost.poll.isAnonymous) {
-                    delete singlePost.poll.votes;
-                  }
-                }
-        
-        
-                for (const like of singlePost.likes) {
-                  const likeUserId = like.user.id;
-              
-                  const bond = await this.bondsRepo.findOne({
-                    where: [
-                      { requester: { id: userId }, recipient: { id: likeUserId } },
-                      { requester: { id: likeUserId }, recipient: { id: userId } },
-                    ],
-                  });
+      } else if (type === "post") {
+        const singlePost = await this.postsRepo
+          .createQueryBuilder("post")
+          .where("post.id = :id", { id })
+          .leftJoinAndSelect("post.author", "author")
+          .leftJoinAndSelect("post.likes", "like")
+          .leftJoinAndSelect("like.user", "likeUser")
+          .leftJoinAndSelect("like.user", "lastLikedUser")
+          .leftJoinAndSelect("post.poll", "poll") // Include poll data
+          .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+          .leftJoinAndSelect("post.comments", "comment")
+          .select([
+            "post",
+            "author",
+            "like",
 
-                  if(userId){
-                  (like as any).isBond = !!bond; 
-                  }else {
-                    (like as any).isBond = false; 
-                  }
+            "likeUser.id",
+            "likeUser.firstName",
+            "likeUser.lastName",
+            "likeUser.profileImage",
+            "likeUser.role",
+            // "lastLikedUser.firstName",
+            // "lastLikedUser.lastName",
+            "poll",
+            "pollVotes.id",
+            "pollVotes.optionIndex",
+            "pollVotes.userId",
+            "comment",
+          ])
+          .addOrderBy("like.createdAt", "DESC")
+          .getOne();
 
-                }
-                (singlePost as any).shareableLink= generateShareableLink({
-                  id: singlePost.id,
-                  type: "post",
-                  typeName: singlePost.type,
-                }),
-        
-                res
-                  .status(200)
-                  .json(handleResponse("Post Found Successfully", singlePost));
-                return next();
+        if (!singlePost) {
+          res.status(200).json(handleResponse("Post not found"));
+          return next();
+        }
+
+        praseMedia(singlePost);
+        (singlePost as any).likesCount = singlePost.likes.length;
+        (singlePost as any).commentsCount = singlePost.comments.length;
+        //remove the comments from post
+        delete singlePost.comments;
+        const lastLike = singlePost.likes[0];
+        (singlePost as any).lastLikedUser = lastLike
+          ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
+          : null;
+
+        // If the post is a poll, include vote statistics
+        if (singlePost.type === PostType.POLL && singlePost.poll) {
+          const voteCounts = await this.getPollVoteCounts(singlePost.poll);
+          const userVote = this.getUserPollVote(singlePost.poll, userId);
+
+          // Only show results if poll is configured to show results or user has voted
+          const shouldShowResults =
+            singlePost.poll.showResults ||
+            (userVote !== null && userVote !== undefined);
+
+          (singlePost as any).pollResults = shouldShowResults
+            ? voteCounts
+            : null;
+          (singlePost as any).userVote = userVote;
+          (singlePost as any).hasVoted = userVote !== null; // Add hasVoted flag
+
+          // Calculate poll statistics
+          if (singlePost.poll.votes && singlePost.poll.votes.length > 0) {
+            (singlePost as any).pollStats = {
+              totalVotes: singlePost.poll.votes.length,
+              hasEnded: singlePost.poll.endDate
+                ? new Date() > singlePost.poll.endDate
+                : false,
+            };
+          } else {
+            (singlePost as any).pollStats = {
+              totalVotes: 0,
+              hasEnded: singlePost.poll.endDate
+                ? new Date() > singlePost.poll.endDate
+                : false,
+            };
+          }
+
+          // Remove sensitive data if poll is anonymous
+          if (singlePost.poll.isAnonymous) {
+            delete singlePost.poll.votes;
+          }
+        }
+
+        for (const like of singlePost.likes) {
+          const likeUserId = like.user.id;
+
+          const bond = await this.bondsRepo.findOne({
+            where: [
+              { requester: { id: userId }, recipient: { id: likeUserId } },
+              { requester: { id: likeUserId }, recipient: { id: userId } },
+            ],
+          });
+
+          if (userId) {
+            (like as any).isBond = !!bond;
+          } else {
+            (like as any).isBond = false;
+          }
+        }
+        ((singlePost as any).shareableLink = generateShareableLink({
+          id: singlePost.id,
+          type: "post",
+          typeName: singlePost.type,
+        })),
+          res
+            .status(200)
+            .json(handleResponse("Post Found Successfully", singlePost));
+        return next();
       }
 
       if (!entity) {
@@ -1068,7 +1068,6 @@ export class UserController {
     }
   }
 
-
   private getUserPollVote(poll: Poll, userId: string): number | null {
     if (!poll || !poll.votes || !userId) {
       return null;
@@ -1080,7 +1079,6 @@ export class UserController {
     // Return the option index if found, otherwise null
     return userVote ? userVote.optionIndex : null;
   }
-
 
   async updateProfileSettings(
     req: ICustomRequest,
@@ -1116,32 +1114,32 @@ export class UserController {
         "showProjects",
         "showLanguages",
       ];
-  
+
       const user = await this.usersRepo
         .createQueryBuilder("user")
         .where("user.id = :userId", { userId })
         .leftJoinAndSelect("user.profileSettings", "profileSettings")
         .getOne();
-  
+
       if (!user) {
         throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
       }
-  
+
       if (!user.profileSettings) {
         const newProfileSettings = new ProfileSettings();
         newProfileSettings.user = user;
         user.profileSettings = newProfileSettings;
       }
-  
+
       for (const field of profileFields) {
         if (field in req.body) {
           (user.profileSettings as any)[field] = req.body[field];
         }
       }
-  
+
       const updatedUser = await this.usersRepo.save(user);
       delete updatedUser.profileSettings.user;
-  
+
       res.status(HTTP_STATUS.OK).json({
         message: "User profile settings updated successfully",
         data: updatedUser,
@@ -1149,12 +1147,13 @@ export class UserController {
       return next();
     } catch (error) {
       logger.error(
-        `UserController :: updateProfileSettings :: ${(error as Error)?.message}`
+        `UserController :: updateProfileSettings :: ${
+          (error as Error)?.message
+        }`
       );
       return next(error);
     }
   }
-  
 
   async getPublicUserProfile(
     req: ICustomRequest,
@@ -1163,25 +1162,25 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.query.userId;
-  
+
       const user = await this.usersRepo
         .createQueryBuilder("user")
         .leftJoinAndSelect("user.profileSettings", "profileSettings")
         .where("user.id = :userId", { userId })
         .getOne();
-  
+
       if (!user) {
         throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
       }
-  
+
       const settings = user.profileSettings;
       const about = user.about as any;
-  
+
       const filteredProfile: any = {
         firstName: user.firstName,
         ...(settings?.showLastName && { lastName: user.lastName }),
         ...(settings?.showEmail && { email: user.email }),
-        ...(settings?.showProfilePhoto && { profileImage: user.profileImage }),
+        ...(settings?.showProfilePhoto && { profileImage: user.profileImage,coverImage:user.coverImage }),
         ...(settings?.showHeadline && { designation: user.designation }),
         ...(settings?.showSummary && { bio: about?.bio }),
         ...(settings?.showOrganizationsAndInterests && {
@@ -1189,13 +1188,19 @@ export class UserController {
           industry: user.industry,
         }),
         ...(settings?.showCurrentExperience && {
-          currentExperience: about?.experience?.filter((exp: { currently: any; }) => exp?.currently),
+          currentExperience: about?.experience?.filter(
+            (exp: { currently: any }) => exp?.currently
+          ),
         }),
         ...(settings?.showPastExperience && {
-          pastExperience: about?.experience?.filter((exp: { currently: any; }) => !exp?.currently),
+          pastExperience: about?.experience?.filter(
+            (exp: { currently: any }) => !exp?.currently
+          ),
         }),
         ...(settings?.showEducation && { education: about?.education }),
-        ...(settings?.showCertifications && { certifications: about?.certifications }),
+        ...(settings?.showCertifications && {
+          certifications: about?.certifications,
+        }),
         ...(settings?.showProjects && { projects: about?.projects }),
         ...(settings?.showLanguages && { languages: about?.languages }),
         ...(settings?.showSkills && { skills: about?.skill }),
@@ -1204,14 +1209,17 @@ export class UserController {
           country: user.country,
         }),
       };
-  
+
       res
         .status(HTTP_STATUS.OK)
-        .json(handleResponse("User profile retrieved successfully", filteredProfile));
+        .json(
+          handleResponse("User profile retrieved successfully", filteredProfile)
+        );
     } catch (error) {
-      logger.error(`UserController :: getUserProfile :: ${(error as Error)?.message}`);
+      logger.error(
+        `UserController :: getUserProfile :: ${(error as Error)?.message}`
+      );
       return next(error);
     }
   }
-  
 }

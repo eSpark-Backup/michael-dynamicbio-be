@@ -581,6 +581,7 @@ export class PostController {
             "likeUser.firstName",
             "likeUser.lastName",
             "likeUser.profileImage",
+            "likeUser.role",
 
             // "lastLikedUser.firstName",
             // "lastLikedUser.lastName",
@@ -693,6 +694,7 @@ export class PostController {
             "likedUser.firstName",
             "likedUser.lastName",
             "likedUser.profileImage",
+            "likedUser.role",
             "poll", // Include poll fields
             "pollVotes.id",
             "pollVotes.optionIndex",
