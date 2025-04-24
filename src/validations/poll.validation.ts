@@ -23,4 +23,9 @@ export class PollValidation {
     static AddOption = Joi.object({
         option: Joi.string().min(1).max(100).required(),
     });
+
+    // In poll.validation.ts
+    static RemoveVote = Joi.object({
+        optionIndex: Joi.number().integer().min(0).optional()
+    });
 }

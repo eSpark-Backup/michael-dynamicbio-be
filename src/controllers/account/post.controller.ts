@@ -1,5 +1,5 @@
 import { NextFunction, Response } from "express";
-import {Likes, Bond, Page, Poll, Post, PostStatus, PostType, User} from "../../entity";
+import {Likes, Bond, Page, Poll, Post, PostStatus, PostType, User, PollVote} from "../../entity";
 import {
   ICustomRequest,
   IFileObject,
@@ -25,6 +25,7 @@ export class PostController {
     private pollRepo: Repository<Poll>,
     private pageRepo: Repository<Page>,
     private bondsRepo:Repository<Bond>,
+    private pollVoteRepo: Repository<PollVote>
   ) {}
 
   async createPost(
@@ -803,25 +804,40 @@ export class PostController {
 
   // Helper method to calculate poll vote statistics
   private async getPollVoteCounts(poll: Poll): Promise<any[]> {
-    if (!poll || !poll.votes) {
+    if (!poll || !poll.options) {
       return [];
     }
 
-    // Get all votes for this poll
-    const votes = poll.votes;
+    // Get all votes for this poll with user details
+    const votes = await this.pollVoteRepo.find({
+      where: { pollId: poll.id },
+      relations: ["user"]
+    });
+
     const totalVotes = votes.length;
 
     // Count votes for each option
     const voteCounts = poll.options.map((option, index) => {
-      const optionVotes = votes.filter((vote) => vote.optionIndex === index);
+      const optionVotes = votes.filter(vote => vote.optionIndex === index);
+
+      // Get user details for each vote if the poll is not anonymous
+      const voteDetails = poll.isAnonymous ? [] : optionVotes.map(vote => ({
+        userId: vote.userId,
+        firstName: vote.user.firstName,
+        lastName: vote.user.lastName,
+        profileImage: vote.user.profileImage,
+        company: vote.user.company,
+        designation: vote.user.designation
+      }));
+
       return {
         option,
         optionIndex: index,
         count: optionVotes.length,
-        percentage:
-          totalVotes > 0
+        percentage: totalVotes > 0
             ? Math.round((optionVotes.length / totalVotes) * 100)
             : 0,
+        voters: voteDetails // Only included if poll is not anonymous
       };
     });
 
