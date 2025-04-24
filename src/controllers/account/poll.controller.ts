@@ -28,7 +28,7 @@ export class PollController {
             // Find the poll
             const poll = await this.pollRepo.findOne({
                 where: { id: pollId },
-                relations: ["post", "post.author", "votes"]
+                relations: ["post", "post.author", "votes", "votes.user"]
             });
 
             if (!poll) {
@@ -240,20 +240,36 @@ export class PollController {
             return [];
         }
 
-        // Get all votes for this poll
-        const votes = poll.votes || [];
+        // Get all votes for this poll with user details
+        const votes = await this.pollVoteRepo.find({
+            where: { pollId: poll.id },
+            relations: ["user"]
+        });
+
         const totalVotes = votes.length;
 
         // Count votes for each option
         const voteCounts = poll.options.map((option, index) => {
             const optionVotes = votes.filter(vote => vote.optionIndex === index);
+
+            // Get user details for each vote if the poll is not anonymous
+            const voteDetails = poll.isAnonymous ? [] : optionVotes.map(vote => ({
+                userId: vote.userId,
+                firstName: vote.user.firstName,
+                lastName: vote.user.lastName,
+                profileImage: vote.user.profileImage,
+                company: vote.user.company,
+                designation: vote.user.designation
+            }));
+
             return {
-                option,        // Include the actual option name
+                option,
                 optionIndex: index,
                 count: optionVotes.length,
                 percentage: totalVotes > 0
                     ? Math.round((optionVotes.length / totalVotes) * 100)
-                    : 0
+                    : 0,
+                voters: voteDetails // Only included if poll is not anonymous
             };
         });
 
@@ -397,6 +413,96 @@ export class PollController {
         } catch (error) {
             logger.error(
                 `PollController :: endPoll :: ${(error as Error)?.message}`
+            );
+            return next(error);
+        }
+    }
+
+    async removeVote(
+        req: ICustomRequest,
+        res: Response,
+        next: NextFunction
+    ): Promise<void> {
+        try {
+            const { pollId } = req.params;
+            const { optionIndex } = req.body; // Optionally allow removing vote for a specific option
+            const userId = req.user?.id;
+
+            // Find the poll
+            const poll = await this.pollRepo.findOne({
+                where: { id: pollId },
+                relations: ["post", "post.author", "votes"]
+            });
+
+            if (!poll) {
+                throw new ApiError("Poll not found", HTTP_STATUS.NOT_FOUND);
+            }
+
+            // Check if poll has ended
+            if (poll.endDate && new Date() > poll.endDate) {
+                throw new ApiError("Poll has ended, votes cannot be removed", HTTP_STATUS.BAD_REQUEST);
+            }
+
+            // Find the vote(s) to remove
+            let votesToRemove;
+            if (optionIndex !== undefined) {
+                // Remove vote for a specific option
+                votesToRemove = await this.pollVoteRepo.find({
+                    where: { pollId, userId, optionIndex }
+                });
+            } else {
+                // Remove all user's votes for this poll
+                votesToRemove = await this.pollVoteRepo.find({
+                    where: { pollId, userId }
+                });
+            }
+
+            if (votesToRemove.length === 0) {
+                throw new ApiError("No votes found to remove", HTTP_STATUS.NOT_FOUND);
+            }
+
+            // Delete the votes
+            await Promise.all(votesToRemove.map(vote =>
+                this.pollVoteRepo.delete(vote.id)
+            ));
+
+            // Reload poll with updated votes
+            const updatedPoll = await this.pollRepo.findOne({
+                where: { id: pollId },
+                relations: ["post", "post.author", "votes"]
+            });
+
+            // Get vote counts for response
+            const voteCounts = await this.getPollVoteCounts(updatedPoll);
+
+            // Determine user's votes
+            const userVotes = this.getUserPollVotes(updatedPoll, userId);
+            const hasVoted = userVotes.length > 0;
+
+            // Calculate poll statistics
+            const pollStats = {
+                totalVotes: updatedPoll.votes.length,
+                hasEnded: updatedPoll.endDate ? new Date() > updatedPoll.endDate : false
+            };
+
+            // Remove sensitive data if poll is anonymous
+            if (updatedPoll.isAnonymous) {
+                delete updatedPoll.votes;
+            }
+
+            res.status(HTTP_STATUS.OK).json(
+                handleResponse("Vote removed successfully", {
+                    poll: updatedPoll,
+                    results: updatedPoll.showResults ? voteCounts : null,
+                    userVote: userVotes.length > 0 ? userVotes[userVotes.length - 1] : null,
+                    userVotes: poll.allowMultipleVotes ? userVotes : undefined,
+                    hasVoted: hasVoted,
+                    pollStats: pollStats
+                })
+            );
+        } catch (error) {
+            logger.error(
+                `PollController :: removeVote :: ${(error as Error)?.message}`
             );
             return next(error);
         }
