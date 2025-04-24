@@ -869,14 +869,14 @@ router.put(
   (req, res, next) => userController.updateProfileSettings(req, res, next)
 );
 
-
-
 /**
  * @swagger
  * /user/public-profile:
  *   get:
  *     summary: Get Public User Profile
  *     description: This endpoint retrieves a user's public profile based on their privacy settings.
+ *     security:
+ *       - bearerAuth: []
  *     tags:
  *       - User
  *     parameters:
@@ -886,6 +886,11 @@ router.put(
  *         schema:
  *           type: string
  *         description: The ID of the user whose public profile is being requested.
+ *       - in: query
+ *         name: bond
+ *         required: false
+ *         schema:
+ *           type: boolean
  *     responses:
  *       200:
  *         description: User profile retrieved successfully.
@@ -896,7 +901,67 @@ router.put(
  */
 router.get(
   "/public-profile",
+  checkJwt,
   (req, res, next) => userController.getPublicUserProfile(req, res, next)
+);
+
+/**
+ * @swagger
+ * /user/public-profile/post/{id}:
+ *   get:
+ *     summary: Get a specific post by ID or all posts for the given user
+ *     description: This endpoint retrieves a specific post by its ID (if provided) or all posts associated with the authenticated user. Pagination is supported for retrieving multiple posts.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - User
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: false
+ *         description: ID of the post to retrieve (optional).
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: pageSize
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           example: 10
+ *       - in: query
+ *         name: profileId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: 123
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         description: Page number to retrieve (for paginated results).
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *       - in: query
+ *         name: status
+ *         required: false
+ *         description: Status should be PUBLISH.
+ *         schema:
+ *           type: string
+ *           example: PUBLISH
+ *     responses:
+ *       200:
+ *         description: Post found by ID or all posts for the authenticated user.
+ *       404:
+ *         description: Post not found (if ID is provided) or no posts found for the user.
+ *       500:
+ *         description: Server error.
+ */
+router.get(
+  "/public-profile/post/:id?",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  setPagination,
+  (req, res, next) => userController.getAllPostOfUser(req, res, next)
 );
 
 export { router };

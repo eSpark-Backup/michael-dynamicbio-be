@@ -24,7 +24,12 @@ import {
   praseMedia,
   verifyToken,
 } from "../../utils";
-import { CHAT_COOKIE, CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
+import {
+  CHAT_COOKIE,
+  CLOUD_FOLDERS,
+  HTTP_STATUS,
+  POST_STATUS,
+} from "../../constants";
 import jwt from "jsonwebtoken";
 import { UserForChat } from "../../models";
 
@@ -500,7 +505,7 @@ export class UserController {
         .leftJoinAndSelect("post.poll", "poll") // Include poll data
         .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
         .leftJoinAndSelect("post.comments", "comment")
-        .leftJoinAndSelect("comment.user","commentUser")
+        .leftJoinAndSelect("comment.user", "commentUser")
 
         .select([
           "post",
@@ -990,7 +995,10 @@ export class UserController {
         // If the post is a poll, include vote statistics
         if (singlePost.type === PostType.POLL && singlePost.poll) {
           const voteCounts = await this.getPollVoteCounts(singlePost.poll);
-          const userVote = this.getUserPollVote(singlePost.poll, userId);
+          const userVote = this.getUserPollVote(
+            singlePost.poll,
+            userId as string
+          );
 
           // Only show results if poll is configured to show results or user has voted
           const shouldShowResults =
@@ -1161,7 +1169,81 @@ export class UserController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const userId = req.query.userId;
+      const bond = req.query.bond;
+      if (bond) {
+        try {
+            const loggedInUserId = req.user.id;
+            const targetUserId = req.query.userId as string;
+    
+            if (!targetUserId) {
+                throw new ApiError("Target userId is required", HTTP_STATUS.BAD_REQUEST);
+            }
+            const targetUser = await await this.usersRepo
+            .createQueryBuilder("user")
+            .leftJoinAndSelect("user.profileSettings", "profileSettings")
+            .where("user.id = :userId", { userId:targetUserId })
+            .getOne();
+    
+          if (!targetUser) {
+            throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
+          }
+          if(!targetUser.profileSettings.showConnections){
+            throw new ApiError("User profile is not Public", HTTP_STATUS.NOT_FOUND);
+          }
+
+    
+            // Step 1: Get all accepted bonds of the target user
+            const bonds = await this.bondsRepo.find({
+                where: [
+                    { requester: { id: targetUserId }, status: BondStatus.ACCEPTED },
+                    { recipient: { id: targetUserId }, status: BondStatus.ACCEPTED },
+                ],
+                relations: ["requester", "recipient"],
+            });
+    
+            // Step 2: Get mutual bond information by checking for a bond with the logged-in user
+            const mutualBonds = await this.bondsRepo.find({
+                where: [
+                    { requester: { id: loggedInUserId }, status: BondStatus.ACCEPTED },
+                    { recipient: { id: loggedInUserId }, status: BondStatus.ACCEPTED },
+                ],
+                relations: ["requester", "recipient"],
+            });
+    
+            const mutualUserIds = mutualBonds.map(bond => {
+                return bond.requester.id === loggedInUserId ? bond.recipient.id : bond.requester.id;
+            });
+    
+            const formattedBonds = bonds.map((bond) => {
+                const otherUser =
+                    bond.requester.id === targetUserId ? bond.recipient : bond.requester;
+    
+                return {
+                    bondId: bond.id,
+                    status: bond.status,
+                    isMutual: mutualUserIds.includes(otherUser.id),  // Check if this user is in the mutual bonds
+                    otherUser: {
+                        id: otherUser.id,
+                        firstName: otherUser.firstName,
+                        lastName: otherUser.lastName,
+                        email: otherUser.email,
+                        profileImage: otherUser.profileImage,
+                        coverImage: otherUser.coverImage,
+                        designation: otherUser.designation,
+                    },
+                };
+            });
+    
+            res.status(HTTP_STATUS.OK).json(handleResponse("User bonds fetched successfully ", formattedBonds));
+            return next();
+        } catch (error) {
+            logger.error(`UserController :: getPublicUserBonds :: ${(error as Error).message}`);
+            return next(error);
+        }
+    }
+    
+
+      const userId = req.query.userId as string;
 
       const user = await this.usersRepo
         .createQueryBuilder("user")
@@ -1173,14 +1255,26 @@ export class UserController {
         throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
       }
 
+      const count = await this.bondsRepo
+        .createQueryBuilder("bond")
+        .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+          userId,
+        })
+        .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
+        .getCount();
+
       const settings = user.profileSettings;
       const about = user.about as any;
 
       const filteredProfile: any = {
+        bondCount: count,
         firstName: user.firstName,
         ...(settings?.showLastName && { lastName: user.lastName }),
         ...(settings?.showEmail && { email: user.email }),
-        ...(settings?.showProfilePhoto && { profileImage: user.profileImage,coverImage:user.coverImage }),
+        ...(settings?.showProfilePhoto && {
+          profileImage: user.profileImage,
+          coverImage: user.coverImage,
+        }),
         ...(settings?.showHeadline && { designation: user.designation }),
         ...(settings?.showSummary && { bio: about?.bio }),
         ...(settings?.showOrganizationsAndInterests && {
@@ -1220,6 +1314,344 @@ export class UserController {
         `UserController :: getUserProfile :: ${(error as Error)?.message}`
       );
       return next(error);
+    }
+  }
+
+  async getPublicUserBonds(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const loggedInUserId = req.user.id;
+      const targetUserId = req.query.userId as string;
+
+      if (!targetUserId) {
+        throw new ApiError(
+          "Target userId is required",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      const bonds = await this.bondsRepo.find({
+        where: [
+          { requester: { id: targetUserId } },
+          { recipient: { id: targetUserId } },
+        ],
+        relations: ["requester", "recipient"],
+      });
+
+      const mutualBonds: any[] = [];
+      const otherBonds: any[] = [];
+
+      bonds.forEach((bond) => {
+        const otherUser =
+          bond.requester.id === targetUserId ? bond.recipient : bond.requester;
+
+        const isMutual =
+          (bond.requester.id === targetUserId &&
+            bond.recipient.id === loggedInUserId) ||
+          (bond.recipient.id === targetUserId &&
+            bond.requester.id === loggedInUserId);
+
+        const formattedBond = {
+          bondId: bond.id,
+          status: bond.status,
+          isMutual,
+          isSentByUser: bond.requester.id === targetUserId,
+          otherUser: {
+            id: otherUser.id,
+            firstName: otherUser.firstName,
+            lastName: otherUser.lastName,
+            email: otherUser.email,
+            profileImage: otherUser.profileImage,
+            coverImage: otherUser.coverImage,
+            designation: otherUser.designation,
+          },
+        };
+
+        if (isMutual) {
+          mutualBonds.push(formattedBond);
+        } else {
+          otherBonds.push(formattedBond);
+        }
+      });
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("User bonds fetched successfully 💫", {
+          mutualBonds,
+          otherBonds,
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `UserController :: getPublicUserBonds :: ${(error as Error).message}`
+      );
+      return next(error);
+    }
+  }
+
+  async getAllPostOfUser(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { page, take, skip, profileId } = req?.query;
+      const userId = req.user?.id;
+      const skipNumber = Number(skip);
+      const takeNumber = Number(take);
+
+      // Case 1: Get a single post by ID
+      if (id && id !== "{id}") {
+        const singlePost = await this.postsRepo
+          .createQueryBuilder("post")
+          .where("post.id = :id", { id })
+          .andWhere("post.author = :profileId", { profileId })
+          .andWhere("post.status = :status", { status: PostStatus.PUBLISH })
+          .leftJoinAndSelect("post.author", "author")
+          .leftJoinAndSelect("post.likes", "like")
+          .leftJoinAndSelect("like.user", "likeUser")
+          .leftJoinAndSelect("like.user", "lastLikedUser")
+          .leftJoinAndSelect("post.poll", "poll") // Include poll data
+          .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+          .leftJoinAndSelect("post.comments", "comment")
+          .select([
+            "post",
+            "author",
+            "like",
+
+            "likeUser.id",
+            "likeUser.firstName",
+            "likeUser.lastName",
+            "likeUser.profileImage",
+            "likeUser.role",
+
+            // "lastLikedUser.firstName",
+            // "lastLikedUser.lastName",
+            "poll",
+            "pollVotes.id",
+            "pollVotes.optionIndex",
+            "pollVotes.userId",
+            "comment",
+          ])
+          .addOrderBy("like.createdAt", "DESC")
+          .getOne();
+
+        if (!singlePost) {
+          res.status(200).json(handleResponse("Post not found"));
+          return next();
+        }
+
+        praseMedia(singlePost);
+        (singlePost as any).likesCount = singlePost.likes.length;
+        (singlePost as any).commentsCount = singlePost.comments.length;
+        //remove the comments from post
+        delete singlePost.comments;
+        const lastLike = singlePost.likes[0];
+        (singlePost as any).lastLikedUser = lastLike
+          ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
+          : null;
+
+        // If the post is a poll, include vote statistics
+        if (singlePost.type === PostType.POLL && singlePost.poll) {
+          const voteCounts = await this.getPollVoteCounts(singlePost.poll);
+          const userVote = this.getUserPollVote(
+            singlePost.poll,
+            userId as string
+          );
+
+          // Only show results if poll is configured to show results or user has voted
+          const shouldShowResults =
+            singlePost.poll.showResults ||
+            (userVote !== null && userVote !== undefined);
+
+          (singlePost as any).pollResults = shouldShowResults
+            ? voteCounts
+            : null;
+          (singlePost as any).userVote = userVote;
+          (singlePost as any).hasVoted = userVote !== null; // Add hasVoted flag
+
+          // Calculate poll statistics
+          if (singlePost.poll.votes && singlePost.poll.votes.length > 0) {
+            (singlePost as any).pollStats = {
+              totalVotes: singlePost.poll.votes.length,
+              hasEnded: singlePost.poll.endDate
+                ? new Date() > singlePost.poll.endDate
+                : false,
+            };
+          } else {
+            (singlePost as any).pollStats = {
+              totalVotes: 0,
+              hasEnded: singlePost.poll.endDate
+                ? new Date() > singlePost.poll.endDate
+                : false,
+            };
+          }
+
+          // Remove sensitive data if poll is anonymous
+          if (singlePost.poll.isAnonymous) {
+            delete singlePost.poll.votes;
+          }
+        }
+
+        for (const like of singlePost.likes) {
+          const likeUserId = like.user.id;
+
+          const bond = await this.bondsRepo.findOne({
+            where: [
+              {
+                requester: { id: userId as string },
+                recipient: { id: likeUserId },
+              },
+              {
+                requester: { id: likeUserId },
+                recipient: { id: userId as string },
+              },
+            ],
+          });
+
+          (like as any).isBond = !!bond; // true if bond exists, false otherwise
+        }
+        ((singlePost as any).shareableLink = generateShareableLink({
+          id: singlePost.id,
+          type: "post",
+          typeName: singlePost.type,
+        })),
+          res
+            .status(200)
+            .json(handleResponse("Post Found Successfully", singlePost));
+        return next();
+      }
+
+      // Case 2: Get all posts for the authenticated user
+      else {
+        const [posts, totalItems] = await this.postsRepo
+          .createQueryBuilder("post")
+          .where("post.author = :userId", { userId: profileId })
+          .andWhere("post.status= :status", { status: PostStatus.PUBLISH })
+          .leftJoinAndSelect("post.author", "author")
+          .leftJoinAndSelect("post.likes", "like")
+          .leftJoinAndSelect("like.user", "likedUser")
+          .leftJoinAndSelect("like.user", "lastLikedUser")
+          .leftJoinAndSelect("post.poll", "poll") // Include poll data
+          .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+          .leftJoinAndSelect("post.comments", "comment")
+          .select([
+            "post",
+            "author",
+            "like",
+            "likedUser.id",
+            "likedUser.firstName",
+            "likedUser.lastName",
+            "likedUser.profileImage",
+            "likedUser.role",
+            "poll", // Include poll fields
+            "pollVotes.id",
+            "pollVotes.optionIndex",
+            "pollVotes.userId",
+            "comment",
+          ])
+          .orderBy("post.createdAt", "DESC")
+          .addOrderBy("like.createdAt", "DESC")
+          .skip(skipNumber)
+          .take(takeNumber)
+          .getManyAndCount();
+
+        if (posts.length === 0) {
+          res.status(200).json(handleResponse("No Posts Found"));
+          return next();
+        }
+
+        // Process each post
+        for (const post of posts) {
+          praseMedia(post);
+          ((post as any).shareableLink = generateShareableLink({
+            id: post.id,
+            type: "post",
+            typeName: post.type,
+          })),
+            ((post as any).commentsCount = post.comments.length);
+          (post as any).likesCount = post.likes.length;
+          const lastLike = post.likes[0];
+          (post as any).lastLikedUser = lastLike
+            ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
+            : null;
+
+          for (const like of post.likes) {
+            const likeUserId = like.user.id;
+
+            const bond = await this.bondsRepo.findOne({
+              where: [
+                {
+                  requester: { id: userId as string },
+                  recipient: { id: likeUserId },
+                },
+                {
+                  requester: { id: likeUserId },
+                  recipient: { id: userId as string },
+                },
+              ],
+            });
+
+            (like as any).isBond = !!bond; // true if bond exists, false otherwise
+          }
+
+          // If the post is a poll, include vote statistics
+          if (post.type === PostType.POLL && post.poll) {
+            const voteCounts = await this.getPollVoteCounts(post.poll);
+            const userVote = this.getUserPollVote(post.poll, userId as string);
+
+            // Only show results if poll is configured to show results or user has voted
+            const shouldShowResults =
+              post.poll.showResults ||
+              (userVote !== null && userVote !== undefined);
+
+            (post as any).pollResults = shouldShowResults ? voteCounts : null;
+            (post as any).userVote = userVote;
+            (post as any).hasVoted = userVote !== null; // Add hasVoted flag
+
+            // Calculate poll statistics
+            if (post.poll.votes && post.poll.votes.length > 0) {
+              (post as any).pollStats = {
+                totalVotes: post.poll.votes.length,
+                hasEnded: post.poll.endDate
+                  ? new Date() > post.poll.endDate
+                  : false,
+              };
+            } else {
+              (post as any).pollStats = {
+                totalVotes: 0,
+                hasEnded: post.poll.endDate
+                  ? new Date() > post.poll.endDate
+                  : false,
+              };
+            }
+
+            // Remove sensitive data if poll is anonymous
+            if (post.poll.isAnonymous) {
+              delete post.poll.votes;
+            }
+          }
+        }
+
+        res.status(200).json(
+          handleResponse("Posts Fetched Successfully", {
+            posts,
+
+            pagination: {
+              totalItems,
+              currentPage: parseInt(page as string, 10),
+              pageSize: takeNumber,
+              totalPages: Math.ceil(totalItems / takeNumber),
+            },
+          })
+        );
+        return next();
+      }
+    } catch (error) {
+      next(error);
     }
   }
 }
