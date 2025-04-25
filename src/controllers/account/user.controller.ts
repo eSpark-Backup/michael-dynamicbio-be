@@ -1326,6 +1326,8 @@ export class UserController {
           company: user.company,
           industry: user.industry,
         }),
+        city: user.city,
+        country: user.country,
         about: {
           ...(settings?.showSummary && { bio: about?.bio }),
 
@@ -1347,8 +1349,7 @@ export class UserController {
           ...(settings?.showLanguages && { languages: about?.languages }),
           ...(settings?.showSkills && { skills: about?.skills }),
           ...(settings?.pageVisitVisibility && {
-            city: user.city,
-            country: user.country,
+          
           }),
         },
       };

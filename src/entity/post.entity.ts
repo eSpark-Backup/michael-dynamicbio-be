@@ -5,9 +5,10 @@ import {
   ManyToOne,
   OneToMany,
   CreateDateColumn,
-  UpdateDateColumn, OneToOne,
+  UpdateDateColumn,
+  OneToOne,
 } from "typeorm";
-import {BaseEntity, Comments, Likes, Page, Poll, User} from ".";
+import { BaseEntity, Comments, Likes, Page, Poll, Saved, User } from ".";
 
 export enum PostStatus {
   ARCHIVE = "ARCHIVE",
@@ -35,9 +36,9 @@ export enum PostVisibility {
 }
 
 export enum POLL_RESULT_VISIBILITY {
-  ALWAYS = "ALWAYS",         // Show results any time
+  ALWAYS = "ALWAYS", // Show results any time
   AFTER_VOTE = "AFTER_VOTE", // Show results only after user votes
-  AFTER_END = "AFTER_END",   // Show results only after poll ends
+  AFTER_END = "AFTER_END", // Show results only after poll ends
 }
 
 @Entity()
@@ -58,7 +59,7 @@ export class Post extends BaseEntity {
   likes: Likes[];
 
   @OneToMany(() => Comments, (comment) => comment.post)
-  comments: Comments[]; 
+  comments: Comments[];
 
   @Column({
     type: "enum",
@@ -84,7 +85,7 @@ export class Post extends BaseEntity {
   })
   status: PostStatus;
 
-  @Column({ nullable: true, type: 'timestamp' })
+  @Column({ nullable: true, type: "timestamp" })
   scheduledFor: Date | null;
 
   @Column({ nullable: true, type: "varchar" })
@@ -100,10 +101,12 @@ export class Post extends BaseEntity {
   @ManyToOne(() => Page, (page) => page.posts, { nullable: true })
   page: Page;
 
-  @Column({ nullable: true, type: 'varchar' })
+  @Column({ nullable: true, type: "varchar" })
   pageId: string;
 
-  // Flag to identify if the post is a page post
-  @Column({ default: false, type: 'boolean' })
+  @Column({ default: false, type: "boolean" })
   isPagePost: boolean;
+
+  @OneToMany(() => Saved, (saved) => saved.post)
+  savedByUsers: Saved[];
 }

@@ -4,11 +4,12 @@ import {
   PrimaryGeneratedColumn,
   Column,
   Index,
-  OneToMany, ManyToMany,
+  OneToMany,
+  ManyToMany,
   OneToOne,
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
-import { Comments, Likes, Page, Post, ProfileSettings } from ".";
+import { Comments, Likes, Page, Post, ProfileSettings, Saved } from ".";
 export enum LoginType {
   LOCAL = "local",
   FACEBOOK = "facebook",
@@ -85,7 +86,7 @@ export class User extends BaseEntity {
   likes: Likes[];
 
   @OneToMany(() => Comments, (comment) => comment.user)
-  comments: Comments[]; 
+  comments: Comments[];
 
   @Column({ type: "varchar", length: 100, nullable: true })
   company: string;
@@ -141,10 +142,9 @@ export class User extends BaseEntity {
 
   @OneToOne(() => ProfileSettings, (settings) => settings.user, {
     cascade: true,
-    eager: true, 
+    eager: true,
   })
   profileSettings: ProfileSettings;
-  
 
   @OneToMany(() => Page, (page) => page.creator)
   createdPages: Page[];
@@ -154,4 +154,7 @@ export class User extends BaseEntity {
 
   @ManyToMany(() => Page, (page) => page.followers)
   followedPages: Page[];
+
+  @OneToMany(() => Saved, (saved) => saved.user)
+  savedPosts: Saved[];
 }
