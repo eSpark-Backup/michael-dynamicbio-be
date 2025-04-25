@@ -3,11 +3,13 @@ import {
   Bond,
   BondStatus,
   Poll,
+  PollVote,
   Post,
   PostStatus,
   PostType,
   ProfileSettings,
   ProfileStatus,
+  Saved,
   User,
 } from "../../entity";
 
@@ -56,7 +58,9 @@ export class UserController {
     private usersRepo: Repository<User>,
     private notificationModel: typeof Notification,
     private postsRepo: Repository<Post>,
-    private bondsRepo: Repository<Bond>
+    private bondsRepo: Repository<Bond>,
+    private savedRepo: Repository<Saved>,
+    private pollVoteRepo: Repository<PollVote>
   ) {}
 
   async verifyTokenAPI(
@@ -641,21 +645,52 @@ export class UserController {
       return [];
     }
 
-    // Get all votes for this poll
-    const votes = poll.votes || [];
+    // Get all votes for this poll with user details
+    const votes = await this.pollVoteRepo.find({
+      where: { pollId: poll.id },
+      relations: ["user"],
+    });
+
     const totalVotes = votes.length;
 
     // Count votes for each option
     const voteCounts = poll.options.map((option, index) => {
-      const optionVotes = votes.filter((vote) => vote.optionIndex === index);
+      const optionVotes = votes.filter(
+        (vote: { optionIndex: number }) => vote.optionIndex === index
+      );
+
+      // Get user details for each vote if the poll is not anonymous
+      const voteDetails = poll.isAnonymous
+        ? []
+        : optionVotes.map(
+            (vote: {
+              userId: any;
+              user: {
+                firstName: any;
+                lastName: any;
+                profileImage: any;
+                company: any;
+                designation: any;
+              };
+            }) => ({
+              userId: vote.userId,
+              firstName: vote.user.firstName,
+              lastName: vote.user.lastName,
+              profileImage: vote.user.profileImage,
+              company: vote.user.company,
+              designation: vote.user.designation,
+            })
+          );
+
       return {
-        option, // Include the actual option name
+        option,
         optionIndex: index,
         count: optionVotes.length,
         percentage:
           totalVotes > 0
             ? Math.round((optionVotes.length / totalVotes) * 100)
             : 0,
+        voters: voteDetails, // Only included if poll is not anonymous
       };
     });
 
@@ -1348,9 +1383,7 @@ export class UserController {
           ...(settings?.showProjects && { projects: about?.projects }),
           ...(settings?.showLanguages && { languages: about?.languages }),
           ...(settings?.showSkills && { skills: about?.skills }),
-          ...(settings?.pageVisitVisibility && {
-          
-          }),
+          ...(settings?.pageVisitVisibility && {}),
         },
       };
 
@@ -1438,6 +1471,52 @@ export class UserController {
         `UserController :: getPublicUserBonds :: ${(error as Error).message}`
       );
       return next(error);
+    }
+  }
+
+  async savePost(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { postId } = req.params;
+      const { type } = req.body;
+      const userId = req.user?.id;
+
+      if (!postId || !type) {
+        res.status(400).json(handleResponse("Post ID and type are required"));
+        return next();
+      }
+
+      const post = await this.postsRepo.findOne({ where: { id: postId } });
+      if (!post) {
+        res.status(404).json(handleResponse("Post not found"));
+        return next();
+      }
+
+      const existingSave = await this.savedRepo.findOne({
+        where: { user: { id: userId }, post: { id: postId } },
+      });
+      if (existingSave) {
+        res.status(400).json(handleResponse("Post already saved"));
+        return next();
+      }
+
+      const savedPost = this.savedRepo.create({
+        user: { id: userId },
+        post: { id: postId },
+        type,
+      });
+
+      await this.savedRepo.save(savedPost);
+
+      res
+        .status(200)
+        .json(handleResponse("Post saved successfully", savedPost));
+      return next();
+    } catch (error) {
+      next(error);
     }
   }
 
