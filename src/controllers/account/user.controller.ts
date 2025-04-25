@@ -1345,7 +1345,7 @@ export class UserController {
           }),
           ...(settings?.showProjects && { projects: about?.projects }),
           ...(settings?.showLanguages && { languages: about?.languages }),
-          ...(settings?.showSkills && { skills: about?.skill }),
+          ...(settings?.showSkills && { skills: about?.skills }),
           ...(settings?.pageVisitVisibility && {
             city: user.city,
             country: user.country,
