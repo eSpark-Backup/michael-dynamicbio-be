@@ -722,8 +722,19 @@ export class UserController {
         throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
       }
 
-      const { password: _, ...userProfile } = user as User;
+      let { password: _, ...userProfile } = user as User & {
+        bondCount?: number;
+      };
+      const count = await this.bondsRepo
+        .createQueryBuilder("bond")
+        .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+          userId,
+        })
+        .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
+        .getCount();
 
+      const bondCount = count || 0;
+      userProfile.bondCount = bondCount;
       res
         .status(HTTP_STATUS.OK)
         .json(
@@ -1182,76 +1193,98 @@ export class UserController {
       const bond = req.query.bond;
       if (bond) {
         try {
-            const loggedInUserId = req.user.id;
-            const targetUserId = req.query.userId as string;
-    
-            if (!targetUserId) {
-                throw new ApiError("Target userId is required", HTTP_STATUS.BAD_REQUEST);
-            }
-            const targetUser = await await this.usersRepo
+          const loggedInUserId = req.user.id;
+          const targetUserId = req.query.userId as string;
+
+          if (!targetUserId) {
+            throw new ApiError(
+              "Target userId is required",
+              HTTP_STATUS.BAD_REQUEST
+            );
+          }
+          const targetUser = await await this.usersRepo
             .createQueryBuilder("user")
             .leftJoinAndSelect("user.profileSettings", "profileSettings")
-            .where("user.id = :userId", { userId:targetUserId })
+            .where("user.id = :userId", { userId: targetUserId })
             .getOne();
-    
+
           if (!targetUser) {
             throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
           }
-          if(!targetUser.profileSettings.showConnections){
-            throw new ApiError("User profile is not Public", HTTP_STATUS.NOT_FOUND);
+          if (!targetUser.profileSettings.showConnections) {
+            throw new ApiError(
+              "User profile is not Public",
+              HTTP_STATUS.NOT_FOUND
+            );
           }
 
-    
-            // Step 1: Get all accepted bonds of the target user
-            const bonds = await this.bondsRepo.find({
-                where: [
-                    { requester: { id: targetUserId }, status: BondStatus.ACCEPTED },
-                    { recipient: { id: targetUserId }, status: BondStatus.ACCEPTED },
-                ],
-                relations: ["requester", "recipient"],
-            });
-    
-            // Step 2: Get mutual bond information by checking for a bond with the logged-in user
-            const mutualBonds = await this.bondsRepo.find({
-                where: [
-                    { requester: { id: loggedInUserId }, status: BondStatus.ACCEPTED },
-                    { recipient: { id: loggedInUserId }, status: BondStatus.ACCEPTED },
-                ],
-                relations: ["requester", "recipient"],
-            });
-    
-            const mutualUserIds = mutualBonds.map(bond => {
-                return bond.requester.id === loggedInUserId ? bond.recipient.id : bond.requester.id;
-            });
-    
-            const formattedBonds = bonds.map((bond) => {
-                const otherUser =
-                    bond.requester.id === targetUserId ? bond.recipient : bond.requester;
-    
-                return {
-                    bondId: bond.id,
-                    status: bond.status,
-                    isMutual: mutualUserIds.includes(otherUser.id),  // Check if this user is in the mutual bonds
-                    otherUser: {
-                        id: otherUser.id,
-                        firstName: otherUser.firstName,
-                        lastName: otherUser.lastName,
-                        email: otherUser.email,
-                        profileImage: otherUser.profileImage,
-                        coverImage: otherUser.coverImage,
-                        designation: otherUser.designation,
-                    },
-                };
-            });
-    
-            res.status(HTTP_STATUS.OK).json(handleResponse("User bonds fetched successfully ", formattedBonds));
-            return next();
+          // Step 1: Get all accepted bonds of the target user
+          const bonds = await this.bondsRepo.find({
+            where: [
+              { requester: { id: targetUserId }, status: BondStatus.ACCEPTED },
+              { recipient: { id: targetUserId }, status: BondStatus.ACCEPTED },
+            ],
+            relations: ["requester", "recipient"],
+          });
+
+          // Step 2: Get mutual bond information by checking for a bond with the logged-in user
+          const mutualBonds = await this.bondsRepo.find({
+            where: [
+              {
+                requester: { id: loggedInUserId },
+                status: BondStatus.ACCEPTED,
+              },
+              {
+                recipient: { id: loggedInUserId },
+                status: BondStatus.ACCEPTED,
+              },
+            ],
+            relations: ["requester", "recipient"],
+          });
+
+          const mutualUserIds = mutualBonds.map((bond) => {
+            return bond.requester.id === loggedInUserId
+              ? bond.recipient.id
+              : bond.requester.id;
+          });
+
+          const formattedBonds = bonds.map((bond) => {
+            const otherUser =
+              bond.requester.id === targetUserId
+                ? bond.recipient
+                : bond.requester;
+
+            return {
+              bondId: bond.id,
+              status: bond.status,
+              isMutual: mutualUserIds.includes(otherUser.id), // Check if this user is in the mutual bonds
+              otherUser: {
+                id: otherUser.id,
+                firstName: otherUser.firstName,
+                lastName: otherUser.lastName,
+                email: otherUser.email,
+                profileImage: otherUser.profileImage,
+                coverImage: otherUser.coverImage,
+                designation: otherUser.designation,
+              },
+            };
+          });
+
+          res
+            .status(HTTP_STATUS.OK)
+            .json(
+              handleResponse("User bonds fetched successfully ", formattedBonds)
+            );
+          return next();
         } catch (error) {
-            logger.error(`UserController :: getPublicUserBonds :: ${(error as Error).message}`);
-            return next(error);
+          logger.error(
+            `UserController :: getPublicUserBonds :: ${
+              (error as Error).message
+            }`
+          );
+          return next(error);
         }
-    }
-    
+      }
 
       const userId = req.query.userId as string;
 
@@ -1274,7 +1307,7 @@ export class UserController {
         .getCount();
 
       const settings = user.profileSettings;
-      const about = user.about as any;
+      let about = user.about as any;
 
       const filteredProfile: any = {
         bondCount: count,
@@ -1286,32 +1319,35 @@ export class UserController {
           coverImage: user.coverImage,
         }),
         ...(settings?.showHeadline && { designation: user.designation }),
-        ...(settings?.showSummary && { bio: about?.bio }),
         ...(settings?.showOrganizationsAndInterests && {
           company: user.company,
           industry: user.industry,
         }),
-        ...(settings?.showCurrentExperience && {
-          currentExperience: about?.experience?.filter(
-            (exp: { currently: any }) => exp?.currently
-          ),
-        }),
-        ...(settings?.showPastExperience && {
-          pastExperience: about?.experience?.filter(
-            (exp: { currently: any }) => !exp?.currently
-          ),
-        }),
-        ...(settings?.showEducation && { education: about?.education }),
-        ...(settings?.showCertifications && {
-          certifications: about?.certifications,
-        }),
-        ...(settings?.showProjects && { projects: about?.projects }),
-        ...(settings?.showLanguages && { languages: about?.languages }),
-        ...(settings?.showSkills && { skills: about?.skill }),
-        ...(settings?.pageVisitVisibility && {
-          city: user.city,
-          country: user.country,
-        }),
+        about: {
+          ...(settings?.showSummary && { bio: about?.bio }),
+
+          ...(settings?.showCurrentExperience && {
+            currentExperience: about?.experience?.filter(
+              (exp: { currently: any }) => exp?.currently
+            ),
+          }),
+          ...(settings?.showPastExperience && {
+            pastExperience: about?.experience?.filter(
+              (exp: { currently: any }) => !exp?.currently
+            ),
+          }),
+          ...(settings?.showEducation && { education: about?.education }),
+          ...(settings?.showCertifications && {
+            certifications: about?.certifications,
+          }),
+          ...(settings?.showProjects && { projects: about?.projects }),
+          ...(settings?.showLanguages && { languages: about?.languages }),
+          ...(settings?.showSkills && { skills: about?.skill }),
+          ...(settings?.pageVisitVisibility && {
+            city: user.city,
+            country: user.country,
+          }),
+        },
       };
 
       res

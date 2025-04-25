@@ -29,6 +29,8 @@ export enum PostVisibility {
   CONNECTIONS = "CONNECTIONS",
   ONLY_ME = "ONLY_ME",
   GROUPS = "GROUPS",
+  PAGE = "PAGE",
+  CUSTOM = "CUSTOM",
   FOLLOWERS = "FOLLOWERS",
 }
 
