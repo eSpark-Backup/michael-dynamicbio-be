@@ -173,12 +173,18 @@ export class InteractionController {
           "user.email",
           "user.profileImage",
           "user.role",
+          "user.company",
+          "user.designation",
+          "user.industry",
           "reply",
           "replyUser.id",
           "replyUser.firstName",
           "replyUser.lastName",
           "replyUser.profileImage",
           "replyUser.role",
+          "replyUser.company",
+          "replyUser.designation",
+          "replyUser.industry",
           "replyUser.email",
           "like",
           "replyLike.id",
@@ -187,7 +193,10 @@ export class InteractionController {
           "likeUser.firstName",
           "likeUser.lastName",
           "likeUser.profileImage",
-          "likeUser.role"
+          "likeUser.role",
+          "likeUser.company",
+          "likeUser.designation",
+          "likeUser.industry",
         ])
         .orderBy("comment.createdAt", "DESC")
         .getMany();
