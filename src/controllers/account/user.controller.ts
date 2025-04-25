@@ -1266,6 +1266,9 @@ export class UserController {
                 profileImage: otherUser.profileImage,
                 coverImage: otherUser.coverImage,
                 designation: otherUser.designation,
+                city: otherUser.city,
+                country: otherUser.country,
+                industry: otherUser.industry,
               },
             };
           });
