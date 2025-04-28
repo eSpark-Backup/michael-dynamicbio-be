@@ -29,6 +29,17 @@ export enum PageSize {
   }
   
 
+  export enum OrganizationType {
+    PUBLIC_COMPANY = "Public company",
+    SELF_EMPLOYED = "Self-employed",
+    GOVERNMENT_AGENCY = "Government agency",
+    NONPROFIT = "Nonprofit",
+    SOLE_PROPRIETORSHIP = "Sole proprietorship",
+    PRIVATELY_HELD = "Privately held",
+    PARTNERSHIP = "Partnership"
+  }
+  
+
 export enum IndustryType {
     PRODUCTION = "PRODUCTION",
     TRANSPORTATION = "TRANSPORTATION",
@@ -81,6 +92,17 @@ export class Page extends BaseEntity {
         default: IndustryType.TECHNOLOGY
     })
     industry: IndustryType;
+
+    @Column({
+        type: "enum",
+        enum: OrganizationType,
+        default: OrganizationType.PRIVATELY_HELD
+    })
+    organizationType: OrganizationType;
+
+
+
+
 
     @Column({ nullable: true })
     website: string;

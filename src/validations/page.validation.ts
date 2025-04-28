@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { IndustryType, PageSize, PageType } from "../entity/page.entity";
+import { IndustryType, OrganizationType, PageSize, PageType } from "../entity/page.entity";
 
 export class PageValidation {
     static createPage = Joi.object({
@@ -52,6 +52,14 @@ export class PageValidation {
             .messages({
                 "any.required": "Industry is required",
                 "any.only": "Invalid industry type"
+            }),
+
+        organizationType: Joi.string()
+            .valid(...Object.values(OrganizationType))
+            .required()
+            .messages({
+                "any.required": "Organization type is required",
+                "any.only": "Invalid organization type"
             }),
 
         website: Joi.string().uri().allow(null, "")
@@ -189,10 +197,18 @@ export class PageValidation {
                 "any.only": "Invalid industry type"
             }),
 
+            organizationType: Joi.string()
+            .valid(...Object.values(OrganizationType))
+            .messages({
+                "any.only": "Invalid organization type"
+            }),
+
         website: Joi.string().uri().allow(null, "")
             .messages({
                 "string.uri": "Website must be a valid URL"
             }),
+
+        
 
         tagline: Joi.string().max(200).allow(null, ""),
 

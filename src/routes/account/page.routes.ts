@@ -67,6 +67,9 @@ const pageController = new PageController(
  *                 type: string
  *                 enum: [ZERO_TO_ONE, TWO_TO_TEN, ELEVEN_TO_FIFTY, FIFTY_ONE_TO_TWO_HUNDRED]
  *                 description: Size of the organization
+ *               organizationType:
+ *                 type: string
+ *                 enum: [PUBLICLY_HELD, PRIVATELY_HELD, NON_PROFIT]
  *               industry:
  *                 type: string
  *                 enum: [PRODUCTION, TRANSPORTATION, STORAGE, TECHNOLOGY, FINANCE, EDUCATION, HEALTHCARE, RETAIL, OTHER]
@@ -187,6 +190,9 @@ router.post(
  *               organizationSize:
  *                 type: string
  *                 enum: [ZERO_TO_ONE, TWO_TO_TEN, ELEVEN_TO_FIFTY, FIFTY_ONE_TO_TWO_HUNDRED]
+ *               organizationType:
+ *                 type: string
+ *                 enum: [PUBLICLY_HELD, PRIVATELY_HELD, NON_PROFIT]
  *               industry:
  *                 type: string
  *                 enum: [PRODUCTION, TRANSPORTATION, STORAGE, TECHNOLOGY, FINANCE, EDUCATION, HEALTHCARE, RETAIL, OTHER]
