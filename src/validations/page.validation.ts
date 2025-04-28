@@ -116,14 +116,7 @@ export class PageValidation {
         transportationCostDetails: Joi.string().allow(null, ""),
 
         // Storage industry fields
-        storageDescription: Joi.string().when("industry", {
-            is: "STORAGE",
-            then: Joi.required(),
-            otherwise: Joi.allow(null, "")
-        }).messages({
-            "any.required": "Storage description is required for Storage industry"
-        }),
-
+      
         storageCapacity: Joi.string().when("industry", {
             is: "STORAGE",
             then: Joi.required(),
@@ -132,15 +125,32 @@ export class PageValidation {
             "any.required": "Storage capacity is required for Storage industry"
         }),
 
-        storageType: Joi.string().when("industry", {
+        storageTemperature: Joi.string().when("industry", {
             is: "STORAGE",
             then: Joi.required(),
             otherwise: Joi.allow(null, "")
         }).messages({
-            "any.required": "Storage type is required for Storage industry"
+            "any.required": "Storage temperature is required for Storage industry"
         }),
 
-        storageCostDetails: Joi.string().allow(null, "")
+        // Other industry fields
+        otherDescription: Joi.string().when("industry", {
+            is: "OTHER",
+            then: Joi.required(),
+            otherwise: Joi.allow(null, "")
+        }).messages({
+            "any.required": "Other description is required for Other industry"
+        }),
+
+        otherCostDetails: Joi.string().when("industry", {
+            is: "OTHER",
+            then: Joi.required(),
+            otherwise: Joi.allow(null, "")
+        }).messages({
+            "any.required": "Other cost details are required for Other industry"
+        }),
+
+       
     }).unknown(true);
 
     static updatePage = Joi.object({
@@ -195,10 +205,10 @@ export class PageValidation {
         fleetSize: Joi.number().integer().min(0).allow(null),
         operatingRange: Joi.string().allow(null, ""),
         transportationCostDetails: Joi.string().allow(null, ""),
-        storageDescription: Joi.string().allow(null, ""),
         storageCapacity: Joi.string().allow(null, ""),
-        storageType: Joi.string().allow(null, ""),
-        storageCostDetails: Joi.string().allow(null, "")
+        storageTemperature: Joi.string().allow(null, ""),
+        otherDescription: Joi.string().allow(null, ""),
+        otherCostDetails: Joi.string().allow(null, ""),
     }).unknown(true);
 
     static addAdmin = Joi.object({

@@ -65,7 +65,7 @@ const pageController = new PageController(
  *                 description: Countries where the organization has branches
  *               organizationSize:
  *                 type: string
- *                 enum: [SMALL, MEDIUM, LARGE, ENTERPRISE]
+ *                 enum: [ZERO_TO_ONE, TWO_TO_TEN, ELEVEN_TO_FIFTY, FIFTY_ONE_TO_TWO_HUNDRED]
  *                 description: Size of the organization
  *               industry:
  *                 type: string
@@ -112,18 +112,19 @@ const pageController = new PageController(
  *                 type: string
  *                 description: Transportation cost details
  *               # Storage industry fields
- *               storageDescription:
- *                 type: string
- *                 description: Description of storage services (required for STORAGE industry)
  *               storageCapacity:
  *                 type: string
  *                 description: Storage capacity (required for STORAGE industry)
- *               storageType:
+ *               storageTemperature:
  *                 type: string
- *                 description: Type of storage (required for STORAGE industry)
- *               storageCostDetails:
+ *                 description: Temperature of storage (required for STORAGE industry)
+ *               # Other industry fields
+ *               otherDescription:
  *                 type: string
- *                 description: Storage cost details
+ *                 description: Other capacity (required for OTHER industry)
+ *               otherCostDetails:
+ *                 type: string
+ *                 description: Cost of other (required for OTHER industry)
  *     responses:
  *       201:
  *         description: Page created successfully
@@ -185,7 +186,7 @@ router.post(
  *                   type: string
  *               organizationSize:
  *                 type: string
- *                 enum: [SMALL, MEDIUM, LARGE, ENTERPRISE]
+ *                 enum: [ZERO_TO_ONE, TWO_TO_TEN, ELEVEN_TO_FIFTY, FIFTY_ONE_TO_TWO_HUNDRED]
  *               industry:
  *                 type: string
  *                 enum: [PRODUCTION, TRANSPORTATION, STORAGE, TECHNOLOGY, FINANCE, EDUCATION, HEALTHCARE, RETAIL, OTHER]
@@ -216,13 +217,13 @@ router.post(
  *                 type: string
  *               transportationCostDetails:
  *                 type: string
- *               storageDescription:
+ *               storageTemperature:
  *                 type: string
  *               storageCapacity:
  *                 type: string
- *               storageType:
+ *               otherDescription:
  *                 type: string
- *               storageCostDetails:
+ *               otherCostDetails:
  *                 type: string
  *     responses:
  *       200:

@@ -47,10 +47,14 @@ export class PageController {
                 operatingRange,
                 transportationCostDetails,
                 // Storage industry fields
-                storageDescription,
+             
                 storageCapacity,
                 storageType,
-                storageCostDetails
+
+                // Other industry-specific fields
+                otherDescription,
+                otherCostDetails
+              
             } = req.body;
 
             const userId = req.user?.id;
@@ -123,10 +127,11 @@ export class PageController {
                 newPage.operatingRange = operatingRange;
                 newPage.transportationCostDetails = transportationCostDetails;
             } else if (industry === "STORAGE") {
-                newPage.storageDescription = storageDescription;
                 newPage.storageCapacity = storageCapacity;
-                newPage.storageType = storageType;
-                newPage.storageCostDetails = storageCostDetails;
+                newPage.storageTemperature = storageType;
+            }else if (industry === "OTHER") {
+                newPage.otherDescription = otherDescription;
+                newPage.otherCostDetails = otherCostDetails;
             }
 
             // Set creator as admin
@@ -190,10 +195,11 @@ export class PageController {
                 operatingRange,
                 transportationCostDetails,
                 // Storage industry fields
-                storageDescription,
                 storageCapacity,
-                storageType,
-                storageCostDetails
+                storageTemperature,
+                //other industry-specific fields can be added here
+                otherDescription,
+                otherCostDetails
             } = req.body;
 
             const userId = req.user?.id;
@@ -295,10 +301,11 @@ export class PageController {
                 page.operatingRange = operatingRange || page.operatingRange;
                 page.transportationCostDetails = transportationCostDetails || page.transportationCostDetails;
             } else if (industry === "STORAGE" || page.industry === "STORAGE") {
-                page.storageDescription = storageDescription || page.storageDescription;
                 page.storageCapacity = storageCapacity || page.storageCapacity;
-                page.storageType = storageType || page.storageType;
-                page.storageCostDetails = storageCostDetails || page.storageCostDetails;
+                page.storageTemperature = storageTemperature || page.storageTemperature;
+            }else if (industry === "OTHER" || page.industry === "OTHER") {
+                page.otherDescription = otherDescription || page.otherDescription;
+                page.otherCostDetails = otherCostDetails || page.otherCostDetails;
             }
 
             // Save updated page
