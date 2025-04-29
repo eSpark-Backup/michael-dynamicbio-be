@@ -545,6 +545,13 @@ export class UserController {
         .take(takeNumber)
         .getManyAndCount();
 
+        const savedPosts = await this.savedRepo.find({
+          where: { user: { id: userId } },
+          relations: [
+            "post"
+          ]
+        });
+
       // Process each post
       for (const post of posts) {
         praseMedia(post);
@@ -570,6 +577,10 @@ export class UserController {
 
           (like as any).isBond = !!bond; // true if bond exists, false otherwise
         }
+        (post as any).isSaved = savedPosts.some(
+          (savedPost) =>
+            savedPost.type === SavedType.POST && savedPost.post.id === post.id
+        );
 
         (post as any).commentsCount = post.comments.length;
 
@@ -1231,7 +1242,7 @@ export class UserController {
               HTTP_STATUS.BAD_REQUEST
             );
           }
-          const targetUser = await await this.usersRepo
+          const targetUser =  await this.usersRepo
             .createQueryBuilder("user")
             .leftJoinAndSelect("user.profileSettings", "profileSettings")
             .where("user.id = :userId", { userId: targetUserId })
@@ -1539,6 +1550,7 @@ export class UserController {
           "post.comments",
           "post.likes",
           "post.likes.user",
+          "post.author",
           "post.poll",
           "post.poll.votes",
         ],
@@ -1946,33 +1958,36 @@ export class UserController {
         }
   
         if (about.dob) {
-          let dob = new Date(about.dob);
-          
+          const dob = new Date(about.dob);
           dob.setUTCHours(0, 0, 0, 0);
-          
-     
         
-          // Check if the day and month match
+          const age = currentDate.getUTCFullYear() - dob.getUTCFullYear();
+        
           if (dob.getUTCDate() === currentDay && dob.getUTCMonth() === currentMonth) {
             birthdays.push({
               id: user.id,
               firstName: user.firstName,
               lastName: user.lastName,
               profileImage: user.profileImage,
+              dob: about.dob,
+              age, 
             });
           }
         }
         
+        
   
         const experiences = Array.isArray(about.experience) ? about.experience : [];
         for (const exp of experiences) {
-          if (exp.startDate) {
+          if (exp.startDate && exp.currently) {
             const startDate = new Date(`${exp.startDate}-01`);
             startDate.setUTCHours(0, 0, 0, 0);
+            const years = currentDate.getUTCFullYear() - startDate.getUTCFullYear();
+
         
             if (
               // startDate.getUTCDate() === currentDay &&
-              // startDate.getUTCMonth() === currentMonth &&
+              startDate.getUTCMonth() === currentMonth &&
               currentDate.getUTCFullYear() - startDate.getUTCFullYear() >= 1
             ) {
               anniversaries.push({
@@ -1981,6 +1996,8 @@ export class UserController {
                 lastName: user.lastName,
                 profileImage: user.profileImage,
                 company: exp.company,
+                yearsCompleted:years
+         
               });
               break;
             }
@@ -1996,7 +2013,7 @@ export class UserController {
   
       res
         .status(HTTP_STATUS.OK)
-        .json(handleResponse("Catch-up data fetched successfully 💌", result));
+        .json(handleResponse("Catch-up data fetched successfully", result));
       return next();
     } catch (error) {
       logger.error(
