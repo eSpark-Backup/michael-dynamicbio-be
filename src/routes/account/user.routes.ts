@@ -1063,4 +1063,69 @@ router.get(
 );
 
 
+
+/**
+ * @swagger
+ * /user/catchup:
+ *   get:
+ *     summary: Get Catch-Up Data
+ *     description: Returns upcoming birthdays and work anniversaries of bonded users for the current day.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - User
+ *     responses:
+ *       200:
+ *         description: Catch-up data fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Catch-up data fetched successfully 💌
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     birthdays:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           firstName:
+ *                             type: string
+ *                           lastName:
+ *                             type: string
+ *                           profileImage:
+ *                             type: string
+ *                     anniversaries:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           firstName:
+ *                             type: string
+ *                           lastName:
+ *                             type: string
+ *                           profileImage:
+ *                             type: string
+ *                           company:
+ *                             type: string
+ *       401:
+ *         description: Unauthorized – user is not authenticated.
+ *       500:
+ *         description: Server error.
+ */
+router.get(
+  "/catchup",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  (req, res, next) => userController.getCatchUpData(req, res, next)
+);
+
 export { router };
