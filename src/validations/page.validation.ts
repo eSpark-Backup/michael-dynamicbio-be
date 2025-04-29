@@ -48,7 +48,7 @@ export class PageValidation {
 
         industry: Joi.string()
             .valid(...Object.values(IndustryType))
-            .required()
+            // .required()
             .messages({
                 "any.required": "Industry is required",
                 "any.only": "Invalid industry type"
