@@ -545,12 +545,10 @@ export class UserController {
         .take(takeNumber)
         .getManyAndCount();
 
-        const savedPosts = await this.savedRepo.find({
-          where: { user: { id: userId } },
-          relations: [
-            "post"
-          ]
-        });
+      const savedPosts = await this.savedRepo.find({
+        where: { user: { id: userId } },
+        relations: ["post"],
+      });
 
       // Process each post
       for (const post of posts) {
@@ -1242,7 +1240,7 @@ export class UserController {
               HTTP_STATUS.BAD_REQUEST
             );
           }
-          const targetUser =  await this.usersRepo
+          const targetUser = await this.usersRepo
             .createQueryBuilder("user")
             .leftJoinAndSelect("user.profileSettings", "profileSettings")
             .where("user.id = :userId", { userId: targetUserId })
@@ -1926,9 +1924,10 @@ export class UserController {
     try {
       const loggedInUserId = req.user.id;
       let currentDate = new Date();
-          let currentDay = currentDate.getUTCDate(); 
-          let currentMonth = currentDate.getUTCMonth();
-  
+      let currentDay = currentDate.getUTCDate();
+      let currentMonth = currentDate.getUTCMonth();
+      const thirtyDaysAgo = new Date(currentDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+
       const bonds = await this.bondsRepo.find({
         where: [
           { requester: { id: loggedInUserId }, status: BondStatus.ACCEPTED },
@@ -1936,17 +1935,21 @@ export class UserController {
         ],
         relations: ["requester", "recipient"],
       });
-  
+
       const bondedUsers = bonds.map((bond) =>
         bond.requester.id === loggedInUserId ? bond.recipient : bond.requester
       );
-  
+
       const birthdays = [];
       const anniversaries = [];
-  
+      const jobChanges = [];
+      const educationChanges = [];
+
       for (const user of bondedUsers) {
+      
+
         let about: any = {};
-  
+
         try {
           if (user.about && typeof user.about === "string") {
             about = JSON.parse(user.about);
@@ -1956,35 +1959,70 @@ export class UserController {
         } catch {
           about = {};
         }
-  
+        const educations = Array.isArray(about.education)
+          ? about.education
+          : [];
+        for (const edu of educations) {
+          const startDate = new Date(edu.startDate);
+          const endDate = new Date(edu.endDate);
+          if (startDate >= thirtyDaysAgo && startDate <= currentDate) {
+            educationChanges.push({
+              id: user.id,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              profileImage: user.profileImage,
+              institution: edu.institution,
+              changeType: 'startedEducation',
+              date: startDate.toISOString(),
+            });
+          }
+      
+          if (endDate >= thirtyDaysAgo && endDate <= currentDate) {
+            educationChanges.push({
+              id: user.id,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              profileImage: user.profileImage,
+              institution: edu.institution,
+              changeType: 'endedEducation',
+              date: endDate.toISOString(),
+            });
+          }
+        }
+
+
+
         if (about.dob) {
           const dob = new Date(about.dob);
           dob.setUTCHours(0, 0, 0, 0);
-        
+
           const age = currentDate.getUTCFullYear() - dob.getUTCFullYear();
-        
-          if (dob.getUTCDate() === currentDay && dob.getUTCMonth() === currentMonth) {
+
+          if (
+            dob.getUTCDate() === currentDay &&
+            dob.getUTCMonth() === currentMonth
+          ) {
             birthdays.push({
               id: user.id,
               firstName: user.firstName,
               lastName: user.lastName,
               profileImage: user.profileImage,
               dob: about.dob,
-              age, 
+              age,
             });
           }
         }
-        
-        
-  
-        const experiences = Array.isArray(about.experience) ? about.experience : [];
+
+        const experiences = Array.isArray(about.experience)
+          ? about.experience
+          : [];
         for (const exp of experiences) {
           if (exp.startDate && exp.currently) {
             const startDate = new Date(`${exp.startDate}-01`);
             startDate.setUTCHours(0, 0, 0, 0);
-            const years = currentDate.getUTCFullYear() - startDate.getUTCFullYear();
+            const years =
+              currentDate.getUTCFullYear() - startDate.getUTCFullYear();
 
-        
             if (
               // startDate.getUTCDate() === currentDay &&
               startDate.getUTCMonth() === currentMonth &&
@@ -1996,8 +2034,26 @@ export class UserController {
                 lastName: user.lastName,
                 profileImage: user.profileImage,
                 company: exp.company,
-                yearsCompleted:years
-         
+                yearsCompleted: years,
+              });
+              break;
+            }
+          }
+        }
+
+        
+        for (const exp of experiences) {
+          if (exp.startDate && exp.currently) {
+            const startDate = new Date(`${exp.startDate}-01`); // assuming YYYY-MM format
+        
+            if (startDate >= thirtyDaysAgo && startDate <= currentDate) {
+              jobChanges.push({
+                id: user.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                profileImage: user.profileImage,
+                company: exp.company,
+                startedOn: startDate,
               });
               break;
             }
@@ -2005,12 +2061,14 @@ export class UserController {
         }
         
       }
-  
+
       const result = {
         birthdays,
         anniversaries,
+        jobChanges,
+        educationChanges
       };
-  
+
       res
         .status(HTTP_STATUS.OK)
         .json(handleResponse("Catch-up data fetched successfully", result));
@@ -2022,6 +2080,4 @@ export class UserController {
       return next(error);
     }
   }
-  
-  
 }
