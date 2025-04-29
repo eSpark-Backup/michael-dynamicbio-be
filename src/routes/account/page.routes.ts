@@ -3,10 +3,10 @@ import { PageController } from "../../controllers";
 import { Page, User } from "../../entity";
 import { AppDataSource } from "../../typeorm.config";
 import {
-    checkJwt,
-    handleMultipleFiles,
-    setPagination,
-    validateRoles,
+  checkJwt,
+  handleMultipleFiles,
+  setPagination,
+  validateRoles,
 } from "../../middleware";
 import { Notification } from "../../models";
 import { FILE_FIELDS, ROLES } from "../../constants";
@@ -17,9 +17,9 @@ const userRepository = AppDataSource.getRepository(User);
 const pageRepository = AppDataSource.getRepository(Page);
 
 const pageController = new PageController(
-    userRepository,
-    pageRepository,
-    Notification
+  userRepository,
+  pageRepository,
+  Notification
 );
 
 /**
@@ -139,15 +139,19 @@ const pageController = new PageController(
  *         description: Server error
  */
 router.post(
-    "",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    handleMultipleFiles([
-        { name: FILE_FIELDS.LOGO, maxCount: 1 },
-        { name: FILE_FIELDS.COVER, maxCount: 1 },
-    ]),
-    validate(PageValidation.createPage, "body"),
-    (req, res, next) => pageController.createPage(req, req as any, res, next)
+  "",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  handleMultipleFiles([
+    { name: FILE_FIELDS.LOGO, maxCount: 1 },
+    { name: FILE_FIELDS.COVER, maxCount: 1 },
+  ]),
+    (req, res, next) => {
+      console.log("Request body:", req.body)
+        return next();
+    },
+  validate(PageValidation.createPage, "body"),
+  (req, res, next) => pageController.createPage(req, req as any, res, next)
 );
 
 /**
@@ -246,15 +250,15 @@ router.post(
  *         description: Server error
  */
 router.put(
-    "/:id",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    handleMultipleFiles([
-        { name: FILE_FIELDS.LOGO, maxCount: 1 },
-        { name: FILE_FIELDS.COVER, maxCount: 1 },
-    ]),
-    validate(PageValidation.updatePage, "body"),
-    (req, res, next) => pageController.updatePage(req, req as any, res, next)
+  "/:id",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  handleMultipleFiles([
+    { name: FILE_FIELDS.LOGO, maxCount: 1 },
+    { name: FILE_FIELDS.COVER, maxCount: 1 },
+  ]),
+  validate(PageValidation.updatePage, "body"),
+  (req, res, next) => pageController.updatePage(req, req as any, res, next)
 );
 
 /**
@@ -282,11 +286,8 @@ router.put(
  *       500:
  *         description: Server error
  */
-router.get(
-    "/:id",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    (req, res, next) => pageController.getPageById(req, res, next)
+router.get("/:id", checkJwt, validateRoles([ROLES.USER]), (req, res, next) =>
+  pageController.getPageById(req, res, next)
 );
 
 /**
@@ -331,11 +332,11 @@ router.get(
  *         description: Server error
  */
 router.get(
-    "",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    setPagination,
-    (req, res, next) => pageController.getPages(req, res, next)
+  "",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  setPagination,
+  (req, res, next) => pageController.getPages(req, res, next)
 );
 
 /**
@@ -364,10 +365,10 @@ router.get(
  *         description: Server error
  */
 router.post(
-    "/:id/follow",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    (req, res, next) => pageController.followPage(req, res, next)
+  "/:id/follow",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  (req, res, next) => pageController.followPage(req, res, next)
 );
 
 /**
@@ -412,11 +413,11 @@ router.post(
  *         description: Server error
  */
 router.post(
-    "/:id/admin",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    validate(PageValidation.addAdmin, "body"),
-    (req, res, next) => pageController.addAdmin(req, res, next)
+  "/:id/admin",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  validate(PageValidation.addAdmin, "body"),
+  (req, res, next) => pageController.addAdmin(req, res, next)
 );
 
 /**
@@ -461,11 +462,11 @@ router.post(
  *         description: Server error
  */
 router.delete(
-    "/:id/admin",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    validate(PageValidation.addAdmin, "body"),
-    (req, res, next) => pageController.removeAdmin(req, res, next)
+  "/:id/admin",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  validate(PageValidation.addAdmin, "body"),
+  (req, res, next) => pageController.removeAdmin(req, res, next)
 );
 
 /**
@@ -495,11 +496,8 @@ router.delete(
  *       500:
  *         description: Server error
  */
-router.delete(
-    "/:id",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    (req, res, next) => pageController.deletePage(req, res, next)
+router.delete("/:id", checkJwt, validateRoles([ROLES.USER]), (req, res, next) =>
+  pageController.deletePage(req, res, next)
 );
 
 /**
@@ -538,11 +536,11 @@ router.delete(
  *         description: Server error
  */
 router.get(
-    "/user/my",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    setPagination,
-    (req, res, next) => pageController.getMyPages(req, res, next)
+  "/user/my",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  setPagination,
+  (req, res, next) => pageController.getMyPages(req, res, next)
 );
 
 /**
@@ -575,11 +573,11 @@ router.get(
  *         description: Server error
  */
 router.get(
-    "/user/followed",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    setPagination,
-    (req, res, next) => pageController.getFollowedPages(req, res, next)
+  "/user/followed",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  setPagination,
+  (req, res, next) => pageController.getFollowedPages(req, res, next)
 );
 
 export { router };

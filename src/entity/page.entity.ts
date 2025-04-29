@@ -17,16 +17,17 @@ export enum PageType {
 }
 
 export enum PageSize {
-    ZERO_TO_ONE = "0–1 employees",
-    TWO_TO_TEN = "2–10 employees",
-    ELEVEN_TO_FIFTY = "11–50 employees",
-    FIFTY_ONE_TO_TWO_HUNDRED = "51–200 employees",
-    TWO_HUNDRED_ONE_TO_FIVE_HUNDRED = "201–500 employees",
-    FIVE_HUNDRED_ONE_TO_ONE_THOUSAND = "501–1,000 employees",
-    ONE_THOUSAND_ONE_TO_FIVE_THOUSAND = "1,001–5,000 employees",
-    FIVE_THOUSAND_ONE_TO_TEN_THOUSAND = "5,001–10,000 employees",
+    ZERO_TO_ONE = "0-1 employees",
+    TWO_TO_TEN = "2-10 employees",
+    ELEVEN_TO_FIFTY = "11-50 employees",
+    FIFTY_ONE_TO_TWO_HUNDRED = "51-200 employees",
+    TWO_HUNDRED_ONE_TO_FIVE_HUNDRED = "201-500 employees",
+    FIVE_HUNDRED_ONE_TO_ONE_THOUSAND = "501-1,000 employees",
+    ONE_THOUSAND_ONE_TO_FIVE_THOUSAND = "1,001-5,000 employees",
+    FIVE_THOUSAND_ONE_TO_TEN_THOUSAND = "5,001-10,000 employees",
     TEN_THOUSAND_PLUS = "10,000+ employees"
   }
+  
   
 
   export enum OrganizationType {

@@ -1905,4 +1905,106 @@ export class UserController {
       next(error);
     }
   }
+
+  async getCatchUpData(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const loggedInUserId = req.user.id;
+      let currentDate = new Date();
+          let currentDay = currentDate.getUTCDate(); 
+          let currentMonth = currentDate.getUTCMonth();
+  
+      const bonds = await this.bondsRepo.find({
+        where: [
+          { requester: { id: loggedInUserId }, status: BondStatus.ACCEPTED },
+          { recipient: { id: loggedInUserId }, status: BondStatus.ACCEPTED },
+        ],
+        relations: ["requester", "recipient"],
+      });
+  
+      const bondedUsers = bonds.map((bond) =>
+        bond.requester.id === loggedInUserId ? bond.recipient : bond.requester
+      );
+  
+      const birthdays = [];
+      const anniversaries = [];
+  
+      for (const user of bondedUsers) {
+        let about: any = {};
+  
+        try {
+          if (user.about && typeof user.about === "string") {
+            about = JSON.parse(user.about);
+          } else {
+            about = user.about || {};
+          }
+        } catch {
+          about = {};
+        }
+  
+        if (about.dob) {
+          let dob = new Date(about.dob);
+          
+          dob.setUTCHours(0, 0, 0, 0);
+          
+     
+        
+          // Check if the day and month match
+          if (dob.getUTCDate() === currentDay && dob.getUTCMonth() === currentMonth) {
+            birthdays.push({
+              id: user.id,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              profileImage: user.profileImage,
+            });
+          }
+        }
+        
+  
+        const experiences = Array.isArray(about.experience) ? about.experience : [];
+        for (const exp of experiences) {
+          if (exp.startDate) {
+            const startDate = new Date(`${exp.startDate}-01`);
+            startDate.setUTCHours(0, 0, 0, 0);
+        
+            if (
+              // startDate.getUTCDate() === currentDay &&
+              // startDate.getUTCMonth() === currentMonth &&
+              currentDate.getUTCFullYear() - startDate.getUTCFullYear() >= 1
+            ) {
+              anniversaries.push({
+                id: user.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                profileImage: user.profileImage,
+                company: exp.company,
+              });
+              break;
+            }
+          }
+        }
+        
+      }
+  
+      const result = {
+        birthdays,
+        anniversaries,
+      };
+  
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Catch-up data fetched successfully 💌", result));
+      return next();
+    } catch (error) {
+      logger.error(
+        `UserController :: getCatchUpData :: ${(error as Error).message}`
+      );
+      return next(error);
+    }
+  }
+  
+  
 }

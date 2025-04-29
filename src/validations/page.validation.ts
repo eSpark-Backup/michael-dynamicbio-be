@@ -39,7 +39,7 @@ export class PageValidation {
             }),
 
         organizationSize: Joi.string()
-            .valid(...Object.values(PageSize))
+        .valid(...Object.keys(PageSize)) 
             .required()
             .messages({
                 "any.required": "Organization size is required",
@@ -55,7 +55,7 @@ export class PageValidation {
             }),
 
         organizationType: Joi.string()
-            .valid(...Object.values(OrganizationType))
+            .valid(...Object.keys(OrganizationType))
             .required()
             .messages({
                 "any.required": "Organization type is required",
@@ -186,7 +186,7 @@ export class PageValidation {
             .allow(null),
 
         organizationSize: Joi.string()
-            .valid(...Object.values(PageSize))
+            .valid(...Object.keys(PageSize))
             .messages({
                 "any.only": "Invalid organization size"
             }),
@@ -198,7 +198,7 @@ export class PageValidation {
             }),
 
             organizationType: Joi.string()
-            .valid(...Object.values(OrganizationType))
+            .valid(...Object.keys(OrganizationType))
             .messages({
                 "any.only": "Invalid organization type"
             }),
