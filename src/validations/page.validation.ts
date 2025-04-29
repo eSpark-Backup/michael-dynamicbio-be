@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { IndustryType, PageSize, PageType } from "../entity/page.entity";
+import { IndustryType, OrganizationType, PageSize, PageType } from "../entity/page.entity";
 
 export class PageValidation {
     static createPage = Joi.object({
@@ -52,6 +52,14 @@ export class PageValidation {
             .messages({
                 "any.required": "Industry is required",
                 "any.only": "Invalid industry type"
+            }),
+
+        organizationType: Joi.string()
+            .valid(...Object.values(OrganizationType))
+            .required()
+            .messages({
+                "any.required": "Organization type is required",
+                "any.only": "Invalid organization type"
             }),
 
         website: Joi.string().uri().allow(null, "")
@@ -116,14 +124,7 @@ export class PageValidation {
         transportationCostDetails: Joi.string().allow(null, ""),
 
         // Storage industry fields
-        storageDescription: Joi.string().when("industry", {
-            is: "STORAGE",
-            then: Joi.required(),
-            otherwise: Joi.allow(null, "")
-        }).messages({
-            "any.required": "Storage description is required for Storage industry"
-        }),
-
+      
         storageCapacity: Joi.string().when("industry", {
             is: "STORAGE",
             then: Joi.required(),
@@ -132,15 +133,32 @@ export class PageValidation {
             "any.required": "Storage capacity is required for Storage industry"
         }),
 
-        storageType: Joi.string().when("industry", {
+        storageTemperature: Joi.string().when("industry", {
             is: "STORAGE",
             then: Joi.required(),
             otherwise: Joi.allow(null, "")
         }).messages({
-            "any.required": "Storage type is required for Storage industry"
+            "any.required": "Storage temperature is required for Storage industry"
         }),
 
-        storageCostDetails: Joi.string().allow(null, "")
+        // Other industry fields
+        otherDescription: Joi.string().when("industry", {
+            is: "OTHER",
+            then: Joi.required(),
+            otherwise: Joi.allow(null, "")
+        }).messages({
+            "any.required": "Other description is required for Other industry"
+        }),
+
+        otherCostDetails: Joi.string().when("industry", {
+            is: "OTHER",
+            then: Joi.required(),
+            otherwise: Joi.allow(null, "")
+        }).messages({
+            "any.required": "Other cost details are required for Other industry"
+        }),
+
+       
     }).unknown(true);
 
     static updatePage = Joi.object({
@@ -179,10 +197,18 @@ export class PageValidation {
                 "any.only": "Invalid industry type"
             }),
 
+            organizationType: Joi.string()
+            .valid(...Object.values(OrganizationType))
+            .messages({
+                "any.only": "Invalid organization type"
+            }),
+
         website: Joi.string().uri().allow(null, "")
             .messages({
                 "string.uri": "Website must be a valid URL"
             }),
+
+        
 
         tagline: Joi.string().max(200).allow(null, ""),
 
@@ -195,10 +221,10 @@ export class PageValidation {
         fleetSize: Joi.number().integer().min(0).allow(null),
         operatingRange: Joi.string().allow(null, ""),
         transportationCostDetails: Joi.string().allow(null, ""),
-        storageDescription: Joi.string().allow(null, ""),
         storageCapacity: Joi.string().allow(null, ""),
-        storageType: Joi.string().allow(null, ""),
-        storageCostDetails: Joi.string().allow(null, "")
+        storageTemperature: Joi.string().allow(null, ""),
+        otherDescription: Joi.string().allow(null, ""),
+        otherCostDetails: Joi.string().allow(null, ""),
     }).unknown(true);
 
     static addAdmin = Joi.object({

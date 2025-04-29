@@ -969,4 +969,98 @@ router.get(
   (req, res, next) => userController.getAllPostOfUser(req, res, next)
 );
 
+
+
+
+
+/**
+ * @swagger
+ * /user/save/{postId}:
+ *   post:
+ *     summary: Save a Post
+ *     description: Allows a user to save a post by providing the post ID and the type of save.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - User
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the post to be saved.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               type:
+ *                 type: string
+ *                 description: The type of saved entity (e.g., "POST", "EVENT", etc.).
+ *                 example: POST
+ *     responses:
+ *       200:
+ *         description: Post saved successfully.
+ *       400:
+ *         description: Post already saved or missing required fields.
+ *       404:
+ *         description: Post not found.
+ *       500:
+ *         description: Server error.
+ */
+router.post(
+  "/save/:postId",
+  checkJwt,
+  (req, res, next) => userController.savePost(req, res, next)
+);
+
+
+
+
+
+/**
+ * @swagger
+ * /user/saved-posts:
+ *   get:
+ *     summary: Get User's Saved Posts
+ *     description: Retrieves all posts saved by the authenticated user.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - User
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         description: Page number for pagination
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: pageSize
+ *         required: false
+ *         description: Number of items per page
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: List of saved posts retrieved successfully.
+ *       400:
+ *         description: User not authenticated.
+ *       500:
+ *         description: Server error.
+ */
+router.get(
+  "/saved-posts",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+   setPagination,
+  (req, res, next) => userController.getSavedPosts(req, res, next)
+);
+
+
 export { router };

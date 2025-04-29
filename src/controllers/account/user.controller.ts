@@ -10,6 +10,7 @@ import {
   ProfileSettings,
   ProfileStatus,
   Saved,
+  SavedType,
   User,
 } from "../../entity";
 
@@ -626,26 +627,21 @@ export class UserController {
     }
   }
 
-  // Helper method to get all options that a user has voted on
   private getUserPollVotes(poll: Poll, userId: string): number[] {
     if (!poll || !poll.votes || !userId) {
       return [];
     }
 
-    // Find all votes by this user
     const userVotes = poll.votes.filter((vote) => vote.userId === userId);
 
-    // Extract the option indices
     return userVotes.map((vote) => vote.optionIndex);
   }
 
-  // Helper method to calculate poll vote statistics
   private async getPollVoteCounts(poll: Poll): Promise<any[]> {
     if (!poll || !poll.options) {
       return [];
     }
 
-    // Get all votes for this poll with user details
     const votes = await this.pollVoteRepo.find({
       where: { pollId: poll.id },
       relations: ["user"],
@@ -653,13 +649,11 @@ export class UserController {
 
     const totalVotes = votes.length;
 
-    // Count votes for each option
     const voteCounts = poll.options.map((option, index) => {
       const optionVotes = votes.filter(
         (vote: { optionIndex: number }) => vote.optionIndex === index
       );
 
-      // Get user details for each vote if the poll is not anonymous
       const voteDetails = poll.isAnonymous
         ? []
         : optionVotes.map(
@@ -690,7 +684,7 @@ export class UserController {
           totalVotes > 0
             ? Math.round((optionVotes.length / totalVotes) * 100)
             : 0,
-        voters: voteDetails, // Only included if poll is not anonymous
+        voters: voteDetails,
       };
     });
 
@@ -1481,7 +1475,7 @@ export class UserController {
   ): Promise<void> {
     try {
       const { postId } = req.params;
-      const { type } = req.body;
+      const { type } = req.body as { type: SavedType };
       const userId = req.user?.id;
 
       if (!postId || !type) {
@@ -1499,7 +1493,8 @@ export class UserController {
         where: { user: { id: userId }, post: { id: postId } },
       });
       if (existingSave) {
-        res.status(400).json(handleResponse("Post already saved"));
+        await this.savedRepo.delete(existingSave.id);
+        res.status(200).json(handleResponse("Post unsaved successfully"));
         return next();
       }
 
@@ -1514,6 +1509,128 @@ export class UserController {
       res
         .status(200)
         .json(handleResponse("Post saved successfully", savedPost));
+      return next();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getSavedPosts(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const { page, take, skip } = req.query;
+      const skipNumber = Number(skip) || 0;
+      const takeNumber = Number(take) || 10;
+
+      if (!userId) {
+        res.status(400).json(handleResponse("User not authenticated"));
+        return next();
+      }
+
+      // 1. Fetch saved posts with relations
+      const savedPosts = await this.savedRepo.find({
+        where: { user: { id: userId } },
+        relations: [
+          "post",
+          "post.comments",
+          "post.likes",
+          "post.likes.user",
+          "post.poll",
+          "post.poll.votes",
+        ],
+        order: { createdAt: "DESC" },
+        skip: skipNumber,
+        take: takeNumber,
+      });
+      const totalItems = await this.savedRepo.count({
+        where: { user: { id: userId } },
+      });
+
+      // 2. Process each post the same way you process in your for loop
+      for (const saved of savedPosts) {
+        const post = saved.post;
+
+        praseMedia(post);
+
+        (post as any).shareableLink = generateShareableLink({
+          id: post.id,
+          type: "post",
+          typeName: post.type,
+        });
+
+        (post as any).commentsCount = post.comments?.length || 0;
+        (post as any).likesCount = post.likes?.length || 0;
+
+        const lastLike = post.likes?.[0];
+        (post as any).lastLikedUser = lastLike
+          ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
+          : null;
+
+        // Loop over likes to check bonds
+        for (const like of post.likes || []) {
+          const likeUserId = like.user.id;
+
+          const bond = await this.bondsRepo.findOne({
+            where: [
+              { requester: { id: userId }, recipient: { id: likeUserId } },
+              { requester: { id: likeUserId }, recipient: { id: userId } },
+            ],
+          });
+
+          (like as any).isBond = !!bond;
+        }
+
+        if (post.type === PostType.POLL && post.poll) {
+          const voteCounts = await this.getPollVoteCounts(post.poll);
+          const userVote = this.getUserPollVote(post.poll, userId);
+
+          const shouldShowResults =
+            post.poll.showResults ||
+            (userVote !== null && userVote !== undefined);
+
+          (post as any).pollResults = shouldShowResults ? voteCounts : null;
+          (post as any).userVote = userVote;
+          (post as any).hasVoted = userVote !== null;
+
+          // Poll stats
+          if (post.poll.votes && post.poll.votes.length > 0) {
+            (post as any).pollStats = {
+              totalVotes: post.poll.votes.length,
+              hasEnded: post.poll.endDate
+                ? new Date() > post.poll.endDate
+                : false,
+            };
+          } else {
+            (post as any).pollStats = {
+              totalVotes: 0,
+              hasEnded: post.poll.endDate
+                ? new Date() > post.poll.endDate
+                : false,
+            };
+          }
+
+          if (post.poll.isAnonymous) {
+            delete post.poll.votes;
+          }
+        }
+      }
+
+      res.status(200).json(
+        handleResponse("Saved posts retrieved successfully", {
+          savedPosts,
+
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page as string, 10),
+            pageSize: takeNumber,
+            totalPages: Math.ceil(totalItems / takeNumber),
+          },
+        })
+      );
       return next();
     } catch (error) {
       next(error);
