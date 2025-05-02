@@ -1,6 +1,7 @@
 import Joi from "joi";
 import { POST_STATUS, POST_TYPE, POST_VISIBILITY } from "../constants";
-import {PollValidation} from "../validations/poll.validation";
+import { PollValidation } from "../validations/poll.validation";
+import { COMMENT_VISIBILITY } from "../entity";
 
 export class PostValidation {
   static CreatePost = Joi.object({
@@ -25,12 +26,12 @@ export class PostValidation {
       .valid(...Object.values(POST_TYPE))
       .required(),
 
-    poll: Joi.when('type', {
-      is: 'POLL',
+    poll: Joi.when("type", {
+      is: "POLL",
       then: PollValidation.PollSchema.required(),
-      otherwise: Joi.forbidden()
-    })
-  }).unknown(true)
+      otherwise: Joi.forbidden(),
+    }),
+  }).unknown(true);
 
   static UpdatePost = Joi.object({
     imageOrder: Joi.array().items(Joi.string()).optional(),
@@ -54,21 +55,22 @@ export class PostValidation {
       .valid(...Object.values(POST_VISIBILITY))
       .required(),
 
+      commentVisibility: Joi.string()
+      .optional()
+      .valid(...Object.values(COMMENT_VISIBILITY))
+      .required(),
+
     type: Joi.string()
       .optional()
       .valid(...Object.values(POST_TYPE))
       .required(),
   });
   static SchedulePost = Joi.object({
-    scheduledDate: Joi.date()
-        .iso()
-        .greater('now')
-        .required()
-        .messages({
-          'date.base': 'Scheduled date must be a valid date',
-          'date.format': 'Scheduled date must be in ISO format',
-          'date.greater': 'Scheduled date must be in the future',
-          'any.required': 'Scheduled date is required'
-        })
-  })
+    scheduledDate: Joi.date().iso().greater("now").required().messages({
+      "date.base": "Scheduled date must be a valid date",
+      "date.format": "Scheduled date must be in ISO format",
+      "date.greater": "Scheduled date must be in the future",
+      "any.required": "Scheduled date is required",
+    }),
+  });
 }

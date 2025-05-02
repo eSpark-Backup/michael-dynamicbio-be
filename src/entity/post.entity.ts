@@ -41,6 +41,16 @@ export enum POLL_RESULT_VISIBILITY {
   AFTER_END = "AFTER_END", // Show results only after poll ends
 }
 
+export enum COMMENT_VISIBILITY {
+  PUBLIC = "PUBLIC",
+  CONNECTIONS = "CONNECTIONS",
+  ONLY_ME = "ONLY_ME",
+  GROUPS = "GROUPS",
+  PAGE = "PAGE",
+  CUSTOM = "CUSTOM",
+  FOLLOWERS = "FOLLOWERS",
+}
+
 @Entity()
 export class Post extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
@@ -85,6 +95,12 @@ export class Post extends BaseEntity {
   })
   status: PostStatus;
 
+  @Column({
+    type: "enum",
+    enum: COMMENT_VISIBILITY,
+    default: COMMENT_VISIBILITY.PUBLIC,
+  })
+  commentVisibility: COMMENT_VISIBILITY;
   @Column({ nullable: true, type: "timestamp" })
   scheduledFor: Date | null;
 

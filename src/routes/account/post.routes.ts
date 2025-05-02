@@ -256,6 +256,14 @@ router.get(
  *                   - ONLY_ME
  *                   - GROUPS
  *                   - FOLLOWERS
+ *               commentVisibility:
+ *                 type: string
+ *                 enum:
+ *                   - PUBLIC
+ *                   - CONNECTIONS
+ *                   - ONLY_ME
+ *                   - GROUPS
+ *                   - FOLLOWERS
  *               type:
  *                 type: string
  *                 enum:
@@ -648,6 +656,41 @@ router.get(
     validateRoles([ROLES.USER]),
     setPagination,
     (req, res, next) => postController.getPagePosts(req, res, next)
+);
+
+
+/**
+ * @swagger
+ * /post/{id}:
+ *   delete:
+ *     summary: Delete a specific post by ID
+ *     description: Deletes a post based on the provided ID. Only the post author or authorized user can delete the post.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Post
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the post to delete.
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Post deleted successfully.
+ *       403:
+ *         description: You are not authorized to delete this post.
+ *       404:
+ *         description: Post not found.
+ *       500:
+ *         description: Server error.
+ */
+router.delete(
+  "/:id",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  (req, res, next) => postController.deletePost.bind(postController)(req, res, next)
 );
 
 
