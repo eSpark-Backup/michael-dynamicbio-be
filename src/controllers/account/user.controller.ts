@@ -2018,7 +2018,7 @@ export class UserController {
           : [];
         for (const exp of experiences) {
           if (exp.startDate && exp.currently) {
-            const startDate = new Date(`${exp.startDate}-01`);
+            const startDate = new Date(`${exp.startDate}`);
             startDate.setUTCHours(0, 0, 0, 0);
             const years =
               currentDate.getUTCFullYear() - startDate.getUTCFullYear();
@@ -2035,6 +2035,9 @@ export class UserController {
                 profileImage: user.profileImage,
                 company: exp.company,
                 yearsCompleted: years,
+                designation: exp.title,
+                startedOn: startDate.toISOString(),
+                
               });
               break;
             }
@@ -2044,7 +2047,7 @@ export class UserController {
         
         for (const exp of experiences) {
           if (exp.startDate && exp.currently) {
-            const startDate = new Date(`${exp.startDate}-01`); // assuming YYYY-MM format
+            const startDate = new Date(`${exp.startDate}`); // assuming YYYY-MM format
         
             if (startDate >= thirtyDaysAgo && startDate <= currentDate) {
               jobChanges.push({
@@ -2054,6 +2057,7 @@ export class UserController {
                 profileImage: user.profileImage,
                 company: exp.company,
                 startedOn: startDate,
+                designation: exp.title,
               });
               break;
             }
