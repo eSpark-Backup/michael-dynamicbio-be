@@ -1,5 +1,5 @@
 import { NextFunction, Response } from "express";
-import {Likes, Bond, Page, Poll, Post, PostStatus, PostType, User, PollVote} from "../../entity";
+import {Likes, Bond, Page, Poll, Post, PostStatus, PostType, User, PollVote, Saved} from "../../entity";
 import {
   ICustomRequest,
   IFileObject,
@@ -25,7 +25,8 @@ export class PostController {
     private pollRepo: Repository<Poll>,
     private pageRepo: Repository<Page>,
     private bondsRepo:Repository<Bond>,
-    private pollVoteRepo: Repository<PollVote>
+    private pollVoteRepo: Repository<PollVote>,
+    private savedRepo: Repository<Saved>,
   ) {}
 
   async createPost(
@@ -602,6 +603,15 @@ export class PostController {
           res.status(200).json(handleResponse("Post not found"));
           return next();
         }
+        const isSaved=await this.savedRepo.find({
+          where: { user: { id: userId }, post: { id } },
+        })
+        if (isSaved.length > 0) {
+          (singlePost as any).isSaved = true;
+        } else {
+          (singlePost as any).isSaved = false;
+        }
+
 
         praseMedia(singlePost);
         (singlePost as any).likesCount = singlePost.likes.length;
