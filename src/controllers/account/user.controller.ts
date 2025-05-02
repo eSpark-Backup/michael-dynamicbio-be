@@ -2,11 +2,13 @@ import { NextFunction, Request, RequestHandler, Response } from "express";
 import {
   Bond,
   BondStatus,
+  COMMENT_VISIBILITY,
   Poll,
   PollVote,
   Post,
   PostStatus,
   PostType,
+  PostVisibility,
   ProfileSettings,
   ProfileStatus,
   Saved,
@@ -15,7 +17,7 @@ import {
 } from "../../entity";
 
 import { ApiError } from "../../errors";
-import { Repository } from "typeorm";
+import { Brackets, Repository } from "typeorm";
 import {
   cookieOptions,
   decrypt,
@@ -501,8 +503,32 @@ export class UserController {
 
       const [posts, totalItems] = await this.postsRepo
         .createQueryBuilder("post")
-        .where("post.status = :status", { status: PostStatus.PUBLISH })
-        .andWhere("post.author IN (:...bondedUserIds)", { bondedUserIds })
+        .where("post.status NOT IN (:...excludedStatuses)", {
+          excludedStatuses: [
+            PostStatus.DRAFT,
+            PostStatus.ARCHIVE,
+            PostStatus.SCHEDULED,
+          ],
+        })
+        .andWhere(
+          new Brackets((qb) => {
+            qb.where("post.author = :userId", { userId })
+              .orWhere("post.visibility = :public", {
+                public: PostVisibility.PUBLIC,
+              })
+              .orWhere(
+                new Brackets((subQb) => {
+                  subQb
+                    .where("post.visibility = :connections", {
+                      connections: PostVisibility.CONNECTIONS,
+                    })
+                    .andWhere("post.author IN (:...bondedUserIds)", {
+                      bondedUserIds,
+                    });
+                })
+              );
+          })
+        )
         .leftJoinAndSelect("post.author", "author")
         .leftJoinAndSelect("post.likes", "like")
         .leftJoinAndSelect("like.user", "likedUser")
@@ -553,6 +579,30 @@ export class UserController {
       // Process each post
       for (const post of posts) {
         praseMedia(post);
+
+        let canComment = false;
+        const postAuthorId = post.author.id;
+
+        switch (post.commentVisibility) {
+          case COMMENT_VISIBILITY.PUBLIC:
+            canComment = true;
+            break;
+
+          case COMMENT_VISIBILITY.CONNECTIONS:
+            canComment = bondedUserIds.includes(postAuthorId);
+            break;
+
+          case COMMENT_VISIBILITY.ONLY_ME:
+            canComment = userId === postAuthorId;
+            break;
+
+          default:
+            canComment = false;
+            break;
+        }
+
+        (post as any).canComment = canComment;
+
         ((post as any).shareableLink = generateShareableLink({
           id: post.id,
           type: "post",
@@ -1926,7 +1976,9 @@ export class UserController {
       let currentDate = new Date();
       let currentDay = currentDate.getUTCDate();
       let currentMonth = currentDate.getUTCMonth();
-      const thirtyDaysAgo = new Date(currentDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const thirtyDaysAgo = new Date(
+        currentDate.getTime() - 30 * 24 * 60 * 60 * 1000
+      );
 
       const bonds = await this.bondsRepo.find({
         where: [
@@ -1946,8 +1998,6 @@ export class UserController {
       const educationChanges = [];
 
       for (const user of bondedUsers) {
-      
-
         let about: any = {};
 
         try {
@@ -1972,11 +2022,11 @@ export class UserController {
               lastName: user.lastName,
               profileImage: user.profileImage,
               institution: edu.institution,
-              changeType: 'startedEducation',
+              changeType: "startedEducation",
               date: startDate.toISOString(),
             });
           }
-      
+
           if (endDate >= thirtyDaysAgo && endDate <= currentDate) {
             educationChanges.push({
               id: user.id,
@@ -1984,13 +2034,11 @@ export class UserController {
               lastName: user.lastName,
               profileImage: user.profileImage,
               institution: edu.institution,
-              changeType: 'endedEducation',
+              changeType: "endedEducation",
               date: endDate.toISOString(),
             });
           }
         }
-
-
 
         if (about.dob) {
           const dob = new Date(about.dob);
@@ -2037,18 +2085,16 @@ export class UserController {
                 yearsCompleted: years,
                 designation: exp.title,
                 startedOn: startDate.toISOString(),
-                
               });
               break;
             }
           }
         }
 
-        
         for (const exp of experiences) {
           if (exp.startDate && exp.currently) {
             const startDate = new Date(`${exp.startDate}`); // assuming YYYY-MM format
-        
+
             if (startDate >= thirtyDaysAgo && startDate <= currentDate) {
               jobChanges.push({
                 id: user.id,
@@ -2063,14 +2109,13 @@ export class UserController {
             }
           }
         }
-        
       }
 
       const result = {
         birthdays,
         anniversaries,
         jobChanges,
-        educationChanges
+        educationChanges,
       };
 
       res
