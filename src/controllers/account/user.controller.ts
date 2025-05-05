@@ -636,7 +636,7 @@ export class UserController {
             { requester: { id: post.author.id }, recipient: { id: userId } },
           ],
         });
-        (post as any).isBond = !!bond; 
+        (post as any).isBond = !!bond;
 
         (post as any).commentsCount = post.comments.length;
 
@@ -1987,6 +1987,14 @@ export class UserController {
       const thirtyDaysAgo = new Date(
         currentDate.getTime() - 30 * 24 * 60 * 60 * 1000
       );
+      const formatDate = (date: Date) =>
+        `${date.getUTCMonth() + 1}-${date.getUTCDate()}`;
+
+      const past30Days = new Set<string>();
+      for (let i = 0; i <= 30; i++) {
+        const date = new Date(currentDate.getTime() - i * 24 * 60 * 60 * 1000);
+        past30Days.add(formatDate(date));
+      }
 
       const bonds = await this.bondsRepo.find({
         where: [
@@ -2053,11 +2061,11 @@ export class UserController {
           dob.setUTCHours(0, 0, 0, 0);
 
           const age = currentDate.getUTCFullYear() - dob.getUTCFullYear();
-
-          if (
-            dob.getUTCDate() === currentDay &&
-            dob.getUTCMonth() === currentMonth
-          ) {
+          const dobKey = formatDate(dob);
+        
+          if (past30Days.has(dobKey)) {
+            
+        
             birthdays.push({
               id: user.id,
               firstName: user.firstName,
