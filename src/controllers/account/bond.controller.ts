@@ -419,9 +419,29 @@ export class BondController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const { bondId, action } = req.body;
+      const { bondId, action,otherUserId } = req.body;
       const userId = req.user.id;
-
+      if(otherUserId){
+        const bond = await this.bondsRepo.findOne({
+          where: [
+            { requester: { id: userId }, recipient: { id: otherUserId } },
+            { requester: { id: otherUserId }, recipient: { id: userId } },
+          ],
+          relations: ["requester", "recipient"],
+        });
+        if (bond) {
+        if( action == "unfriend") {
+          await this.bondsRepo.remove(bond);
+          res
+            .status(HTTP_STATUS.OK)
+            .json(handleResponse("Bond removed successfully", bond));
+          return;
+        }}
+        res.status(HTTP_STATUS.OK).json(
+          handleResponse("Bond request updated successfully", bond)
+        );
+        return;
+      }
       const bond = await this.bondsRepo.findOne({
         where: { id: bondId },
         relations: ["requester", "recipient"],

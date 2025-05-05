@@ -359,18 +359,20 @@ router.get(
  *     tags:
  *       - Bond
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         application/json:
  *           schema:
  *             type: object
  *             required:
- *               - bondId
  *               - action
  *             properties:
  *               bondId:
  *                 type: string
  *                 example: "bond-id-123"
+ *               otherUserId:
+ *                 type: string
+ *                 example: "user-id-123"
  *               action:
  *                 type: string
  *                 enum: [accepted, rejected, blocked, canceled]
