@@ -307,7 +307,7 @@ export class PostController {
         imageKeys,
         videoKeys,
         thumbnailKeys,
-        commentVisibility
+        commentVisibility,
       } = req.body;
 
       imageKeys = commonHelper.normalizeKeys(imageKeys);
@@ -529,7 +529,8 @@ export class PostController {
       existingPost.content = content || existingPost.content;
       existingPost.status = status || existingPost.status;
       existingPost.visibility = visibility || existingPost.visibility;
-      existingPost.commentVisibility = commentVisibility || existingPost.commentVisibility;
+      existingPost.commentVisibility =
+        commentVisibility || existingPost.commentVisibility;
       existingPost.type = type || existingPost.type;
       existingPost.media = JSON.stringify({
         IMAGES: coverUrls,
@@ -751,6 +752,23 @@ export class PostController {
 
           (like as any).isBond = !!bond; // true if bond exists, false otherwise
         }
+        // Get the bond between the current user and the post author
+        const postAuthorBond = await this.bondsRepo.findOne({
+          where: [
+            {
+              requester: { id: userId },
+              recipient: { id: singlePost.author.id },
+            },
+            {
+              requester: { id: singlePost.author.id },
+              recipient: { id: userId },
+            },
+          ],
+          select: ["id"], 
+        });
+
+        (singlePost as any).bondId = postAuthorBond?.id || null;
+
         ((singlePost as any).shareableLink = generateShareableLink({
           id: singlePost.id,
           type: "post",
@@ -807,7 +825,6 @@ export class PostController {
         for (const post of posts) {
           praseMedia(post);
 
-        
           ((post as any).shareableLink = generateShareableLink({
             id: post.id,
             type: "post",
@@ -1360,7 +1377,6 @@ export class PostController {
     }
   }
 
-
   async deletePost(
     req: ICustomRequest,
     res: Response,
@@ -1369,29 +1385,29 @@ export class PostController {
     try {
       const userId = req.user?.id;
       const postId = req.params.id;
-  
+
       const post = await this.postRepo.findOne({
         where: { id: postId },
         relations: ["author", "page", "page.admins"],
       });
-  
+
       if (!post) {
         throw new ApiError("Post not found", HTTP_STATUS.NOT_FOUND);
       }
-  
+
       const isAuthor = post.author.id === userId;
       const isPageAdmin =
         post.isPagePost &&
         post.page &&
         post.page.admins.some((admin) => admin.id === userId);
-  
+
       if (!isAuthor && !isPageAdmin) {
         throw new ApiError(
           "You are not authorized to delete this post",
           HTTP_STATUS.FORBIDDEN
         );
       }
-  
+
       if (post.scheduledJobId) {
         try {
           await schedulerService.cancelScheduledPost(post.scheduledJobId);
@@ -1399,12 +1415,10 @@ export class PostController {
           logger.warn(`Failed to cancel job: ${post.scheduledJobId}`);
         }
       }
-  
+
       const media =
-      post.type !== PostType.POLL && post.media
-        ? post.media as any
-        : null;
-    
+        post.type !== PostType.POLL && post.media ? (post.media as any) : null;
+
       if (media) {
         const allMediaUrls = [
           ...(media.IMAGES || []),
@@ -1420,18 +1434,18 @@ export class PostController {
             }
           }
         }
-        
       }
-  
+
       await this.postRepo.remove(post);
-  
+
       res
         .status(HTTP_STATUS.OK)
         .json(handleResponse("Post deleted successfully", null));
     } catch (error) {
-      logger.error(`PostController :: deletePost :: ${(error as Error).message}`);
+      logger.error(
+        `PostController :: deletePost :: ${(error as Error).message}`
+      );
       return next(error);
     }
   }
-  
 }

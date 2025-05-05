@@ -630,6 +630,14 @@ export class UserController {
             savedPost.type === SavedType.POST && savedPost.post.id === post.id
         );
 
+        const bond = await this.bondsRepo.findOne({
+          where: [
+            { requester: { id: userId }, recipient: { id: post.author.id } },
+            { requester: { id: post.author.id }, recipient: { id: userId } },
+          ],
+        });
+        (post as any).isBond = !!bond; 
+
         (post as any).commentsCount = post.comments.length;
 
         // If the post is a poll, include vote statistics
