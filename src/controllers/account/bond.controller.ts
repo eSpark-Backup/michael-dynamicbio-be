@@ -436,7 +436,11 @@ export class BondController {
             .status(HTTP_STATUS.OK)
             .json(handleResponse("Bond removed successfully", bond));
           return;
-        }}
+        }
+      }else {
+        throw new ApiError("Bond not found", HTTP_STATUS.NOT_FOUND);
+
+      }
         res.status(HTTP_STATUS.OK).json(
           handleResponse("Bond request updated successfully", bond)
         );

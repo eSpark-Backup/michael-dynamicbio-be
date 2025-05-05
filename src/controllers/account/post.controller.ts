@@ -308,6 +308,7 @@ export class PostController {
         videoKeys,
         thumbnailKeys,
         commentVisibility,
+        edit,
       } = req.body;
 
       imageKeys = commonHelper.normalizeKeys(imageKeys);
@@ -327,6 +328,17 @@ export class PostController {
           "You are not authorized to update this post",
           HTTP_STATUS.UN_AUTHORIZED
         );
+      }
+      if (edit) {
+        existingPost.content = content || existingPost.content;
+        existingPost.status = status || existingPost.status;
+        existingPost.visibility = visibility || existingPost.visibility;
+        existingPost.commentVisibility =
+          commentVisibility || existingPost.commentVisibility;
+        const UpdatedPost = await this.postRepo.update(id, existingPost);
+        res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Post Updated Successfully", UpdatedPost));
       }
 
       let oldPostImages: UploadResult[] = [];
@@ -764,7 +776,7 @@ export class PostController {
               recipient: { id: userId },
             },
           ],
-          select: ["id"], 
+          select: ["id"],
         });
 
         (singlePost as any).bondId = postAuthorBond?.id || null;
