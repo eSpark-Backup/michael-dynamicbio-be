@@ -8,7 +8,7 @@ import {
   UpdateDateColumn,
   OneToOne,
 } from "typeorm";
-import { BaseEntity, Comments, Likes, Page, Poll, Saved, User } from ".";
+import { BaseEntity, Comments, Likes, Page, Poll, Saved, User,Group } from ".";
 
 export enum PostStatus {
   ARCHIVE = "ARCHIVE",
@@ -117,11 +117,21 @@ export class Post extends BaseEntity {
   @ManyToOne(() => Page, (page) => page.posts, { nullable: true })
   page: Page;
 
+  @ManyToOne(() => Page, (group) => group.posts, { nullable: true })
+  group: Group;
+
   @Column({ nullable: true, type: "varchar" })
   pageId: string;
 
   @Column({ default: false, type: "boolean" })
   isPagePost: boolean;
+
+  @Column({ default: false, type: "boolean" })
+  isGroupPost: boolean;
+
+  @Column({ nullable: true, type: "varchar" })
+  groupId: string;
+  
 
   @OneToMany(() => Saved, (saved) => saved.post)
   savedByUsers: Saved[];
