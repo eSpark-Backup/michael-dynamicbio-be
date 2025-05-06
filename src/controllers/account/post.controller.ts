@@ -332,7 +332,10 @@ export class PostController {
         );
       }
       if (edit) {
-        existingPost.content = content || existingPost.content;
+        existingPost.content = {
+          ...existingPost.content,
+          ...(content?.title && { title: content.title }),
+        };
         existingPost.status = status || existingPost.status;
         existingPost.visibility = visibility || existingPost.visibility;
         existingPost.commentVisibility =
