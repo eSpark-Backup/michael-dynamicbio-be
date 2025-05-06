@@ -36,7 +36,10 @@ export class Likes extends BaseEntity {
   })
   post: Post;
 
-  @ManyToOne(() => Comments, (comment) => comment.likes, { nullable: true })
+  @ManyToOne(() => Comments, (comment) => comment.likes, {
+    nullable: true,
+    onDelete: "CASCADE",
+  })
   @JoinColumn({ name: "commentId" })
   comments: Comments;
 
