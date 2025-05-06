@@ -7,7 +7,7 @@ import {
   validate,
 } from "../../validations";
 import { PostController, UserController } from "../../controllers/account";
-import {Bond, Likes, Page, Poll, PollVote, Post, Saved, User} from "../../entity";
+import {Bond, Comments, Likes, Page, Poll, PollVote, Post, Saved, User} from "../../entity";
 import { getRepository } from "typeorm";
 import { AppDataSource } from "../../typeorm.config";
 import {
@@ -25,13 +25,14 @@ const router = Router();
 const userRepository = AppDataSource.getRepository(User);
 const postRepository = AppDataSource.getRepository(Post);
 const likeRepository = AppDataSource.getRepository(Likes);
+const commentRepository = AppDataSource.getRepository(Comments);
 const pollRepository = AppDataSource.getRepository(Poll);
 const pageRepository = AppDataSource.getRepository(Page);
 const bondRepository= AppDataSource.getRepository(Bond);
 const pollVoteRepository = AppDataSource.getRepository(PollVote);
 const savedRepository = AppDataSource.getRepository(Saved);  
 
-const postController = new PostController(userRepository, postRepository,likeRepository, pollRepository, pageRepository, bondRepository, pollVoteRepository,savedRepository);
+const postController = new PostController(userRepository, postRepository,likeRepository,commentRepository, pollRepository, pageRepository, bondRepository, pollVoteRepository,savedRepository);
 
 /**
  * @swagger
@@ -312,6 +313,9 @@ router.get(
  *               cover:
  *                 type: string
  *                 format: binary
+ *               edit:
+ *                 type: boolean
+ *                 description: Indicates whether the post is being edited
  *     responses:
  *       200:
  *         description: Post updated successfully.

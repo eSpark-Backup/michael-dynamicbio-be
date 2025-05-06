@@ -46,6 +46,7 @@ export class PostValidation {
     thumbnailKeys: Joi.alternatives()
       .try(Joi.string(), Joi.array().items(Joi.string()))
       .optional(),
+    edit: Joi.boolean().optional(),
 
     status: Joi.string()
       .valid(...Object.values(POST_STATUS))

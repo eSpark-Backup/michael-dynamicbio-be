@@ -13,6 +13,7 @@ import {
   BondStatus,
   PostVisibility,
   COMMENT_VISIBILITY,
+  Comments,
 } from "../../entity";
 import {
   ICustomRequest,
@@ -41,6 +42,7 @@ export class PostController {
     private usersRepo: Repository<User>,
     private postRepo: Repository<Post>,
     private likesRepo: Repository<Likes>,
+    private commentsRepo: Repository<Comments>,
     private pollRepo: Repository<Poll>,
     private pageRepo: Repository<Page>,
     private bondsRepo: Repository<Bond>,
@@ -337,8 +339,9 @@ export class PostController {
           commentVisibility || existingPost.commentVisibility;
         const UpdatedPost = await this.postRepo.update(id, existingPost);
         res
-        .status(HTTP_STATUS.OK)
-        .json(handleResponse("Post Updated Successfully", UpdatedPost));
+          .status(HTTP_STATUS.OK)
+          .json(handleResponse("Post Updated Successfully", UpdatedPost));
+        return next();
       }
 
       let oldPostImages: UploadResult[] = [];
@@ -1400,7 +1403,7 @@ export class PostController {
 
       const post = await this.postRepo.findOne({
         where: { id: postId },
-        relations: ["author", "page", "page.admins"],
+        relations: ["author", "page", "page.admins", "comments", "likes"],
       });
 
       if (!post) {
@@ -1426,6 +1429,13 @@ export class PostController {
         } catch (err) {
           logger.warn(`Failed to cancel job: ${post.scheduledJobId}`);
         }
+      }
+      if (post.comments?.length) {
+        await this.commentsRepo.remove(post.comments);
+      }
+
+      if (post.likes?.length) {
+        await this.likesRepo.remove(post.likes);
       }
 
       const media =
