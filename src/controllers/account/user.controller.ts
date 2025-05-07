@@ -1663,6 +1663,8 @@ export class UserController {
           "post.author",
           "post.poll",
           "post.poll.votes",
+          "post.page",
+          "post.page.followers"
         ],
         order: { createdAt: "DESC" },
         skip: skipNumber,
@@ -1692,6 +1694,17 @@ export class UserController {
           ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
           : null;
 
+          if(post.page) {
+          const isFollowing = post.page.followers.some(
+            (follower) => follower.id === userId
+          );
+          (post as any).isPageFollowing = isFollowing;
+  
+          (post as any).pageFollowerCount =
+          post.page.followers.length;
+  
+          delete post.page.followers;
+        }
         // Loop over likes to check bonds
         for (const like of post.likes || []) {
           const likeUserId = like.user.id;

@@ -1365,6 +1365,7 @@ export class PostController {
         .leftJoinAndSelect("post.likes", "like")
         .leftJoinAndSelect("like.user", "likedUser")
         .leftJoinAndSelect("post.page", "page")
+        
         .select([
           "post",
           "author.id",
