@@ -38,7 +38,7 @@ const filterFiles = (
   if (ALLOWED_IMG_TYPES.includes(file.mimetype) || ALLOWED_VIDEO_TYPES.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Invalid file type. Only images and videos are allowed."));
+    cb(new Error(" Invalid file type. Only images and videos are allowed."));
   }
 };
 /**

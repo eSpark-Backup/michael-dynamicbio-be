@@ -649,6 +649,8 @@ export class PostController {
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
           .leftJoinAndSelect("post.comments", "comment")
           .leftJoinAndSelect("post.page", "page")
+          .leftJoinAndSelect("page.followers", "follower")
+
           .select([
             "post",
             "author",
@@ -670,7 +672,8 @@ export class PostController {
             "pollVotes.optionIndex",
             "pollVotes.userId",
             "comment",
-            "page"
+            "page",
+            "follower"
           ])
           .addOrderBy("like.createdAt", "DESC")
           .getOne();
@@ -788,6 +791,15 @@ export class PostController {
         });
 
         (singlePost as any).bondId = postAuthorBond?.id || null;
+        const isFollowing = singlePost.page.followers.some(
+          (follower) => follower.id === userId
+        );
+        (singlePost as any).isPageFollowing = isFollowing;
+
+        (singlePost as any).pageFollowerCount =
+          singlePost.page.followers.length;
+
+        delete singlePost.page.followers;
 
         ((singlePost as any).shareableLink = generateShareableLink({
           id: singlePost.id,
@@ -813,6 +825,7 @@ export class PostController {
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
           .leftJoinAndSelect("post.comments", "comment")
           .leftJoinAndSelect("post.page", "page")
+          .leftJoinAndSelect("page.followers", "follower")
           .select([
             "post",
             "author",
@@ -831,6 +844,7 @@ export class PostController {
             "pollVotes.userId",
             "comment",
             "page",
+            "follower",
           ])
           .orderBy("post.createdAt", "DESC")
           .addOrderBy("like.createdAt", "DESC")
@@ -858,7 +872,15 @@ export class PostController {
           (post as any).lastLikedUser = lastLike
             ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
             : null;
-
+            const isFollowing = post.page.followers.some(
+              (follower) => follower.id === userId
+            );
+            (post as any).isPageFollowing = isFollowing;
+    
+            (post as any).pageFollowerCount =
+            post.page.followers.length;
+    
+            delete post.page.followers;
           for (const like of post.likes) {
             const likeUserId = like.user.id;
 

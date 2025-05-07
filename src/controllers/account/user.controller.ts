@@ -65,7 +65,7 @@ export class UserController {
     private bondsRepo: Repository<Bond>,
     private savedRepo: Repository<Saved>,
     private pollVoteRepo: Repository<PollVote>,
-    private pageRepo:Repository<Page>,
+    private pageRepo: Repository<Page>
   ) {}
 
   async verifyTokenAPI(
@@ -533,6 +533,7 @@ export class UserController {
         )
         .leftJoinAndSelect("post.author", "author")
         .leftJoinAndSelect("post.page", "page")
+        .leftJoinAndSelect("page.followers", "follower")
         .leftJoinAndSelect("post.likes", "like")
         .leftJoinAndSelect("like.user", "likedUser")
         .leftJoinAndSelect("like.user", "lastLikedUser")
@@ -568,6 +569,7 @@ export class UserController {
           "pollVotes.userId",
           "pollVotes.createdAt",
           "page",
+          "follower",
         ])
         .orderBy("post.createdAt", "DESC")
         .addOrderBy("like.createdAt", "DESC")
@@ -633,6 +635,17 @@ export class UserController {
           (savedPost) =>
             savedPost.type === SavedType.POST && savedPost.post.id === post.id
         );
+
+        if(post.isPagePost){
+        const isFollowing = post.page.followers.some(
+          (follower) => follower.id === userId
+        );
+        (post as any).isPageFollowing = isFollowing;
+
+        (post as any).pageFollowerCount = post.page.followers.length;
+
+        delete post.page.followers;
+      }
 
         const bond = await this.bondsRepo.findOne({
           where: [
