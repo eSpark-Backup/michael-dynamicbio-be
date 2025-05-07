@@ -3,6 +3,7 @@ import {
   Bond,
   BondStatus,
   COMMENT_VISIBILITY,
+  Page,
   Poll,
   PollVote,
   Post,
@@ -63,7 +64,8 @@ export class UserController {
     private postsRepo: Repository<Post>,
     private bondsRepo: Repository<Bond>,
     private savedRepo: Repository<Saved>,
-    private pollVoteRepo: Repository<PollVote>
+    private pollVoteRepo: Repository<PollVote>,
+    private pageRepo:Repository<Page>,
   ) {}
 
   async verifyTokenAPI(
@@ -530,6 +532,7 @@ export class UserController {
           })
         )
         .leftJoinAndSelect("post.author", "author")
+        .leftJoinAndSelect("post.page", "page")
         .leftJoinAndSelect("post.likes", "like")
         .leftJoinAndSelect("like.user", "likedUser")
         .leftJoinAndSelect("like.user", "lastLikedUser")
@@ -564,6 +567,7 @@ export class UserController {
           "pollVotes.optionIndex",
           "pollVotes.userId",
           "pollVotes.createdAt",
+          "page",
         ])
         .orderBy("post.createdAt", "DESC")
         .addOrderBy("like.createdAt", "DESC")
@@ -1175,6 +1179,43 @@ export class UserController {
           res
             .status(200)
             .json(handleResponse("Post Found Successfully", singlePost));
+        return next();
+      } else if (type === "page") {
+        const page = await this.pageRepo
+          .createQueryBuilder("page")
+          .leftJoinAndSelect("page.creator", "creator")
+          .leftJoinAndSelect("page.admins", "admin")
+          .leftJoinAndSelect("page.followers", "follower")
+          .where("page.id = :id", { id })
+          .getOne();
+
+        if (!page) {
+          throw new ApiError("Page not found", HTTP_STATUS.NOT_FOUND);
+        }
+
+        (page as any).shareableLink = generateShareableLink({
+          id: page.id,
+          type: "page",
+          typeName: page.type,
+        });
+        // Check if current user is following
+        const userId = req.user?.id;
+        const isFollowing = page.followers.some(
+          (follower) => follower.id === userId
+        );
+        const isAdmin = page.admins.some((admin) => admin.id === userId);
+
+        // Add additional fields
+        const responseData = {
+          ...page,
+          isFollowing,
+          isAdmin,
+          followerCount: page.followers.length,
+        };
+
+        res
+          .status(HTTP_STATUS.OK)
+          .json(handleResponse("Page retrieved successfully", responseData));
         return next();
       }
 
@@ -2062,10 +2103,8 @@ export class UserController {
 
           const age = currentDate.getUTCFullYear() - dob.getUTCFullYear();
           const dobKey = formatDate(dob);
-        
+
           if (past30Days.has(dobKey)) {
-            
-        
             birthdays.push({
               id: user.id,
               firstName: user.firstName,

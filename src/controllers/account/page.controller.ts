@@ -7,7 +7,7 @@ import path from "path";
 import { ApiError } from "../../errors";
 import { CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
 import { commonHelper } from "../../helpers";
-import { handleResponse, logger } from "../../utils";
+import { generateShareableLink, handleResponse, logger } from "../../utils";
 import { uploadService } from "../../services";
 import { Notification } from "../../models";
 
@@ -393,6 +393,11 @@ export class PageController {
         throw new ApiError("Page not found", HTTP_STATUS.NOT_FOUND);
       }
 
+      (page as any).shareableLink = generateShareableLink({
+        id: page.id,
+        type: "page",
+        typeName: page.type,
+      });
       // Check if current user is following
       const userId = req.user?.id;
       const isFollowing = page.followers.some(
@@ -455,6 +460,13 @@ export class PageController {
       if (pages.length === 0) {
         res.status(HTTP_STATUS.OK).json(handleResponse("No pages found"));
         return next();
+      }
+      for (const page of pages) {
+        (page as any).shareableLink = generateShareableLink({
+          id: page.id,
+          type: "page",
+          typeName: page.type,
+        });
       }
 
       // Add follower count to each page

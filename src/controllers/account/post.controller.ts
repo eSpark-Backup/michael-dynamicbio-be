@@ -648,6 +648,7 @@ export class PostController {
           .leftJoinAndSelect("post.poll", "poll") // Include poll data
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
           .leftJoinAndSelect("post.comments", "comment")
+          .leftJoinAndSelect("post.page", "page")
           .select([
             "post",
             "author",
@@ -669,6 +670,7 @@ export class PostController {
             "pollVotes.optionIndex",
             "pollVotes.userId",
             "comment",
+            "page"
           ])
           .addOrderBy("like.createdAt", "DESC")
           .getOne();
@@ -810,6 +812,7 @@ export class PostController {
           .leftJoinAndSelect("post.poll", "poll") // Include poll data
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
           .leftJoinAndSelect("post.comments", "comment")
+          .leftJoinAndSelect("post.page", "page")
           .select([
             "post",
             "author",
@@ -827,6 +830,7 @@ export class PostController {
             "pollVotes.optionIndex",
             "pollVotes.userId",
             "comment",
+            "page",
           ])
           .orderBy("post.createdAt", "DESC")
           .addOrderBy("like.createdAt", "DESC")
