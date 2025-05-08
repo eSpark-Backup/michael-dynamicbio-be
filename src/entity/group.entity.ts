@@ -11,7 +11,6 @@ import {
 } from "typeorm";
 import { BaseEntity, Post, User } from ".";
 
-
 export enum GroupIndustryType {
   PRODUCTION = "PRODUCTION",
   TRANSPORTATION = "TRANSPORTATION",
@@ -21,7 +20,12 @@ export enum GroupIndustryType {
   EDUCATION = "EDUCATION",
   HEALTHCARE = "HEALTHCARE",
   RETAIL = "RETAIL",
-  OTHER = "OTHER"
+  OTHER = "OTHER",
+}
+
+export enum GroupStatus {
+  PUBLIC = "PUBLIC",
+  PRIVATE = "PRIVATE",
 }
 
 @Entity("groups")
@@ -38,66 +42,16 @@ export class Group extends BaseEntity {
   @Column({ nullable: false })
   address: string;
 
-  @Column({ nullable: true })
-  locationCountry: string;
 
-  @Column({ type: "simple-array", nullable: true })
-  branchesCountries: string[];
+  @Column({
+    type: "enum",
+    enum: GroupIndustryType,
+    default: GroupIndustryType.TECHNOLOGY,
+  })
+  industry: GroupIndustryType;
 
-    @Column({
-          type: "enum",
-          enum: GroupIndustryType,
-          default: GroupIndustryType.TECHNOLOGY
-      })
-      industry: GroupIndustryType;
-
-
-  @Column({ nullable: true })
-  website: string;
-
-  @Column({ nullable: true })
-  tagline: string;
-
-  @Column({ nullable: true })
-  productionDescription: string;
-
-  @Column({ nullable: true })
-  energyConsumption: string;
-
-  @Column({ nullable: true })
-  certifications: string;
-
-  @Column({ nullable: true })
-  costDetails: string;
-
-  // Fields for Transportation industry type
-  @Column({ nullable: true })
-  transportationDescription: string;
-
-  @Column({ nullable: true })
-  fleetSize: number;
-
-  @Column({ nullable: true })
-  operatingRange: string;
-
-  @Column({ nullable: true })
-  transportationCostDetails: string;
-
-  // Fields for Storage industry type
-
-  @Column({ nullable: true })
-  storageCapacity: string;
-
-  @Column({ nullable: true })
-  storageTemperature: string;
-
-  //Fields For Other industry type
-  @Column({ nullable: true })
-  otherDescription: string;
-
-  @Column({ nullable: true })
-  otherCostDetails: string;
-
+  @Column({ type: "text", nullable: true })
+  rules: string;
   @Column({ nullable: true })
   logoUrl: string;
 
@@ -115,6 +69,19 @@ export class Group extends BaseEntity {
 
   @Column()
   creatorId: string;
+
+  @Column({ default: true })
+  allowMemberInvites: boolean;
+
+  @Column({ default: true })
+  requirePostApproval: boolean;
+
+  @Column({
+    type: "enum",
+    enum: GroupStatus,
+    default: GroupStatus.PUBLIC,
+  })
+  status: GroupStatus;
 
   @ManyToMany(() => User)
   @JoinTable({
