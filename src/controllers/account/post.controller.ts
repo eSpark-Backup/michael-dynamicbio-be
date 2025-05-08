@@ -875,6 +875,7 @@ export class PostController {
           (post as any).lastLikedUser = lastLike
             ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
             : null;
+            if(post.page) {
             const isFollowing = post.page.followers.some(
               (follower) => follower.id === userId
             );
@@ -884,6 +885,7 @@ export class PostController {
             post.page.followers.length;
     
             delete post.page.followers;
+          }
           for (const like of post.likes) {
             const likeUserId = like.user.id;
 
