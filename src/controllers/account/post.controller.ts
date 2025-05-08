@@ -791,6 +791,8 @@ export class PostController {
         });
 
         (singlePost as any).bondId = postAuthorBond?.id || null;
+
+        if(singlePost.page) {
         const isFollowing = singlePost.page.followers.some(
           (follower) => follower.id === userId
         );
@@ -800,6 +802,7 @@ export class PostController {
           singlePost.page.followers.length;
 
         delete singlePost.page.followers;
+      }
 
         ((singlePost as any).shareableLink = generateShareableLink({
           id: singlePost.id,

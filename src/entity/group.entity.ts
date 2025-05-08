@@ -12,6 +12,18 @@ import {
 import { BaseEntity, Post, User } from ".";
 
 
+export enum GroupIndustryType {
+  PRODUCTION = "PRODUCTION",
+  TRANSPORTATION = "TRANSPORTATION",
+  STORAGE = "STORAGE",
+  TECHNOLOGY = "TECHNOLOGY",
+  FINANCE = "FINANCE",
+  EDUCATION = "EDUCATION",
+  HEALTHCARE = "HEALTHCARE",
+  RETAIL = "RETAIL",
+  OTHER = "OTHER"
+}
+
 @Entity("groups")
 export class Group extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
@@ -32,6 +44,12 @@ export class Group extends BaseEntity {
   @Column({ type: "simple-array", nullable: true })
   branchesCountries: string[];
 
+    @Column({
+          type: "enum",
+          enum: GroupIndustryType,
+          default: GroupIndustryType.TECHNOLOGY
+      })
+      industry: GroupIndustryType;
 
 
   @Column({ nullable: true })
