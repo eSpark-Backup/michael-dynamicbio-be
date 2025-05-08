@@ -1087,6 +1087,8 @@ export class UserController {
           .leftJoinAndSelect("post.poll", "poll") // Include poll data
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
           .leftJoinAndSelect("post.comments", "comment")
+          .leftJoinAndSelect("post.page", "page")
+          .leftJoinAndSelect("page.followers", "follower")
           .select([
             "post",
             "author",
@@ -1107,6 +1109,8 @@ export class UserController {
             "pollVotes.optionIndex",
             "pollVotes.userId",
             "comment",
+            "page",
+            "follower",
           ])
           .addOrderBy("like.createdAt", "DESC")
           .getOne();
@@ -1125,6 +1129,18 @@ export class UserController {
         (singlePost as any).lastLikedUser = lastLike
           ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
           : null;
+
+          if(singlePost.page) {
+            const isFollowing = singlePost.page.followers.some(
+              (follower) => follower.id === userId
+            );
+            (singlePost as any).isPageFollowing = isFollowing;
+    
+            (singlePost as any).pageFollowerCount =
+            singlePost.page.followers.length;
+    
+            delete singlePost.page.followers;
+          }
 
         // If the post is a poll, include vote statistics
         if (singlePost.type === PostType.POLL && singlePost.poll) {
