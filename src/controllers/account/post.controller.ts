@@ -1396,9 +1396,12 @@ export class PostController {
           .json(handleResponse("No posts found for this page"));
         return next();
       }
+      
 
       // Process posts
       posts.forEach((post) => {
+        const lastLike = post.likes[0];
+        (post as any).lastLikedUser = lastLike
         praseMedia(post);
         (post as any).likesCount = post.likes.length;
       });
