@@ -674,7 +674,7 @@ export class PostController {
             "pollVotes.userId",
             "comment",
             "page",
-            "follower"
+            "follower",
           ])
           .addOrderBy("like.createdAt", "DESC")
           .getOne();
@@ -715,10 +715,16 @@ export class PostController {
           (singlePost as any).isSaved = false;
         }
 
-          const bond = await this.bondsRepo.findOne({
+        const bond = await this.bondsRepo.findOne({
           where: [
-            { requester: { id: userId }, recipient: { id: singlePost.author.id } },
-            { requester: { id: singlePost.author.id }, recipient: { id: userId } },
+            {
+              requester: { id: userId },
+              recipient: { id: singlePost.author.id },
+            },
+            {
+              requester: { id: singlePost.author.id },
+              recipient: { id: userId },
+            },
           ],
         });
         (singlePost as any).isBond = !!bond;
@@ -801,17 +807,17 @@ export class PostController {
 
         (singlePost as any).bondId = postAuthorBond?.id || null;
 
-        if(singlePost.page) {
-        const isFollowing = singlePost.page.followers.some(
-          (follower) => follower.id === userId
-        );
-        (singlePost as any).isPageFollowing = isFollowing;
+        if (singlePost.page) {
+          const isFollowing = singlePost.page.followers.some(
+            (follower) => follower.id === userId
+          );
+          (singlePost as any).isPageFollowing = isFollowing;
 
-        (singlePost as any).pageFollowerCount =
-          singlePost.page.followers.length;
+          (singlePost as any).pageFollowerCount =
+            singlePost.page.followers.length;
 
-        delete singlePost.page.followers;
-      }
+          delete singlePost.page.followers;
+        }
 
         ((singlePost as any).shareableLink = generateShareableLink({
           id: singlePost.id,
@@ -836,7 +842,7 @@ export class PostController {
           .leftJoinAndSelect("post.poll", "poll") // Include poll data
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
           .leftJoinAndSelect("post.comments", "comment")
-           .leftJoinAndSelect("comment.user", "commentUser")
+          .leftJoinAndSelect("comment.user", "commentUser")
           .leftJoinAndSelect("post.page", "page")
           .leftJoinAndSelect("page.followers", "follower")
           .select([
@@ -873,36 +879,36 @@ export class PostController {
         // Process each post
         for (const post of posts) {
           praseMedia(post);
-             let canComment = false;
-                  const postAuthorId = post.author.id;
-          
-                  switch (post.commentVisibility) {
-                    case COMMENT_VISIBILITY.PUBLIC:
-                      canComment = true;
-                      break;
-          
-                    case COMMENT_VISIBILITY.CONNECTIONS:
-                      canComment = bondedUserIds.includes(postAuthorId);
-                      break;
-          
-                    case COMMENT_VISIBILITY.ONLY_ME:
-                      canComment = userId === postAuthorId;
-                      break;
-          
-                    default:
-                      canComment = false;
-                      break;
-                  }
-          
-                  (post as any).canComment = canComment;
+          let canComment = false;
+          const postAuthorId = post.author.id;
 
-            const bond = await this.bondsRepo.findOne({
-          where: [
-            { requester: { id: userId }, recipient: { id: post.author.id } },
-            { requester: { id: post.author.id }, recipient: { id: userId } },
-          ],
-        });
-        (post as any).isBond = !!bond;
+          switch (post.commentVisibility) {
+            case COMMENT_VISIBILITY.PUBLIC:
+              canComment = true;
+              break;
+
+            case COMMENT_VISIBILITY.CONNECTIONS:
+              canComment = bondedUserIds.includes(postAuthorId);
+              break;
+
+            case COMMENT_VISIBILITY.ONLY_ME:
+              canComment = userId === postAuthorId;
+              break;
+
+            default:
+              canComment = false;
+              break;
+          }
+
+          (post as any).canComment = canComment;
+
+          const bond = await this.bondsRepo.findOne({
+            where: [
+              { requester: { id: userId }, recipient: { id: post.author.id } },
+              { requester: { id: post.author.id }, recipient: { id: userId } },
+            ],
+          });
+          (post as any).isBond = !!bond;
 
           ((post as any).shareableLink = generateShareableLink({
             id: post.id,
@@ -915,15 +921,14 @@ export class PostController {
           (post as any).lastLikedUser = lastLike
             ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
             : null;
-            if(post.page) {
+          if (post.page) {
             const isFollowing = post.page.followers.some(
               (follower) => follower.id === userId
             );
             (post as any).isPageFollowing = isFollowing;
-    
-            (post as any).pageFollowerCount =
-            post.page.followers.length;
-    
+
+            (post as any).pageFollowerCount = post.page.followers.length;
+
             delete post.page.followers;
           }
           for (const like of post.likes) {
@@ -1391,6 +1396,7 @@ export class PostController {
     try {
       const { pageId } = req.params;
       const { page, take, skip } = req?.query;
+      const userId = req.user?.id;
 
       const skipNumber = Number(skip);
       const takeNumber = Number(take);
@@ -1400,6 +1406,21 @@ export class PostController {
       if (!pageEntity) {
         throw new ApiError("Page not found", HTTP_STATUS.NOT_FOUND);
       }
+      const bonds = await this.bondsRepo
+        .createQueryBuilder("bond")
+        .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+          userId,
+        })
+        .leftJoinAndSelect("bond.requester", "requester")
+        .leftJoinAndSelect("bond.recipient", "recipient")
+        .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
+        .getMany();
+
+      const bondedUserIds = bonds.map((bond) =>
+        bond.requester.id === userId ? bond.recipient.id : bond.requester.id
+      );
+
+      bondedUserIds.push(userId);
 
       // Get posts for the page
       const [posts, totalItems] = await this.postRepo
@@ -1410,7 +1431,10 @@ export class PostController {
         .leftJoinAndSelect("post.likes", "like")
         .leftJoinAndSelect("like.user", "likedUser")
         .leftJoinAndSelect("post.page", "page")
-        
+        .leftJoinAndSelect("post.comments", "comment")
+        .leftJoinAndSelect("comment.user", "commentUser")
+        .leftJoinAndSelect("page.followers", "follower")
+
         .select([
           "post",
           "author.id",
@@ -1424,6 +1448,8 @@ export class PostController {
           "page.id",
           "page.name",
           "page.logoUrl",
+          "comment",
+          "follower",
         ])
         .orderBy("post.createdAt", "DESC")
         .skip(skipNumber)
@@ -1436,15 +1462,112 @@ export class PostController {
           .json(handleResponse("No posts found for this page"));
         return next();
       }
-      
 
       // Process posts
-      posts.forEach((post) => {
+      for (const post of posts) {
+        praseMedia(post);
+        let canComment = false;
+        const postAuthorId = post.author.id;
+
+        switch (post.commentVisibility) {
+          case COMMENT_VISIBILITY.PUBLIC:
+            canComment = true;
+            break;
+
+          case COMMENT_VISIBILITY.CONNECTIONS:
+            canComment = bondedUserIds.includes(postAuthorId);
+            break;
+
+          case COMMENT_VISIBILITY.ONLY_ME:
+            canComment = userId === postAuthorId;
+            break;
+
+          default:
+            canComment = false;
+            break;
+        }
+
+        (post as any).canComment = canComment;
+
+        const bond = await this.bondsRepo.findOne({
+          where: [
+            { requester: { id: userId }, recipient: { id: post.author.id } },
+            { requester: { id: post.author.id }, recipient: { id: userId } },
+          ],
+        });
+        (post as any).isBond = !!bond;
+
+        ((post as any).shareableLink = generateShareableLink({
+          id: post.id,
+          type: "post",
+          typeName: post.type,
+        })),
+          ((post as any).commentsCount = post.comments.length);
+        (post as any).likesCount = post.likes.length;
         const lastLike = post.likes[0];
         (post as any).lastLikedUser = lastLike
-        praseMedia(post);
-        (post as any).likesCount = post.likes.length;
-      });
+          ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
+          : null;
+        if (post.page) {
+          const isFollowing = post.page.followers.some(
+            (follower) => follower.id === userId
+          );
+          (post as any).isPageFollowing = isFollowing;
+
+          (post as any).pageFollowerCount = post.page.followers.length;
+
+          delete post.page.followers;
+        }
+        for (const like of post.likes) {
+          const likeUserId = like.user.id;
+
+          const bond = await this.bondsRepo.findOne({
+            where: [
+              { requester: { id: userId }, recipient: { id: likeUserId } },
+              { requester: { id: likeUserId }, recipient: { id: userId } },
+            ],
+          });
+
+          (like as any).isBond = !!bond; // true if bond exists, false otherwise
+        }
+
+        // If the post is a poll, include vote statistics
+        if (post.type === PostType.POLL && post.poll) {
+          const voteCounts = await this.getPollVoteCounts(post.poll);
+          const userVote = this.getUserPollVote(post.poll, userId);
+
+          // Only show results if poll is configured to show results or user has voted
+          const shouldShowResults =
+            post.poll.showResults ||
+            (userVote !== null && userVote !== undefined);
+
+          (post as any).pollResults = shouldShowResults ? voteCounts : null;
+          (post as any).userVote = userVote;
+          (post as any).hasVoted = userVote !== null; // Add hasVoted flag
+
+          // Calculate poll statistics
+          if (post.poll.votes && post.poll.votes.length > 0) {
+            (post as any).pollStats = {
+              totalVotes: post.poll.votes.length,
+              hasEnded: post.poll.endDate
+                ? new Date() > post.poll.endDate
+                : false,
+            };
+          } else {
+            (post as any).pollStats = {
+              totalVotes: 0,
+              hasEnded: post.poll.endDate
+                ? new Date() > post.poll.endDate
+                : false,
+            };
+          }
+
+          // Remove sensitive data if poll is anonymous
+          if (post.poll.isAnonymous) {
+            delete post.poll.votes;
+          }
+        }
+      }
 
       res.status(HTTP_STATUS.OK).json(
         handleResponse("Page posts retrieved successfully", {
