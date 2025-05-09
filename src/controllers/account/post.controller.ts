@@ -648,6 +648,7 @@ export class PostController {
           .leftJoinAndSelect("post.poll", "poll") // Include poll data
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
           .leftJoinAndSelect("post.comments", "comment")
+          .leftJoinAndSelect("comment.user", "commentUser")
           .leftJoinAndSelect("post.page", "page")
           .leftJoinAndSelect("page.followers", "follower")
 
@@ -835,6 +836,7 @@ export class PostController {
           .leftJoinAndSelect("post.poll", "poll") // Include poll data
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
           .leftJoinAndSelect("post.comments", "comment")
+           .leftJoinAndSelect("comment.user", "commentUser")
           .leftJoinAndSelect("post.page", "page")
           .leftJoinAndSelect("page.followers", "follower")
           .select([
@@ -871,7 +873,28 @@ export class PostController {
         // Process each post
         for (const post of posts) {
           praseMedia(post);
-
+             let canComment = false;
+                  const postAuthorId = post.author.id;
+          
+                  switch (post.commentVisibility) {
+                    case COMMENT_VISIBILITY.PUBLIC:
+                      canComment = true;
+                      break;
+          
+                    case COMMENT_VISIBILITY.CONNECTIONS:
+                      canComment = bondedUserIds.includes(postAuthorId);
+                      break;
+          
+                    case COMMENT_VISIBILITY.ONLY_ME:
+                      canComment = userId === postAuthorId;
+                      break;
+          
+                    default:
+                      canComment = false;
+                      break;
+                  }
+          
+                  (post as any).canComment = canComment;
 
             const bond = await this.bondsRepo.findOne({
           where: [
