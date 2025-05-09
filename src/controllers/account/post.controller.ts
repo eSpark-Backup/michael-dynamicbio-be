@@ -714,6 +714,14 @@ export class PostController {
           (singlePost as any).isSaved = false;
         }
 
+          const bond = await this.bondsRepo.findOne({
+          where: [
+            { requester: { id: userId }, recipient: { id: singlePost.author.id } },
+            { requester: { id: singlePost.author.id }, recipient: { id: userId } },
+          ],
+        });
+        (singlePost as any).isBond = !!bond;
+
         praseMedia(singlePost);
         (singlePost as any).likesCount = singlePost.likes.length;
         (singlePost as any).commentsCount = singlePost.comments.length;
@@ -863,6 +871,15 @@ export class PostController {
         // Process each post
         for (const post of posts) {
           praseMedia(post);
+
+
+            const bond = await this.bondsRepo.findOne({
+          where: [
+            { requester: { id: userId }, recipient: { id: post.author.id } },
+            { requester: { id: post.author.id }, recipient: { id: userId } },
+          ],
+        });
+        (post as any).isBond = !!bond;
 
           ((post as any).shareableLink = generateShareableLink({
             id: post.id,
