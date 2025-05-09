@@ -1406,6 +1406,17 @@ export class PostController {
       if (!pageEntity) {
         throw new ApiError("Page not found", HTTP_STATUS.NOT_FOUND);
       }
+
+        if (pageEntity) {
+            const isFollowing = pageEntity.followers.some(
+              (follower) => follower.id === userId
+            );
+            (pageEntity as any).isPageFollowing = isFollowing;
+
+            (pageEntity as any).pageFollowerCount = pageEntity.followers.length;
+
+            delete pageEntity.followers;
+          }
       const bonds = await this.bondsRepo
         .createQueryBuilder("bond")
         .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
