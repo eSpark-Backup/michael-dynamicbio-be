@@ -14,6 +14,8 @@ import {
   PostVisibility,
   COMMENT_VISIBILITY,
   Comments,
+  Group,
+  GroupPostRequest,
 } from "../../entity";
 import {
   ICustomRequest,
@@ -47,7 +49,9 @@ export class PostController {
     private pageRepo: Repository<Page>,
     private bondsRepo: Repository<Bond>,
     private pollVoteRepo: Repository<PollVote>,
-    private savedRepo: Repository<Saved>
+    private savedRepo: Repository<Saved>,
+    private groupRepo: Repository<Group>,
+    private groupPostRequestRepo: Repository<GroupPostRequest>
   ) {}
 
   async createPost(
@@ -67,6 +71,7 @@ export class PostController {
         thumbnailsOrder,
         scheduledDate: scheduledFor,
         pageId,
+        groupId,
       } = req.body;
 
       if (type === PostType.POLL) {
@@ -193,6 +198,25 @@ export class PostController {
             uploadedArticleUrls,
         }) as Object) || null;
       const post = await this.postRepo.save(newPost);
+
+      if (groupId) {
+        const group = await this.groupRepo
+          .createQueryBuilder("group")
+          .leftJoinAndSelect("group.followers", "follower")
+          .leftJoinAndSelect("group.creator", "creator")
+          .where("follower.id = :userId", { userId })
+          .andWhere("group.id = :groupId", { groupId })
+          .getOne();
+        if (!group) {
+          throw new ApiError("Group not found or you're not a member of Group", HTTP_STATUS.NOT_FOUND);
+        }
+
+        const groupPostRequest = new GroupPostRequest();
+        groupPostRequest.user = user;
+        groupPostRequest.group = group;
+        groupPostRequest.post = post;
+        await this.groupPostRequestRepo.save(groupPostRequest);
+      }
 
       // If it's a scheduled post, create the job
       if (post.status === PostStatus.SCHEDULED && scheduledFor) {
@@ -1402,10 +1426,10 @@ export class PostController {
       const takeNumber = Number(take);
 
       // First check if the page exists
-const pageEntity = await this.pageRepo.findOne({
-  where: { id: pageId },
-  relations: ['followers'],
-});
+      const pageEntity = await this.pageRepo.findOne({
+        where: { id: pageId },
+        relations: ["followers"],
+      });
       if (!pageEntity) {
         throw new ApiError("Page not found", HTTP_STATUS.NOT_FOUND);
       }

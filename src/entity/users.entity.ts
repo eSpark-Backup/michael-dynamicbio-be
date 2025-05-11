@@ -9,7 +9,7 @@ import {
   OneToOne,
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
-import { Comments, Likes, Page, Post, ProfileSettings, Saved } from ".";
+import { Comments, GroupPostRequest, Likes, Page, Post, ProfileSettings, Saved } from ".";
 export enum LoginType {
   LOCAL = "local",
   FACEBOOK = "facebook",
@@ -157,4 +157,13 @@ export class User extends BaseEntity {
 
   @OneToMany(() => Saved, (saved) => saved.user)
   savedPosts: Saved[];
+
+
+  
+    @OneToMany(() => GroupPostRequest, (groupPostRequest) => groupPostRequest.user)
+  groupPostRequests: GroupPostRequest[];
+  
+
+
+  
 }

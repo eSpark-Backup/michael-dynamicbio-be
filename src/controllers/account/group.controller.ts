@@ -1,6 +1,6 @@
 import { ICustomRequest, IFileObject, IFileRequest } from "../../interfaces";
 
-import { User, Group } from "../../entity";
+import { User, Group, GroupJoinRequest, GroupPostRequest } from "../../entity";
 import { Repository } from "typeorm";
 import { NextFunction, Response } from "express";
 
@@ -17,7 +17,9 @@ export class GroupController {
   constructor(
     private usersRepo: Repository<User>,
     private groupRepo: Repository<Group>,
-    private notificationModel: typeof Notification
+    private notificationModel: typeof Notification,
+    private groupJoinRequestRepo: Repository<GroupJoinRequest>,
+    private groupPostRequestRepo: Repository<GroupPostRequest>
   ) {}
 
   async createGroup(
@@ -273,6 +275,135 @@ export class GroupController {
     }
   }
 
+  async getGroupById(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+
+      const group = await this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.creator", "creator")
+        .leftJoinAndSelect("group.admins", "admin")
+        .leftJoinAndSelect("group.followers", "follower")
+        .where("group.id = :id", { id })
+        .getOne();
+
+      if (!group) {
+        throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      (group as any).shareableLink = generateShareableLink({
+        id: group.id,
+        type: "group",
+        typeName: group.industry,
+      });
+      // Check if current user is following
+      const userId = req.user?.id;
+      const isFollowing = group.followers.some(
+        (follower) => follower.id === userId
+      );
+      const isAdmin = group.admins.some((admin) => admin.id === userId);
+
+      // Add additional fields
+      const responseData = {
+        ...group,
+        isFollowing,
+        isAdmin,
+        followerCount: group.followers.length,
+      };
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Group retrieved successfully", responseData));
+    } catch (error) {
+      logger.error(
+        `GroupController :: getGroupById :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async getAllGroupsOfUser(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const { page, take, skip, role } = req?.query;
+
+      const skipNumber = Number(skip);
+      const takeNumber = Number(take);
+
+      let queryBuilder = this.groupRepo.createQueryBuilder("group");
+
+      if (role === "admin") {
+        // Get pages where user is admin
+        queryBuilder = queryBuilder
+          .leftJoinAndSelect("group.admins", "admin")
+          .where("admin.id = :userId", { userId });
+      } else if (role === "creator") {
+        // Get pages created by user
+        queryBuilder = queryBuilder
+          .leftJoinAndSelect("group.creator", "creator")
+          .where("creator.id = :userId", { userId });
+      } else {
+        // Default: get all pages where user is either creator or admin
+        queryBuilder = queryBuilder
+          .leftJoinAndSelect("group.creator", "creator")
+          .leftJoinAndSelect("group.admins", "admin")
+          .where("creator.id = :userId OR admin.id = :userId", { userId });
+      }
+
+      // Add follower count
+      queryBuilder = queryBuilder.leftJoinAndSelect(
+        "group.followers",
+        "follower"
+      );
+
+      // Get groups with pagination
+      const [groups, totalItems] = await queryBuilder
+        .orderBy("group.createdAt", "DESC")
+        .skip(skipNumber)
+        .take(takeNumber)
+        .getManyAndCount();
+
+      if (groups.length === 0) {
+        res.status(HTTP_STATUS.OK).json(handleResponse("No groups found"));
+        return next();
+      }
+
+      // Add follower count to each page
+      const groupsWithCounts = groups.map((group) => ({
+        ...group,
+        followerCount: group.followers.length,
+        isAdmin:
+          group.admins?.some((admin) => admin.id === userId) ||
+          group.creator?.id === userId,
+      }));
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Groups retrieved successfully", {
+          groups: groupsWithCounts,
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page as string, 10),
+            pageSize: takeNumber,
+            totalPages: Math.ceil(totalItems / takeNumber),
+          },
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `GroupController :: getMyGroups :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
   async deleteGroup(
     req: ICustomRequest,
     res: Response,
@@ -312,4 +443,399 @@ export class GroupController {
       return next(error);
     }
   }
+
+  async getGroups(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { page, take, skip, type, industry } = req?.query;
+
+      const skipNumber = Number(skip);
+      const takeNumber = Number(take);
+
+      // Build query
+      const queryBuilder = this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.creator", "creator")
+        .leftJoinAndSelect("group.followers", "follower");
+
+      // // Apply filters
+      // if (type) {
+      //   queryBuilder.andWhere("group.type = :type", { type });
+      // }
+
+      if (industry) {
+        queryBuilder.andWhere("group.industry = :industry", { industry });
+      }
+
+      // Get groups with pagination
+      const [groups, totalItems] = await queryBuilder
+        .orderBy("group.createdAt", "DESC")
+        .skip(skipNumber)
+        .take(takeNumber)
+        .getManyAndCount();
+
+      if (groups.length === 0) {
+        res.status(HTTP_STATUS.OK).json(handleResponse("No groups found"));
+        return next();
+      }
+      for (const group of groups) {
+        (group as any).shareableLink = generateShareableLink({
+          id: group.id,
+          type: "group",
+          typeName: group.industry,
+        });
+      }
+
+      // Add follower count to each page
+      const groupsWithCounts = groups.map((group) => ({
+        ...group,
+        followerCount: group.followers.length,
+      }));
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Groups retrieved successfully", {
+          pages: groupsWithCounts,
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page as string, 10),
+            pageSize: takeNumber,
+            totalPages: Math.ceil(totalItems / takeNumber),
+          },
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `GroupController :: getGroups :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async followGroup(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.id;
+
+      const user = await this.usersRepo.findOne({ where: { id: userId } });
+      if (!user) throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
+
+      const group = await this.groupRepo.findOne({ where: { id } });
+      if (!group) throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+
+      const existingRequest = await this.groupJoinRequestRepo.findOne({
+        where: { userId, groupId: id },
+      });
+
+      if (existingRequest) {
+        if (existingRequest.isApproved) {
+          res
+            .status(HTTP_STATUS.OK)
+            .json(handleResponse("Already a group member", { joined: true }));
+          next();
+        } else {
+          res
+            .status(HTTP_STATUS.OK)
+            .json(
+              handleResponse("Join request already sent", { pending: true })
+            );
+          next();
+        }
+      }
+
+      const request = this.groupJoinRequestRepo.create({
+        user,
+        group,
+        userId,
+        groupId: id,
+        isApproved: false,
+      });
+
+      await this.groupJoinRequestRepo.save(request);
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Join request sent to group admins", {
+          requestSent: true,
+        })
+      );
+      next();
+    } catch (error) {
+      logger.error(`GroupController :: followGroup :: ${error.message}`);
+      return next(error);
+    }
+  }
+
+  async getPendingRequests(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { groupId } = req.params;
+      const currentUserId = req.user?.id;
+
+      const group = await this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.admins", "admin")
+        .leftJoinAndSelect("group.creator", "creator")
+        .where("group.id = :id", { id: groupId })
+        .getOne();
+
+      if (!group) {
+        throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      const isAdmin = group.admins.some((admin) => admin.id === currentUserId);
+      const isCreator = group.creator?.id === currentUserId;
+
+      if (!isAdmin && !isCreator) {
+        throw new ApiError(
+          "You are not authorized to view pending requests",
+          HTTP_STATUS.FORBIDDEN
+        );
+      }
+
+      const pendingRequests = await this.groupJoinRequestRepo.find({
+        where: {
+          groupId,
+          isApproved: false,
+        },
+        relations: ["user", "group"],
+      });
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Pending group join requests fetched successfully", {
+          pendingRequests,
+        })
+      );
+    } catch (error) {
+      logger.error(`GroupController :: getPendingRequests :: ${error.message}`);
+      return next(error);
+    }
+  }
+
+  async approveGroupJoinRequest(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { requestId } = req.params;
+      const request = await this.groupJoinRequestRepo.findOne({
+        where: { id: requestId },
+        relations: ["group", "user"],
+      });
+
+      if (!request || request.isApproved)
+        throw new ApiError("Invalid or already approved request", 400);
+
+      request.isApproved = true;
+      await this.groupJoinRequestRepo.save(request);
+
+      // Add to followers
+      const group = await this.groupRepo.findOne({
+        where: { id: request.groupId },
+        relations: ["followers"],
+      });
+
+      group.followers.push(request.user);
+      await this.groupRepo.save(group);
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Join request approved", { approved: true }));
+    } catch (error) {
+      logger.error(
+        `GroupController :: approveGroupJoinRequest :: ${error.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async getFollowedGroups(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const { page, take, skip } = req?.query;
+
+      const skipNumber = Number(skip);
+      const takeNumber = Number(take);
+
+      // Get pages that the user follows
+      const queryBuilder = this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.followers", "follower")
+        .leftJoinAndSelect("group.creator", "creator")
+        .where("follower.id = :userId", { userId });
+
+      // Get pages with pagination
+      const [groups, totalItems] = await queryBuilder
+        .orderBy("group.createdAt", "DESC")
+        .skip(skipNumber)
+        .take(takeNumber)
+        .getManyAndCount();
+
+      if (groups.length === 0) {
+        res
+          .status(HTTP_STATUS.OK)
+          .json(handleResponse("No followed groups found"));
+        return next();
+      }
+
+      // Add follower count to each page
+      const groupsWithCounts = groups.map((group) => ({
+        ...group,
+        followerCount: group.followers.length,
+        isAdmin: group.creator?.id === userId,
+      }));
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Followed groups retrieved successfully", {
+          groups: groupsWithCounts,
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page as string, 10),
+            pageSize: takeNumber,
+            totalPages: Math.ceil(totalItems / takeNumber),
+          },
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `GroupController :: getFollowedGroups :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async fetchAllPendingPosts(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { groupId } = req.params;
+      const currentUserId = req.user?.id;
+      const group = await this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.admins", "admin")
+        .leftJoinAndSelect("group.creator", "creator")
+        .where("group.id = :id", { id: groupId })
+        .getOne();
+
+      if (!group) {
+        throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      const isAdmin = group.admins.some((admin) => admin.id === currentUserId);
+      const isCreator = group.creator?.id === currentUserId;
+
+      if (!isAdmin && !isCreator) {
+        throw new ApiError(
+          "You are not authorized to view pending requests",
+          HTTP_STATUS.FORBIDDEN
+        );
+      }
+
+      const pendingRequests = await this.groupPostRequestRepo
+        .createQueryBuilder("request")
+        .leftJoinAndSelect("request.user", "user")
+        .leftJoinAndSelect("request.post", "post")
+        .leftJoinAndSelect("request.group", "group")
+        .where("request.isApproved = :isApproved", { isApproved: false })
+        .andWhere("request.group = :groupId", { groupId: group.id })
+        .orderBy("request.createdAt", "DESC")
+        .getMany();
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(
+          handleResponse(
+            "Fetched all pending group post requests",
+            pendingRequests
+          )
+        );
+    } catch (error) {
+      logger.error(
+        `GroupController :: fetchAllPendingPosts :: ${
+          (error as Error)?.message
+        }`
+      );
+      return next(error);
+    }
+  }
+
+
+  async approveOrRejectPost(
+  req: ICustomRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { requestId } = req.params;
+    const { action, rejectionReason } = req.body;
+    const currentUserId = req.user?.id;
+
+    const groupPostRequest = await this.groupPostRequestRepo.findOne({
+      where: { id: requestId },
+      relations: ["group", "group.admins", "group.creator", "post"],
+    });
+
+    if (!groupPostRequest) {
+      throw new ApiError("Group post request not found", HTTP_STATUS.NOT_FOUND);
+    }
+
+    const group = groupPostRequest.group;
+    const isAdmin = group.admins.some((admin) => admin.id === currentUserId);
+    const isCreator = group.creator?.id === currentUserId;
+
+    if (!isAdmin && !isCreator) {
+      throw new ApiError(
+        "You are not authorized to perform this action",
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+
+    if (groupPostRequest.isApproved) {
+      throw new ApiError("This post request is already approved", HTTP_STATUS.BAD_REQUEST);
+    }
+
+    if (action === "approve") {
+      groupPostRequest.isApproved = true;
+      groupPostRequest.rejectionReason = null;
+    } else if (action === "reject") {
+      if (!rejectionReason) {
+        throw new ApiError("Rejection reason is required", HTTP_STATUS.BAD_REQUEST);
+      }
+      groupPostRequest.rejectionReason = rejectionReason;
+      groupPostRequest.isApproved = false;
+    } else {
+      throw new ApiError("Invalid action. Must be 'approve' or 'reject'", HTTP_STATUS.BAD_REQUEST);
+    }
+
+    await this.groupPostRequestRepo.save(groupPostRequest);
+
+    res.status(HTTP_STATUS.OK).json(
+      handleResponse(
+        `Post request has been ${action}d successfully`,
+        groupPostRequest
+      )
+    );
+  } catch (error) {
+    logger.error(
+      `GroupController :: approveOrRejectPost :: ${(error as Error)?.message}`
+    );
+    return next(error);
+  }
+}
+
 }
