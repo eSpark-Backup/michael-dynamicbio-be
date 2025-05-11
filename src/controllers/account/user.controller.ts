@@ -636,16 +636,16 @@ export class UserController {
             savedPost.type === SavedType.POST && savedPost.post.id === post.id
         );
 
-        if(post.isPagePost){
-        const isFollowing = post.page.followers.some(
-          (follower) => follower.id === userId
-        );
-        (post as any).isPageFollowing = isFollowing;
+        if (post.isPagePost) {
+          const isFollowing = post.page.followers.some(
+            (follower) => follower.id === userId
+          );
+          (post as any).isPageFollowing = isFollowing;
 
-        (post as any).pageFollowerCount = post.page.followers.length;
+          (post as any).pageFollowerCount = post.page.followers.length;
 
-        delete post.page.followers;
-      }
+          delete post.page.followers;
+        }
 
         const bond = await this.bondsRepo.findOne({
           where: [
@@ -1130,17 +1130,17 @@ export class UserController {
           ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
           : null;
 
-          if(singlePost.page) {
-            const isFollowing = singlePost.page.followers.some(
-              (follower) => follower.id === userId
-            );
-            (singlePost as any).isPageFollowing = isFollowing;
-    
-            (singlePost as any).pageFollowerCount =
+        if (singlePost.page) {
+          const isFollowing = singlePost.page.followers.some(
+            (follower) => follower.id === userId
+          );
+          (singlePost as any).isPageFollowing = isFollowing;
+
+          (singlePost as any).pageFollowerCount =
             singlePost.page.followers.length;
-    
-            delete singlePost.page.followers;
-          }
+
+          delete singlePost.page.followers;
+        }
 
         // If the post is a poll, include vote statistics
         if (singlePost.type === PostType.POLL && singlePost.poll) {
@@ -1680,7 +1680,7 @@ export class UserController {
           "post.poll",
           "post.poll.votes",
           "post.page",
-          "post.page.followers"
+          "post.page.followers",
         ],
         order: { createdAt: "DESC" },
         skip: skipNumber,
@@ -1710,15 +1710,14 @@ export class UserController {
           ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
           : null;
 
-          if(post.page) {
+        if (post.page) {
           const isFollowing = post.page.followers.some(
             (follower) => follower.id === userId
           );
           (post as any).isPageFollowing = isFollowing;
-  
-          (post as any).pageFollowerCount =
-          post.page.followers.length;
-  
+
+          (post as any).pageFollowerCount = post.page.followers.length;
+
           delete post.page.followers;
         }
         // Loop over likes to check bonds
@@ -1800,13 +1799,47 @@ export class UserController {
       const skipNumber = Number(skip);
       const takeNumber = Number(take);
 
+      const bonds = await this.bondsRepo
+        .createQueryBuilder("bond")
+        .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+          userId,
+        })
+        .leftJoinAndSelect("bond.requester", "requester")
+        .leftJoinAndSelect("bond.recipient", "recipient")
+        .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
+        .getMany();
+
+      const bondedUserIds = bonds.map((bond) =>
+        bond.requester.id === userId ? bond.recipient.id : bond.requester.id
+      );
+
+      bondedUserIds.push(userId);
+
       // Case 1: Get a single post by ID
       if (id && id !== "{id}") {
         const singlePost = await this.postsRepo
           .createQueryBuilder("post")
           .where("post.id = :id", { id })
           .andWhere("post.author = :profileId", { profileId })
-          .andWhere("post.status = :status", { status: PostStatus.PUBLISH })
+          .andWhere(
+            new Brackets((qb) => {
+              qb.where("post.author = :userId", { userId })
+                .orWhere("post.visibility = :public", {
+                  public: PostVisibility.PUBLIC,
+                })
+                .orWhere(
+                  new Brackets((subQb) => {
+                    subQb
+                      .where("post.visibility = :connections", {
+                        connections: PostVisibility.CONNECTIONS,
+                      })
+                      .andWhere("post.author IN (:...bondedUserIds)", {
+                        bondedUserIds,
+                      });
+                  })
+                );
+            })
+          )
           .leftJoinAndSelect("post.author", "author")
           .leftJoinAndSelect("post.likes", "like")
           .leftJoinAndSelect("like.user", "likeUser")
@@ -1814,6 +1847,10 @@ export class UserController {
           .leftJoinAndSelect("post.poll", "poll") // Include poll data
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
           .leftJoinAndSelect("post.comments", "comment")
+          .leftJoinAndSelect("post.page", "page")
+          .leftJoinAndSelect("comment.user", "commentUser")
+          .leftJoinAndSelect("page.followers", "follower")
+
           .select([
             "post",
             "author",
@@ -1834,6 +1871,8 @@ export class UserController {
             "pollVotes.optionIndex",
             "pollVotes.userId",
             "comment",
+            "page",
+            "follower",
           ])
           .addOrderBy("like.createdAt", "DESC")
           .getOne();
@@ -1842,6 +1881,29 @@ export class UserController {
           res.status(200).json(handleResponse("Post not found"));
           return next();
         }
+
+        let canComment = false;
+        const postAuthorId = singlePost.author.id;
+
+        switch (singlePost.commentVisibility) {
+          case COMMENT_VISIBILITY.PUBLIC:
+            canComment = true;
+            break;
+
+          case COMMENT_VISIBILITY.CONNECTIONS:
+            canComment = bondedUserIds.includes(postAuthorId);
+            break;
+
+          case COMMENT_VISIBILITY.ONLY_ME:
+            canComment = userId === postAuthorId;
+            break;
+
+          default:
+            canComment = false;
+            break;
+        }
+
+        (singlePost as any).canComment = canComment;
 
         praseMedia(singlePost);
         (singlePost as any).likesCount = singlePost.likes.length;
@@ -1852,6 +1914,20 @@ export class UserController {
         (singlePost as any).lastLikedUser = lastLike
           ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
           : null;
+
+        const bond = await this.bondsRepo.findOne({
+          where: [
+            {
+              requester: { id: userId },
+              recipient: { id: singlePost.author.id },
+            },
+            {
+              requester: { id: singlePost.author.id },
+              recipient: { id: userId },
+            },
+          ],
+        });
+        (singlePost as any).isBond = !!bond;
 
         // If the post is a poll, include vote statistics
         if (singlePost.type === PostType.POLL && singlePost.poll) {
@@ -1937,6 +2013,9 @@ export class UserController {
           .leftJoinAndSelect("post.poll", "poll") // Include poll data
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
           .leftJoinAndSelect("post.comments", "comment")
+          .leftJoinAndSelect("comment.user", "commentUser")
+          .leftJoinAndSelect("post.page", "page")
+          .leftJoinAndSelect("page.followers", "follower")
           .select([
             "post",
             "author",
@@ -1954,6 +2033,8 @@ export class UserController {
             "pollVotes.optionIndex",
             "pollVotes.userId",
             "comment",
+            "page",
+            "follower",
           ])
           .orderBy("post.createdAt", "DESC")
           .addOrderBy("like.createdAt", "DESC")
@@ -1968,7 +2049,40 @@ export class UserController {
 
         // Process each post
         for (const post of posts) {
+
+
           praseMedia(post);
+
+            let canComment = false;
+          const postAuthorId = post.author.id;
+
+          switch (post.commentVisibility) {
+            case COMMENT_VISIBILITY.PUBLIC:
+              canComment = true;
+              break;
+
+            case COMMENT_VISIBILITY.CONNECTIONS:
+              canComment = bondedUserIds.includes(postAuthorId);
+              break;
+
+            case COMMENT_VISIBILITY.ONLY_ME:
+              canComment = userId === postAuthorId;
+              break;
+
+            default:
+              canComment = false;
+              break;
+          }
+
+          (post as any).canComment = canComment;
+
+          const bond = await this.bondsRepo.findOne({
+            where: [
+              { requester: { id: userId }, recipient: { id: post.author.id } },
+              { requester: { id: post.author.id }, recipient: { id: userId } },
+            ],
+          });
+          (post as any).isBond = !!bond;
           ((post as any).shareableLink = generateShareableLink({
             id: post.id,
             type: "post",
@@ -1980,6 +2094,17 @@ export class UserController {
           (post as any).lastLikedUser = lastLike
             ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
             : null;
+
+               if (post.page) {
+            const isFollowing = post.page.followers.some(
+              (follower) => follower.id === userId
+            );
+            (post as any).isPageFollowing = isFollowing;
+
+            (post as any).pageFollowerCount = post.page.followers.length;
+
+            delete post.page.followers;
+          }
 
           for (const like of post.likes) {
             const likeUserId = like.user.id;
