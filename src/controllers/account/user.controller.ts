@@ -2084,6 +2084,15 @@ export class UserController {
 
           (post as any).canComment = canComment;
 
+            const isSaved = await this.savedRepo.find({
+          where: { user: { id: userId }, post: { id } },
+        });
+        if (isSaved.length > 0) {
+          (post as any).isSaved = true;
+        } else {
+          (post as any).isSaved = false;
+        }
+
           const bond = await this.bondsRepo.findOne({
             where: [
               { requester: { id: userId }, recipient: { id: post.author.id } },
@@ -2098,6 +2107,8 @@ export class UserController {
           })),
             ((post as any).commentsCount = post.comments.length);
           (post as any).likesCount = post.likes.length;
+
+
           const lastLike = post.likes[0];
           (post as any).lastLikedUser = lastLike
             ? `${lastLike.user.firstName} ${lastLike.user.lastName}`

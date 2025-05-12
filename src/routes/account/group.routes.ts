@@ -64,10 +64,19 @@ const groupController = new GroupController(
  *               address:
  *                 type: string
  *                 description: Address of the group
+ *               description:
+ *                 type: string
+ *                 description: description of the group
  *               industry:
  *                 type: string
  *                 enum: [PRODUCTION, TRANSPORTATION, STORAGE, TECHNOLOGY, FINANCE, EDUCATION, HEALTHCARE, RETAIL, OTHER]
  *                 description: Industry type of the group
+ *               allowMemberInvites:
+ *                 type: boolean
+ *                 description: Allow members to invite others
+ *               requirePostApproval:
+ *                 type: boolean
+ *                 description: Allow members to invite others
  *               logo:
  *                 type: string
  *                 format: binary
@@ -135,6 +144,12 @@ router.post(
  *               address:
  *                 type: string
  *                 description: Address of the group
+ *               allowMemberInvites:
+ *                 type: boolean
+ *                 description: Allow members to invite others
+ *               requirePostApproval:
+ *                 type: boolean
+ *                 description: Allow members to invite others
  *               industry:
  *                 type: string
  *                 enum: [PRODUCTION, TRANSPORTATION, STORAGE, TECHNOLOGY, FINANCE, EDUCATION, HEALTHCARE, RETAIL, OTHER]
