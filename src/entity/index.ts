@@ -10,3 +10,5 @@ export * from "./profile-setting.entity";
 export * from "./page.entity";
 export * from "./saved.entity";
 export * from "./group.entity";
+export * from "./group-join-request.entity";
+export * from "./group-post-request.entity";

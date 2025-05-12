@@ -8,7 +8,7 @@ import {
   UpdateDateColumn,
   OneToOne,
 } from "typeorm";
-import { BaseEntity, Comments, Likes, Page, Poll, Saved, User,Group } from ".";
+import { BaseEntity, Comments, Likes, Page, Poll, Saved, User, Group, GroupPostRequest } from ".";
 
 export enum PostStatus {
   ARCHIVE = "ARCHIVE",
@@ -131,8 +131,13 @@ export class Post extends BaseEntity {
 
   @Column({ nullable: true, type: "varchar" })
   groupId: string;
-  
 
   @OneToMany(() => Saved, (saved) => saved.post)
   savedByUsers: Saved[];
+
+  @OneToMany(
+    () => GroupPostRequest,
+    (groupPostRequest) => groupPostRequest.post
+  )
+  groupPostRequests: GroupPostRequest[];
 }

@@ -1,0 +1,841 @@
+import { ICustomRequest, IFileObject, IFileRequest } from "../../interfaces";
+
+import { User, Group, GroupJoinRequest, GroupPostRequest } from "../../entity";
+import { Repository } from "typeorm";
+import { NextFunction, Response } from "express";
+
+import fs from "fs";
+import path from "path";
+import { ApiError } from "../../errors";
+import { CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
+import { commonHelper } from "../../helpers";
+import { generateShareableLink, handleResponse, logger } from "../../utils";
+import { uploadService } from "../../services";
+import { Notification } from "../../models";
+
+export class GroupController {
+  constructor(
+    private usersRepo: Repository<User>,
+    private groupRepo: Repository<Group>,
+    private notificationModel: typeof Notification,
+    private groupJoinRequestRepo: Repository<GroupJoinRequest>,
+    private groupPostRequestRepo: Repository<GroupPostRequest>
+  ) {}
+
+  async createGroup(
+    req: ICustomRequest,
+    file: IFileRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const {
+        name,
+        status,
+        address,
+        industry,
+        description,
+        rules,
+        allowMemberInvites,
+        requirePostApproval,
+      } = req.body;
+
+      const userId = req.user?.id;
+      const user = await this.usersRepo.findOne({ where: { id: userId } });
+
+      if (!user) {
+        throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      // Handle file uploads
+      const uploadsPath = path.join(process.cwd(), "uploads");
+      const logoFiles = fs
+        .readdirSync(uploadsPath)
+        .filter((file) => file.startsWith("logo"));
+      const coverFiles = fs
+        .readdirSync(uploadsPath)
+        .filter((file) => file.startsWith("cover"));
+
+      const logoFileObjects: IFileObject[] = logoFiles.map((file) =>
+        commonHelper.createFileObject(path.join(uploadsPath, file), "logo")
+      );
+
+      const coverFileObjects: IFileObject[] = coverFiles.map((file) =>
+        commonHelper.createFileObject(path.join(uploadsPath, file), "cover")
+      );
+
+      const folderName = `${CLOUD_FOLDERS.PAGE}/${name.replace(/\s+/g, "_")}`;
+
+      // Upload files to cloud storage
+      const logoUrls =
+        logoFileObjects.length > 0
+          ? await commonHelper.uploadFiles(logoFileObjects, folderName)
+          : [];
+
+      const coverUrls =
+        coverFileObjects.length > 0
+          ? await commonHelper.uploadFiles(coverFileObjects, folderName)
+          : [];
+
+      // Create new page
+      const newGroup = new Group();
+      newGroup.name = name;
+      newGroup.status = status;
+      newGroup.address = address;
+      newGroup.description = description;
+      newGroup.rules = rules;
+      newGroup.industry = industry;
+      newGroup.allowMemberInvites = allowMemberInvites;
+      newGroup.requirePostApproval = requirePostApproval;
+      newGroup.creator = user;
+      newGroup.creatorId = user.id;
+
+      // Set logo and cover image if uploaded
+      if (logoUrls.length > 0) {
+        newGroup.logoUrl = logoUrls[0].url;
+        newGroup.logoPublicId = logoUrls[0].public_id;
+      }
+
+      if (coverUrls.length > 0) {
+        newGroup.coverImageUrl = coverUrls[0].url;
+        newGroup.coverImagePublicId = coverUrls[0].public_id;
+      }
+
+      // Set creator as admin
+      newGroup.admins = [user];
+
+      // Save page
+      const savedPage = await this.groupRepo.save(newGroup);
+
+      const files = fs.readdirSync(uploadsPath);
+      files.forEach((file) => {
+        const filePath = path.join(uploadsPath, file);
+        fs.unlinkSync(filePath);
+      });
+
+      res
+        .status(HTTP_STATUS.CREATED)
+        .json(handleResponse("Group created successfully", savedPage));
+    } catch (error) {
+      // Clean up any uploaded files in case of error
+      const uploadsPath = path.join(process.cwd(), "uploads");
+      const files = fs.readdirSync(uploadsPath);
+      files.forEach((file) => {
+        const filePath = path.join(uploadsPath, file);
+        fs.unlinkSync(filePath);
+      });
+
+      logger.error(
+        `GroupController :: createGroup :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async updateGroup(
+    req: ICustomRequest,
+    file: IFileRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const {
+        name,
+        status,
+        address,
+        industry,
+        description,
+        rules,
+        allowMemberInvites,
+        requirePostApproval,
+      } = req.body;
+
+      const userId = req.user?.id;
+
+      const group = await this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.admins", "admin")
+        .where("group.id = :id", { id })
+        .getOne();
+
+      if (!group) {
+        throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      // Check if user is an admin
+      const isAdmin = group.admins.some((admin) => admin.id === userId);
+      if (!isAdmin) {
+        throw new ApiError(
+          "You are not authorized to update this group",
+          HTTP_STATUS.FORBIDDEN
+        );
+      }
+
+      // Handle file uploads
+      const uploadsPath = path.join(process.cwd(), "uploads");
+      const logoFiles = fs
+        .readdirSync(uploadsPath)
+        .filter((file) => file.startsWith("logo"));
+      const coverFiles = fs
+        .readdirSync(uploadsPath)
+        .filter((file) => file.startsWith("cover"));
+
+      const logoFileObjects: IFileObject[] = logoFiles.map((file) =>
+        commonHelper.createFileObject(path.join(uploadsPath, file), "logo")
+      );
+
+      const coverFileObjects: IFileObject[] = coverFiles.map((file) =>
+        commonHelper.createFileObject(path.join(uploadsPath, file), "cover")
+      );
+
+      const folderName = `${CLOUD_FOLDERS.PAGE}/${group.name.replace(
+        /\s+/g,
+        "_"
+      )}`;
+
+      // Upload files to cloud storage
+      let logoUrl, logoPublicId, coverImageUrl, coverImagePublicId;
+
+      if (logoFileObjects.length > 0) {
+        const logoUrls = await commonHelper.uploadFiles(
+          logoFileObjects,
+          folderName
+        );
+        if (logoUrls.length > 0) {
+          logoUrl = logoUrls[0].url;
+          logoPublicId = logoUrls[0].public_id;
+
+          // Delete old logo if exists
+          if (group.logoPublicId) {
+            await uploadService.deleteFile(group.logoPublicId);
+          }
+        }
+      }
+
+      if (coverFileObjects.length > 0) {
+        const coverUrls = await commonHelper.uploadFiles(
+          coverFileObjects,
+          folderName
+        );
+        if (coverUrls.length > 0) {
+          coverImageUrl = coverUrls[0].url;
+          coverImagePublicId = coverUrls[0].public_id;
+
+          // Delete old cover image if exists
+          if (group.coverImagePublicId) {
+            await uploadService.deleteFile(group.coverImagePublicId);
+          }
+        }
+      }
+
+      if (name) group.name = name;
+      if (status) group.status = status;
+      if (address) group.address = address;
+      if (industry) group.industry = industry;
+      if (description) group.description = description;
+      if (rules) group.rules = rules;
+      if (allowMemberInvites !== undefined)
+        group.allowMemberInvites = allowMemberInvites;
+
+      if (requirePostApproval !== undefined)
+        group.requirePostApproval = requirePostApproval;
+
+      if (logoUrl) group.logoUrl = logoUrl;
+      if (logoPublicId) group.logoPublicId = logoPublicId;
+      if (coverImageUrl) group.coverImageUrl = coverImageUrl;
+      if (coverImagePublicId) group.coverImagePublicId = coverImagePublicId;
+
+      // Save updated page
+      const updatedPage = await this.groupRepo.save(group);
+
+      // Clean up uploaded files
+      const files = fs.readdirSync(uploadsPath);
+      files.forEach((file) => {
+        const filePath = path.join(uploadsPath, file);
+        fs.unlinkSync(filePath);
+      });
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Page updated successfully", updatedPage));
+    } catch (error) {
+      // Clean up any uploaded files in case of error
+      const uploadsPath = path.join(process.cwd(), "uploads");
+      const files = fs.readdirSync(uploadsPath);
+      files.forEach((file) => {
+        const filePath = path.join(uploadsPath, file);
+        fs.unlinkSync(filePath);
+      });
+
+      logger.error(
+        `PageController :: updatePage :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async getGroupById(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+
+      const group = await this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.creator", "creator")
+        .leftJoinAndSelect("group.admins", "admin")
+        .leftJoinAndSelect("group.followers", "follower")
+        .where("group.id = :id", { id })
+        .getOne();
+
+      if (!group) {
+        throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      (group as any).shareableLink = generateShareableLink({
+        id: group.id,
+        type: "group",
+        typeName: group.industry,
+      });
+      // Check if current user is following
+      const userId = req.user?.id;
+      const isFollowing = group.followers.some(
+        (follower) => follower.id === userId
+      );
+      const isAdmin = group.admins.some((admin) => admin.id === userId);
+
+      // Add additional fields
+      const responseData = {
+        ...group,
+        isFollowing,
+        isAdmin,
+        followerCount: group.followers.length,
+      };
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Group retrieved successfully", responseData));
+    } catch (error) {
+      logger.error(
+        `GroupController :: getGroupById :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async getAllGroupsOfUser(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const { page, take, skip, role } = req?.query;
+
+      const skipNumber = Number(skip);
+      const takeNumber = Number(take);
+
+      let queryBuilder = this.groupRepo.createQueryBuilder("group");
+
+      if (role === "admin") {
+        // Get pages where user is admin
+        queryBuilder = queryBuilder
+          .leftJoinAndSelect("group.admins", "admin")
+          .where("admin.id = :userId", { userId });
+      } else if (role === "creator") {
+        // Get pages created by user
+        queryBuilder = queryBuilder
+          .leftJoinAndSelect("group.creator", "creator")
+          .where("creator.id = :userId", { userId });
+      } else {
+        // Default: get all pages where user is either creator or admin
+        queryBuilder = queryBuilder
+          .leftJoinAndSelect("group.creator", "creator")
+          .leftJoinAndSelect("group.admins", "admin")
+          .where("creator.id = :userId OR admin.id = :userId", { userId });
+      }
+
+      // Add follower count
+      queryBuilder = queryBuilder.leftJoinAndSelect(
+        "group.followers",
+        "follower"
+      );
+
+      // Get groups with pagination
+      const [groups, totalItems] = await queryBuilder
+        .orderBy("group.createdAt", "DESC")
+        .skip(skipNumber)
+        .take(takeNumber)
+        .getManyAndCount();
+
+      if (groups.length === 0) {
+        res.status(HTTP_STATUS.OK).json(handleResponse("No groups found"));
+        return next();
+      }
+
+      // Add follower count to each page
+      const groupsWithCounts = groups.map((group) => ({
+        ...group,
+        followerCount: group.followers.length,
+        isAdmin:
+          group.admins?.some((admin) => admin.id === userId) ||
+          group.creator?.id === userId,
+      }));
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Groups retrieved successfully", {
+          groups: groupsWithCounts,
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page as string, 10),
+            pageSize: takeNumber,
+            totalPages: Math.ceil(totalItems / takeNumber),
+          },
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `GroupController :: getMyGroups :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async deleteGroup(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.id;
+
+      const group = await this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.admins", "admin")
+        .where("group.id = :id", { id })
+        .getOne();
+
+      if (!group) {
+        throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      const isAdmin = group.admins.some((admin) => admin.id === userId);
+      if (!isAdmin) {
+        throw new ApiError(
+          "You are not authorized to delete this group",
+          HTTP_STATUS.FORBIDDEN
+        );
+      }
+
+      await this.groupRepo.remove(group);
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Group deleted successfully"));
+    } catch (error) {
+      logger.error(
+        `GroupController :: deleteGroup :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async getGroups(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { page, take, skip, type, industry } = req?.query;
+
+      const skipNumber = Number(skip);
+      const takeNumber = Number(take);
+
+      // Build query
+      const queryBuilder = this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.creator", "creator")
+        .leftJoinAndSelect("group.followers", "follower");
+
+      // // Apply filters
+      // if (type) {
+      //   queryBuilder.andWhere("group.type = :type", { type });
+      // }
+
+      if (industry) {
+        queryBuilder.andWhere("group.industry = :industry", { industry });
+      }
+
+      // Get groups with pagination
+      const [groups, totalItems] = await queryBuilder
+        .orderBy("group.createdAt", "DESC")
+        .skip(skipNumber)
+        .take(takeNumber)
+        .getManyAndCount();
+
+      if (groups.length === 0) {
+        res.status(HTTP_STATUS.OK).json(handleResponse("No groups found"));
+        return next();
+      }
+      for (const group of groups) {
+        (group as any).shareableLink = generateShareableLink({
+          id: group.id,
+          type: "group",
+          typeName: group.industry,
+        });
+      }
+
+      // Add follower count to each page
+      const groupsWithCounts = groups.map((group) => ({
+        ...group,
+        followerCount: group.followers.length,
+      }));
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Groups retrieved successfully", {
+          pages: groupsWithCounts,
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page as string, 10),
+            pageSize: takeNumber,
+            totalPages: Math.ceil(totalItems / takeNumber),
+          },
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `GroupController :: getGroups :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async followGroup(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.id;
+
+      const user = await this.usersRepo.findOne({ where: { id: userId } });
+      if (!user) throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
+
+      const group = await this.groupRepo.findOne({ where: { id } });
+      if (!group) throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+
+      const existingRequest = await this.groupJoinRequestRepo.findOne({
+        where: { userId, groupId: id },
+      });
+
+      if (existingRequest) {
+        if (existingRequest.isApproved) {
+          res
+            .status(HTTP_STATUS.OK)
+            .json(handleResponse("Already a group member", { joined: true }));
+          next();
+        } else {
+          res
+            .status(HTTP_STATUS.OK)
+            .json(
+              handleResponse("Join request already sent", { pending: true })
+            );
+          next();
+        }
+      }
+
+      const request = this.groupJoinRequestRepo.create({
+        user,
+        group,
+        userId,
+        groupId: id,
+        isApproved: false,
+      });
+
+      await this.groupJoinRequestRepo.save(request);
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Join request sent to group admins", {
+          requestSent: true,
+        })
+      );
+      next();
+    } catch (error) {
+      logger.error(`GroupController :: followGroup :: ${error.message}`);
+      return next(error);
+    }
+  }
+
+  async getPendingRequests(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { groupId } = req.params;
+      const currentUserId = req.user?.id;
+
+      const group = await this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.admins", "admin")
+        .leftJoinAndSelect("group.creator", "creator")
+        .where("group.id = :id", { id: groupId })
+        .getOne();
+
+      if (!group) {
+        throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      const isAdmin = group.admins.some((admin) => admin.id === currentUserId);
+      const isCreator = group.creator?.id === currentUserId;
+
+      if (!isAdmin && !isCreator) {
+        throw new ApiError(
+          "You are not authorized to view pending requests",
+          HTTP_STATUS.FORBIDDEN
+        );
+      }
+
+      const pendingRequests = await this.groupJoinRequestRepo.find({
+        where: {
+          groupId,
+          isApproved: false,
+        },
+        relations: ["user", "group"],
+      });
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Pending group join requests fetched successfully", {
+          pendingRequests,
+        })
+      );
+    } catch (error) {
+      logger.error(`GroupController :: getPendingRequests :: ${error.message}`);
+      return next(error);
+    }
+  }
+
+  async approveGroupJoinRequest(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { requestId } = req.params;
+      const request = await this.groupJoinRequestRepo.findOne({
+        where: { id: requestId },
+        relations: ["group", "user"],
+      });
+
+      if (!request || request.isApproved)
+        throw new ApiError("Invalid or already approved request", 400);
+
+      request.isApproved = true;
+      await this.groupJoinRequestRepo.save(request);
+
+      // Add to followers
+      const group = await this.groupRepo.findOne({
+        where: { id: request.groupId },
+        relations: ["followers"],
+      });
+
+      group.followers.push(request.user);
+      await this.groupRepo.save(group);
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Join request approved", { approved: true }));
+    } catch (error) {
+      logger.error(
+        `GroupController :: approveGroupJoinRequest :: ${error.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async getFollowedGroups(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const { page, take, skip } = req?.query;
+
+      const skipNumber = Number(skip);
+      const takeNumber = Number(take);
+
+      // Get pages that the user follows
+      const queryBuilder = this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.followers", "follower")
+        .leftJoinAndSelect("group.creator", "creator")
+        .where("follower.id = :userId", { userId });
+
+      // Get pages with pagination
+      const [groups, totalItems] = await queryBuilder
+        .orderBy("group.createdAt", "DESC")
+        .skip(skipNumber)
+        .take(takeNumber)
+        .getManyAndCount();
+
+      if (groups.length === 0) {
+        res
+          .status(HTTP_STATUS.OK)
+          .json(handleResponse("No followed groups found"));
+        return next();
+      }
+
+      // Add follower count to each page
+      const groupsWithCounts = groups.map((group) => ({
+        ...group,
+        followerCount: group.followers.length,
+        isAdmin: group.creator?.id === userId,
+      }));
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Followed groups retrieved successfully", {
+          groups: groupsWithCounts,
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page as string, 10),
+            pageSize: takeNumber,
+            totalPages: Math.ceil(totalItems / takeNumber),
+          },
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `GroupController :: getFollowedGroups :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async fetchAllPendingPosts(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { groupId } = req.params;
+      const currentUserId = req.user?.id;
+      const group = await this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.admins", "admin")
+        .leftJoinAndSelect("group.creator", "creator")
+        .where("group.id = :id", { id: groupId })
+        .getOne();
+
+      if (!group) {
+        throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      const isAdmin = group.admins.some((admin) => admin.id === currentUserId);
+      const isCreator = group.creator?.id === currentUserId;
+
+      if (!isAdmin && !isCreator) {
+        throw new ApiError(
+          "You are not authorized to view pending requests",
+          HTTP_STATUS.FORBIDDEN
+        );
+      }
+
+      const pendingRequests = await this.groupPostRequestRepo
+        .createQueryBuilder("request")
+        .leftJoinAndSelect("request.user", "user")
+        .leftJoinAndSelect("request.post", "post")
+        .leftJoinAndSelect("request.group", "group")
+        .where("request.isApproved = :isApproved", { isApproved: false })
+        .andWhere("request.group = :groupId", { groupId: group.id })
+        .orderBy("request.createdAt", "DESC")
+        .getMany();
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(
+          handleResponse(
+            "Fetched all pending group post requests",
+            pendingRequests
+          )
+        );
+    } catch (error) {
+      logger.error(
+        `GroupController :: fetchAllPendingPosts :: ${
+          (error as Error)?.message
+        }`
+      );
+      return next(error);
+    }
+  }
+
+
+  async approveOrRejectPost(
+  req: ICustomRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { requestId } = req.params;
+    const { action, rejectionReason } = req.body;
+    const currentUserId = req.user?.id;
+
+    const groupPostRequest = await this.groupPostRequestRepo.findOne({
+      where: { id: requestId },
+      relations: ["group", "group.admins", "group.creator", "post"],
+    });
+
+    if (!groupPostRequest) {
+      throw new ApiError("Group post request not found", HTTP_STATUS.NOT_FOUND);
+    }
+
+    const group = groupPostRequest.group;
+    const isAdmin = group.admins.some((admin) => admin.id === currentUserId);
+    const isCreator = group.creator?.id === currentUserId;
+
+    if (!isAdmin && !isCreator) {
+      throw new ApiError(
+        "You are not authorized to perform this action",
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+
+    if (groupPostRequest.isApproved) {
+      throw new ApiError("This post request is already approved", HTTP_STATUS.BAD_REQUEST);
+    }
+
+    if (action === "approve") {
+      groupPostRequest.isApproved = true;
+      groupPostRequest.rejectionReason = null;
+    } else if (action === "reject") {
+      if (!rejectionReason) {
+        throw new ApiError("Rejection reason is required", HTTP_STATUS.BAD_REQUEST);
+      }
+      groupPostRequest.rejectionReason = rejectionReason;
+      groupPostRequest.isApproved = false;
+    } else {
+      throw new ApiError("Invalid action. Must be 'approve' or 'reject'", HTTP_STATUS.BAD_REQUEST);
+    }
+
+    await this.groupPostRequestRepo.save(groupPostRequest);
+
+    res.status(HTTP_STATUS.OK).json(
+      handleResponse(
+        `Post request has been ${action}d successfully`,
+        groupPostRequest
+      )
+    );
+  } catch (error) {
+    logger.error(
+      `GroupController :: approveOrRejectPost :: ${(error as Error)?.message}`
+    );
+    return next(error);
+  }
+}
+
+}

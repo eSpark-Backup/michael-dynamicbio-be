@@ -5,3 +5,4 @@ export * from "./post.validation";
 export * from "./bond.validation";
 export * from "./poll.validation";
 export * from "./page.validation";
+export * from "./group.validation";

@@ -7,7 +7,19 @@ import {
   validate,
 } from "../../validations";
 import { PostController, UserController } from "../../controllers/account";
-import {Bond, Comments, Likes, Page, Poll, PollVote, Post, Saved, User} from "../../entity";
+import {
+  Bond,
+  Comments,
+  Group,
+  GroupPostRequest,
+  Likes,
+  Page,
+  Poll,
+  PollVote,
+  Post,
+  Saved,
+  User,
+} from "../../entity";
 import { getRepository } from "typeorm";
 import { AppDataSource } from "../../typeorm.config";
 import {
@@ -28,11 +40,27 @@ const likeRepository = AppDataSource.getRepository(Likes);
 const commentRepository = AppDataSource.getRepository(Comments);
 const pollRepository = AppDataSource.getRepository(Poll);
 const pageRepository = AppDataSource.getRepository(Page);
-const bondRepository= AppDataSource.getRepository(Bond);
+const bondRepository = AppDataSource.getRepository(Bond);
 const pollVoteRepository = AppDataSource.getRepository(PollVote);
-const savedRepository = AppDataSource.getRepository(Saved);  
+const savedRepository = AppDataSource.getRepository(Saved);
+const groupRepository = AppDataSource.getRepository(Group);
+const groupPostRequestRepository =
+  AppDataSource.getRepository(GroupPostRequest);
 
-const postController = new PostController(userRepository, postRepository,likeRepository,commentRepository, pollRepository, pageRepository, bondRepository, pollVoteRepository,savedRepository);
+const postController = new PostController(
+  userRepository,
+  postRepository,
+  likeRepository,
+  commentRepository,
+  pollRepository,
+  pageRepository,
+  bondRepository,
+  pollVoteRepository,
+  savedRepository,
+  groupRepository,
+  groupPostRequestRepository
+
+);
 
 /**
  * @swagger
@@ -77,11 +105,11 @@ const postController = new PostController(userRepository, postRepository,likeRep
  *         description: Server error
  */
 router.post(
-    "/:id/schedule",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    validate(PostValidation.SchedulePost, "body"),
-    (req, res, next) => postController.schedulePost(req, res, next)
+  "/:id/schedule",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  validate(PostValidation.SchedulePost, "body"),
+  (req, res, next) => postController.schedulePost(req, res, next)
 );
 
 /**
@@ -114,10 +142,10 @@ router.post(
  *         description: Server error
  */
 router.delete(
-    "/:id/schedule",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    (req, res, next) => postController.cancelScheduledPost(req, res, next)
+  "/:id/schedule",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  (req, res, next) => postController.cancelScheduledPost(req, res, next)
 );
 
 /**
@@ -163,13 +191,12 @@ router.delete(
  *         description: Server error
  */
 router.put(
-    "/:id/schedule",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    validate(PostValidation.SchedulePost, "body"),
-    (req, res, next) => postController.updateScheduledPost(req, res, next)
+  "/:id/schedule",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  validate(PostValidation.SchedulePost, "body"),
+  (req, res, next) => postController.updateScheduledPost(req, res, next)
 );
-
 
 /**
  * @swagger
@@ -203,13 +230,12 @@ router.put(
  *         description: Server error
  */
 router.get(
-    "/scheduled/list",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    setPagination,
-    (req, res, next) => postController.getScheduledPosts(req, res, next)
+  "/scheduled/list",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  setPagination,
+  (req, res, next) => postController.getScheduledPosts(req, res, next)
 );
-
 
 /**
  * @swagger
@@ -329,18 +355,18 @@ router.get(
  *         description: Server error.
  */
 router.put(
-    "/:id",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    handleMultipleFiles([
-        { name: FILE_FIELDS.IMAGE, maxCount: 10 },
-        { name: FILE_FIELDS.VIDEO, maxCount: 5 },
-        { name: FILE_FIELDS.THUMBNAIL, maxCount: 5 },
-        { name: FILE_FIELDS.COVER, maxCount: 1 },
-    ]),
-    parseJsonFields(["content"]),
-    validate(PostValidation.UpdatePost, "body"),
-    (req, res, next) => postController.updatePost(req, req as any, res, next)
+  "/:id",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  handleMultipleFiles([
+    { name: FILE_FIELDS.IMAGE, maxCount: 10 },
+    { name: FILE_FIELDS.VIDEO, maxCount: 5 },
+    { name: FILE_FIELDS.THUMBNAIL, maxCount: 5 },
+    { name: FILE_FIELDS.COVER, maxCount: 1 },
+  ]),
+  parseJsonFields(["content"]),
+  validate(PostValidation.UpdatePost, "body"),
+  (req, res, next) => postController.updatePost(req, req as any, res, next)
 );
 
 /**
@@ -389,13 +415,12 @@ router.put(
  *         description: Server error.
  */
 router.get(
-    "/:id?",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    setPagination,
-    (req, res, next) => postController.getAllPost(req, res, next)
+  "/:id?",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  setPagination,
+  (req, res, next) => postController.getAllPost(req, res, next)
 );
-
 
 /**
  * @swagger
@@ -427,6 +452,9 @@ router.get(
  *               pageId:
  *                  type: string
  *                  description: Optional ID of the page to create the post for. User must be an admin of the page.
+ *               groupId:
+ *                  type: string
+ *                  description: Optional ID of the page to create the post for. User must be a member of the group.
  *               status:
  *                 type: string
  *                 enum:
@@ -655,13 +683,12 @@ router.post(
  *         description: Server error
  */
 router.get(
-    "/page/:pageId",
-    checkJwt,
-    validateRoles([ROLES.USER]),
-    setPagination,
-    (req, res, next) => postController.getPagePosts(req, res, next)
+  "/page/:pageId",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  setPagination,
+  (req, res, next) => postController.getPagePosts(req, res, next)
 );
-
 
 /**
  * @swagger
@@ -690,14 +717,8 @@ router.get(
  *       500:
  *         description: Server error.
  */
-router.delete(
-  "/:id",
-  checkJwt,
-  validateRoles([ROLES.USER]),
-  (req, res, next) => postController.deletePost.bind(postController)(req, res, next)
+router.delete("/:id", checkJwt, validateRoles([ROLES.USER]), (req, res, next) =>
+  postController.deletePost.bind(postController)(req, res, next)
 );
-
-
-
 
 export { router };

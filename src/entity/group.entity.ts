@@ -9,7 +9,7 @@ import {
   ManyToMany,
   JoinTable,
 } from "typeorm";
-import { BaseEntity, Post, User } from ".";
+import { BaseEntity, GroupPostRequest, Post, User } from ".";
 
 export enum GroupIndustryType {
   PRODUCTION = "PRODUCTION",
@@ -101,4 +101,8 @@ export class Group extends BaseEntity {
 
   @OneToMany(() => Post, (post) => post.group)
   posts: Post[];
+
+  @OneToMany(() => GroupPostRequest, (groupPostRequest) => groupPostRequest.group)
+groupPostRequests: GroupPostRequest[];
+
 }

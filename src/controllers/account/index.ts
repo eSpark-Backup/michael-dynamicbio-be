@@ -5,3 +5,4 @@ export * from "./bond.controller";
 export * from "./interaction.controller";
 export * from "./poll.controller";
 export * from "./page.controller";
+export * from "./group.controller";
