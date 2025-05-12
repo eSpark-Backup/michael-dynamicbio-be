@@ -838,4 +838,165 @@ export class GroupController {
   }
 }
 
+
+  async addAdmin(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { userId } = req.body;
+      const currentUserId = req.user?.id;
+
+      // Get the page
+      const group = await this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.admins", "admin")
+        .leftJoinAndSelect("group.creator", "creator")
+        .where("group.id = :id", { id })
+        .getOne();
+
+      if (!group) {
+        throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      // Check if current user is admin
+      const isAdmin = group.admins.some((admin) => admin.id === currentUserId);
+      if (!isAdmin && group.creator.id !== currentUserId) {
+        throw new ApiError(
+          "You are not authorized to add admins to this group",
+          HTTP_STATUS.FORBIDDEN
+        );
+      }
+
+      // Get user to be added as admin
+      const newAdmin = await this.usersRepo.findOne({ where: { id: userId } });
+      if (!newAdmin) {
+        throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      // Check if user is already an admin
+      const isAlreadyAdmin = group.admins.some((admin) => admin.id === userId);
+      if (isAlreadyAdmin) {
+        throw new ApiError(
+          "User is already an admin of this group",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      // Add the user as admin
+      group.admins.push(newAdmin);
+      await this.groupRepo.save(group);
+
+      // Create notification for the new admin
+      try {
+        await this.notificationModel.create({
+          user: newAdmin.userChatId,
+          title: "New Page Admin Role",
+          message: `You have been made an admin of the group: ${group.name}`,
+          type: "info",
+          metadata: {
+            groupId: group.id,
+          },
+        });
+      } catch (error) {
+        logger.error(`Failed to create notification: ${error.message}`);
+        // Don't fail the entire request if notification creation fails
+      }
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Admin added successfully", group));
+    } catch (error) {
+      logger.error(
+        `GroupController :: addAdmin :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async removeAdmin(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { userId } = req.body;
+      const currentUserId = req.user?.id;
+
+      // Get the group
+      const group = await this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.admins", "admin")
+        .leftJoinAndSelect("group.creator", "creator")
+        .where("group.id = :id", { id })
+        .getOne();
+
+      if (!group) {
+        throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      // Only creator can remove admins
+      if (group.creator.id !== currentUserId) {
+        throw new ApiError(
+          "Only the group creator can remove admins",
+          HTTP_STATUS.FORBIDDEN
+        );
+      }
+
+      // Cannot remove creator as admin
+      if (userId === group.creator.id) {
+        throw new ApiError(
+          "Cannot remove the page creator as admin",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      // Check if user is an admin
+      const isAdmin = group.admins.some((admin) => admin.id === userId);
+      if (!isAdmin) {
+        throw new ApiError(
+          "User is not an admin of this group",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      // Remove the user from admins
+      group.admins = group.admins.filter((admin) => admin.id !== userId);
+      await this.groupRepo.save(group);
+
+      // Find the removed admin user for notification
+      const removedAdmin = await this.usersRepo.findOne({
+        where: { id: userId },
+      });
+      if (removedAdmin) {
+        try {
+          await this.notificationModel.create({
+            user: removedAdmin.userChatId,
+            title: "Group Admin Role Removed",
+            message: `You are no longer an admin of the group: ${group.name}`,
+            type: "info",
+            metadata: {
+              groupId: group.id,
+            },
+          });
+        } catch (error) {
+          logger.error(`Failed to create notification: ${error.message}`);
+          // Don't fail the entire request if notification creation fails
+        }
+      }
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Admin removed successfully", group));
+    } catch (error) {
+      logger.error(
+        `GroupController :: removeAdmin :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
 }

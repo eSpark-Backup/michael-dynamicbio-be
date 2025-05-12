@@ -1910,6 +1910,14 @@ export class UserController {
         (singlePost as any).commentsCount = singlePost.comments.length;
         //remove the comments from post
         delete singlePost.comments;
+           const isSaved = await this.savedRepo.find({
+          where: { user: { id: userId }, post: { id } },
+        });
+        if (isSaved.length > 0) {
+          (singlePost as any).isSaved = true;
+        } else {
+          (singlePost as any).isSaved = false;
+        }
         const lastLike = singlePost.likes[0];
         (singlePost as any).lastLikedUser = lastLike
           ? `${lastLike.user.firstName} ${lastLike.user.lastName}`

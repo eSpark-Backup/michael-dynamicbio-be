@@ -675,4 +675,102 @@ router.patch(
     groupController.approveOrRejectPost(req, res, next)
 );
 
+
+/**
+ * @swaggerBeta
+ * /group/{id}/admin:
+ *   post:
+ *     summary: Add a user as admin to a group
+ *     description: Adds a user as admin to a group. Current user must be an admin.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Group
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the group
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: ID of the user to add as admin
+ *     responses:
+ *       200:
+ *         description: Admin added successfully
+ *       400:
+ *         description: Validation error or user already an admin
+ *       403:
+ *         description: Not authorized to add admins
+ *       404:
+ *         description: Group or user not found
+ *       500:
+ *         description: Server error
+ */
+router.post(
+  "/:id/admin",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  validate(GroupValidation.addAdmin, "body"),
+  (req, res, next) => groupController.addAdmin(req, res, next)
+);
+
+/**
+ * @swaggerBeta
+ * /group/{id}/admin:
+ *   delete:
+ *     summary: Remove a user as admin from a group
+ *     description: Removes a user as admin from a group. Only the group creator can remove admins.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Group
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the group
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: ID of the user to remove as admin
+ *     responses:
+ *       200:
+ *         description: Admin removed successfully
+ *       400:
+ *         description: Validation error or user not an admin
+ *       403:
+ *         description: Not authorized to remove admins
+ *       404:
+ *         description: Page not found
+ *       500:
+ *         description: Server error
+ */
+router.delete(
+  "/:id/admin",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  validate(GroupValidation.addAdmin, "body"),
+  (req, res, next) => groupController.removeAdmin(req, res, next)
+);
 export { router };
