@@ -65,7 +65,8 @@ export class UserController {
     private bondsRepo: Repository<Bond>,
     private savedRepo: Repository<Saved>,
     private pollVoteRepo: Repository<PollVote>,
-    private pageRepo: Repository<Page>
+    private pageRepo: Repository<Page>,
+    private readonly profileSettingsRepo: Repository<ProfileSettings>
   ) {}
 
   async verifyTokenAPI(
@@ -834,10 +835,11 @@ export class UserController {
       if (!user) {
         throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
       }
-      if(!user.profileSettings){
-        user.profileSettings = new ProfileSettings();
-        user.profileSettings.user = user;
-        await this.pageRepo.save(user.profileSettings);
+      if (!user.profileSettings) {
+        const newSettings = this.profileSettingsRepo.create({
+          user: user,
+        });
+        user.profileSettings = await this.profileSettingsRepo.save(newSettings);
       }
 
       let { password: _, ...userProfile } = user as User & {
@@ -1915,7 +1917,7 @@ export class UserController {
         (singlePost as any).commentsCount = singlePost.comments.length;
         //remove the comments from post
         delete singlePost.comments;
-           const isSaved = await this.savedRepo.find({
+        const isSaved = await this.savedRepo.find({
           where: { user: { id: userId }, post: { id } },
         });
         if (isSaved.length > 0) {
@@ -2062,11 +2064,9 @@ export class UserController {
 
         // Process each post
         for (const post of posts) {
-
-
           praseMedia(post);
 
-            let canComment = false;
+          let canComment = false;
           const postAuthorId = post.author.id;
 
           switch (post.commentVisibility) {
@@ -2089,14 +2089,14 @@ export class UserController {
 
           (post as any).canComment = canComment;
 
-            const isSaved = await this.savedRepo.find({
-          where: { user: { id: userId }, post: { id } },
-        });
-        if (isSaved.length > 0) {
-          (post as any).isSaved = true;
-        } else {
-          (post as any).isSaved = false;
-        }
+          const isSaved = await this.savedRepo.find({
+            where: { user: { id: userId }, post: { id } },
+          });
+          if (isSaved.length > 0) {
+            (post as any).isSaved = true;
+          } else {
+            (post as any).isSaved = false;
+          }
 
           const bond = await this.bondsRepo.findOne({
             where: [
@@ -2113,13 +2113,12 @@ export class UserController {
             ((post as any).commentsCount = post.comments.length);
           (post as any).likesCount = post.likes.length;
 
-
           const lastLike = post.likes[0];
           (post as any).lastLikedUser = lastLike
             ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
             : null;
 
-               if (post.page) {
+          if (post.page) {
             const isFollowing = post.page.followers.some(
               (follower) => follower.id === userId
             );

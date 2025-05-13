@@ -2,7 +2,7 @@ import { Router } from "express";
 import Joi from "joi";
 import { AuthValidation, UserValidation, validate } from "../../validations";
 import { UserController } from "../../controllers/account";
-import { Bond, Page, PollVote, Post, Saved, User } from "../../entity";
+import { Bond, Page, PollVote, Post, ProfileSettings, Saved, User } from "../../entity";
 import { getRepository } from "typeorm";
 import { AppDataSource } from "../../typeorm.config";
 import {
@@ -24,6 +24,7 @@ const bondRepository = AppDataSource.getRepository(Bond);
 const savedRepository = AppDataSource.getRepository(Saved); // Assuming User is the correct entity for notifications
 const pollVoteRepository = AppDataSource.getRepository(PollVote); // Assuming User is the correct entity for notifications
 const pageRepository = AppDataSource.getRepository(Page); // Assuming User is the correct entity for notifications
+const profileSettings=AppDataSource.getRepository(ProfileSettings)
 const userController = new UserController(
   userRepository,
   Notification,
@@ -31,7 +32,8 @@ const userController = new UserController(
   bondRepository,
   savedRepository,
   pollVoteRepository,
-  pageRepository
+  pageRepository,
+  profileSettings
 
 );
 
