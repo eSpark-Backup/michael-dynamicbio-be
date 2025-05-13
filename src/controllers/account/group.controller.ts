@@ -289,6 +289,7 @@ export class GroupController {
         .leftJoinAndSelect("group.creator", "creator")
         .leftJoinAndSelect("group.admins", "admin")
         .leftJoinAndSelect("group.followers", "follower")
+        .leftJoinAndSelect("group.groupPostRequests", "postRequest")
         .where("group.id = :id", { id })
         .getOne();
 
@@ -319,6 +320,13 @@ export class GroupController {
         (follower) => follower.id === userId
       );
       const isAdmin = group.admins.some((admin) => admin.id === userId);
+
+      const isCreator = group.creator?.id === userId;
+
+      if (isAdmin  || isCreator) {
+        (group as any).pendingPost = group.groupPostRequests.length;
+      }
+        delete group.groupPostRequests;
 
       // Add additional fields
       const responseData = {
