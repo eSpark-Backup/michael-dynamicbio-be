@@ -1,12 +1,12 @@
 import {
   Entity,
-  BaseEntity,
   PrimaryGeneratedColumn,
   ManyToOne,
   Column,
 } from "typeorm";
 import { Group } from "./group.entity";
 import { User } from "./users.entity";
+import { BaseEntity } from ".";
 
 @Entity("group_join_requests")
 export class GroupJoinRequest extends BaseEntity {

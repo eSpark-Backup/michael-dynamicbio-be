@@ -788,4 +788,68 @@ router.delete(
   validate(GroupValidation.addAdmin, "body"),
   (req, res, next) => groupController.removeAdmin(req, res, next)
 );
+
+
+/**
+ * @swagger
+ * /group/sent/request:
+ *   get:
+ *     summary: Get all groups the user has requested to join
+ *     description: Retrieves a list of groups where the logged-in user has sent join requests, whether approved or pending.
+ *     tags:
+ *       - Group
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully fetched requested groups
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Requested groups fetched successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       groupId:
+ *                         type: string
+ *                         example: 123e4567-e89b-12d3-a456-426614174000
+ *                       name:
+ *                         type: string
+ *                         example: Tech Enthusiasts Group
+ *                       description:
+ *                         type: string
+ *                         example: A place for tech lovers to share ideas 💡
+ *                       isApproved:
+ *                         type: boolean
+ *                         example: false
+ *                       requestedAt:
+ *                         type: string
+ *                         format: date-time
+ *                         example: 2025-05-13T10:00:00.000Z
+ *       401:
+ *         description: Unauthorized - user not authenticated
+ *       500:
+ *         description: Internal server error
+ */
+
+router.get(
+  "/sent/request",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  (req, res, next) => groupController.getFollowRequestedGroups(req, res, next)
+);
+
+
+
+
+
 export { router };
