@@ -420,7 +420,7 @@ router.post(
  *           schema:
  *             type: object
  *             properties:
- *               ibn:
+ *               action:
  *                 type: string
  *                 description: Optional identifier to include during approval
  *     responses:
