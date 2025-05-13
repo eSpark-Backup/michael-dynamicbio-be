@@ -834,6 +834,11 @@ export class UserController {
       if (!user) {
         throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
       }
+      if(!user.profileSettings){
+        user.profileSettings = new ProfileSettings();
+        user.profileSettings.user = user;
+        await this.pageRepo.save(user.profileSettings);
+      }
 
       let { password: _, ...userProfile } = user as User & {
         bondCount?: number;
