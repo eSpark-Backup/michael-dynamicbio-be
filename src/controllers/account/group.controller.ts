@@ -296,20 +296,18 @@ export class GroupController {
         throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
       }
 
-        const joinRequests = await this.groupJoinRequestRepo
-          .createQueryBuilder("request")
-          .leftJoinAndSelect("request.group", "group")
-          .where("request.userId = :userId", { userId })
-          .andWhere("request.isApproved = :isApproved", { isApproved: false })
-          .getMany();
+      const joinRequests = await this.groupJoinRequestRepo
+        .createQueryBuilder("request")
+        .leftJoinAndSelect("request.group", "group")
+        .where("request.userId = :userId", { userId })
+        .andWhere("request.isApproved = :isApproved", { isApproved: false })
+        .getMany();
 
-      
+      const requestSent = joinRequests.some(
+        (request) => request.group.id === group.id
+      );
 
-        const requestSent = joinRequests.some(
-          (request) => request.group.id === group.id
-        );
-
-        (group as any).requestSent = requestSent;
+      (group as any).requestSent = requestSent;
 
       (group as any).shareableLink = generateShareableLink({
         id: group.id,
@@ -675,6 +673,7 @@ export class GroupController {
   ): Promise<void> {
     try {
       const { requestId } = req.params;
+      const { action } = req.body;
       const request = await this.groupJoinRequestRepo.findOne({
         where: { id: requestId },
         relations: ["group", "user"],
@@ -683,21 +682,30 @@ export class GroupController {
       if (!request || request.isApproved)
         throw new ApiError("Invalid or already approved request", 400);
 
-      request.isApproved = true;
-      await this.groupJoinRequestRepo.save(request);
+      if (action == "accept") {
+        request.isApproved = true;
+        await this.groupJoinRequestRepo.save(request);
 
-      // Add to followers
-      const group = await this.groupRepo.findOne({
-        where: { id: request.groupId },
-        relations: ["followers"],
-      });
+        // Add to followers
+        const group = await this.groupRepo.findOne({
+          where: { id: request.groupId },
+          relations: ["followers"],
+        });
 
-      group.followers.push(request.user);
-      await this.groupRepo.save(group);
+        group.followers.push(request.user);
+        await this.groupRepo.save(group);
 
-      res
-        .status(HTTP_STATUS.OK)
-        .json(handleResponse("Join request approved", { approved: true }));
+        res
+          .status(HTTP_STATUS.OK)
+          .json(handleResponse("Join request approved", { approved: true }));
+      } else if (action == "reject") {
+        await this.groupJoinRequestRepo.remove(request);
+
+        res
+          .status(HTTP_STATUS.OK)
+          .json(handleResponse("Join request rejected", { approved: false }));
+      }
+      return next();
     } catch (error) {
       logger.error(
         `GroupController :: approveGroupJoinRequest :: ${error.message}`

@@ -413,6 +413,16 @@ router.post(
  *         description: ID of the join request to approve
  *         schema:
  *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               ibn:
+ *                 type: string
+ *                 description: Optional identifier to include during approval
  *     responses:
  *       200:
  *         description: Join request approved successfully
@@ -437,6 +447,7 @@ router.post(
  *       500:
  *         description: Server error
  */
+
 
 router.post(
   "/request/approve/:requestId",
