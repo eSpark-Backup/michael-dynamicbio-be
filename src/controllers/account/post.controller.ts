@@ -16,6 +16,7 @@ import {
   Comments,
   Group,
   GroupPostRequest,
+  GroupStatus,
 } from "../../entity";
 import {
   ICustomRequest,
@@ -197,18 +198,35 @@ export class PostController {
           [type === PostType.EVENT ? "EVENTS" : "ARTICLES"]:
             uploadedArticleUrls,
         }) as Object) || null;
-      const post = await this.postRepo.save(newPost);
+      let post = await this.postRepo.save(newPost);
 
       if (groupId) {
         const group = await this.groupRepo
           .createQueryBuilder("group")
           .leftJoinAndSelect("group.followers", "follower")
           .leftJoinAndSelect("group.creator", "creator")
-          .where("follower.id = :userId", { userId })
-          .andWhere("group.id = :groupId", { groupId })
+          .leftJoinAndSelect("group.admins", "admin")
+          .where("group.id = :groupId", { groupId })
+          .andWhere(
+            new Brackets((qb) => {
+              qb.where("follower.id = :userId", { userId })
+                .orWhere("creator.id = :userId", { userId })
+                .orWhere("admin.id = :userId", { userId });
+            })
+          )
           .getOne();
+
         if (!group) {
-          throw new ApiError("Group not found or you're not a member of Group", HTTP_STATUS.NOT_FOUND);
+          throw new ApiError(
+            "Group not found or you're not a member of Group",
+            HTTP_STATUS.NOT_FOUND
+          );
+        }
+
+        // Check if the group requires post approval
+        if (group.status == GroupStatus.PRIVATE) {
+          post.visibility = PostVisibility.GROUPS;
+          post.commentVisibility = COMMENT_VISIBILITY.GROUPS;
         }
 
         const groupPostRequest = new GroupPostRequest();
@@ -216,6 +234,10 @@ export class PostController {
         groupPostRequest.group = group;
         groupPostRequest.post = post;
         await this.groupPostRequestRepo.save(groupPostRequest);
+        post.group = group;
+        post.groupId = group.id;
+        post.isGroupPost = true;
+        post = await this.postRepo.save(post);
       }
 
       // If it's a scheduled post, create the job
@@ -662,6 +684,15 @@ export class PostController {
                         bondedUserIds,
                       });
                   })
+                )
+                .orWhere(
+                  new Brackets((groupQb) => {
+                    groupQb
+                      .where("post.visibility = :groups", {
+                        groups: PostVisibility.GROUPS,
+                      })
+                      .andWhere("groupFollower.id = :userId", { userId });
+                  })
                 );
             })
           )
@@ -675,6 +706,8 @@ export class PostController {
           .leftJoinAndSelect("comment.user", "commentUser")
           .leftJoinAndSelect("post.page", "page")
           .leftJoinAndSelect("page.followers", "follower")
+          .leftJoinAndSelect("post.group", "group")
+          .leftJoinAndSelect("group.followers", "groupFollower")
 
           .select([
             "post",
@@ -699,6 +732,8 @@ export class PostController {
             "comment",
             "page",
             "follower",
+            "group",
+            "groupFollower",
           ])
           .addOrderBy("like.createdAt", "DESC")
           .getOne();
@@ -722,6 +757,12 @@ export class PostController {
 
           case COMMENT_VISIBILITY.ONLY_ME:
             canComment = userId === postAuthorId;
+            break;
+
+          case COMMENT_VISIBILITY.GROUPS:
+            canComment = singlePost.group?.followers.some(
+              (follower) => follower.id === userId
+            );
             break;
 
           default:
@@ -842,6 +883,17 @@ export class PostController {
 
           delete singlePost.page.followers;
         }
+        if (singlePost.group) {
+          const isFollowing = singlePost.group.followers.some(
+            (follower) => follower.id === userId
+          );
+          (singlePost as any).isGroupFollowing = isFollowing;
+
+          (singlePost as any).groupFollowerCount =
+            singlePost.group.followers.length;
+
+          delete singlePost.group.followers;
+        }
 
         ((singlePost as any).shareableLink = generateShareableLink({
           id: singlePost.id,
@@ -918,6 +970,12 @@ export class PostController {
             case COMMENT_VISIBILITY.ONLY_ME:
               canComment = userId === postAuthorId;
               break;
+            
+            case COMMENT_VISIBILITY.GROUPS:
+              canComment = post.group?.followers.some(
+                (follower) => follower.id === userId
+              );
+              break;
 
             default:
               canComment = false;
@@ -955,6 +1013,17 @@ export class PostController {
 
             delete post.page.followers;
           }
+          if (post.group) {
+          const isFollowing = post.group.followers.some(
+            (follower) => follower.id === userId
+          );
+          (post as any).isGroupFollowing = isFollowing;
+
+          (post as any).groupFollowerCount =
+            post.group.followers.length;
+
+          delete post.group.followers;
+        }
           for (const like of post.likes) {
             const likeUserId = like.user.id;
 
