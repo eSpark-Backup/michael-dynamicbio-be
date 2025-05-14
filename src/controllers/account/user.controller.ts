@@ -527,7 +527,16 @@ export class UserController {
                     })
                     .andWhere("post.author IN (:...bondedUserIds)", {
                       bondedUserIds,
-                    });
+                    })
+                    .orWhere(
+                      new Brackets((groupQb) => {
+                        groupQb
+                          .where("post.visibility = :groups", {
+                            groups: PostVisibility.GROUPS,
+                          })
+                          .andWhere("groupFollower.id = :userId", { userId });
+                      })
+                    );
                 })
               );
           })
@@ -542,6 +551,8 @@ export class UserController {
         .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
         .leftJoinAndSelect("post.comments", "comment")
         .leftJoinAndSelect("comment.user", "commentUser")
+        .leftJoinAndSelect("post.group", "group")
+        .leftJoinAndSelect("group.followers", "groupFollower")
 
         .select([
           "post",
@@ -571,6 +582,8 @@ export class UserController {
           "pollVotes.createdAt",
           "page",
           "follower",
+          "group",
+          "groupFollower",
         ])
         .orderBy("post.createdAt", "DESC")
         .addOrderBy("like.createdAt", "DESC")
@@ -603,6 +616,11 @@ export class UserController {
             canComment = userId === postAuthorId;
             break;
 
+          case COMMENT_VISIBILITY.GROUPS:
+            canComment = post.group?.followers.some(
+              (follower) => follower.id === userId
+            );
+            break;
           default:
             canComment = false;
             break;
@@ -646,6 +664,17 @@ export class UserController {
           (post as any).pageFollowerCount = post.page.followers.length;
 
           delete post.page.followers;
+        }
+          if (post.group) {
+          const isFollowing = post.group.followers.some(
+            (follower) => follower.id === userId
+          );
+          (post as any).isGroupFollowing = isFollowing;
+
+          (post as any).groupFollowerCount =
+            post.group.followers.length;
+
+          delete post.group.followers;
         }
 
         const bond = await this.bondsRepo.findOne({
@@ -1531,7 +1560,7 @@ export class UserController {
           ? // Full, capitalized
             user.lastName.charAt(0).toUpperCase() + user.lastName.slice(1)
           : // Only initial, capitalized
-            user.lastName.charAt(0).toUpperCase()+ "."
+            user.lastName.charAt(0).toUpperCase() + "."
         : "",
       ...(settings?.showEmail && { email: user.email }),
       ...(settings?.showProfilePhoto && {

@@ -261,7 +261,7 @@ export class GroupController {
 
       res
         .status(HTTP_STATUS.OK)
-        .json(handleResponse("Page updated successfully", updatedPage));
+        .json(handleResponse("Group updated successfully", updatedPage));
     } catch (error) {
       // Clean up any uploaded files in case of error
       const uploadsPath = path.join(process.cwd(), "uploads");

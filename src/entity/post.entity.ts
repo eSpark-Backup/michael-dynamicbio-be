@@ -117,7 +117,7 @@ export class Post extends BaseEntity {
   @ManyToOne(() => Page, (page) => page.posts, { nullable: true })
   page: Page;
 
-  @ManyToOne(() => Page, (group) => group.posts, { nullable: true })
+  @ManyToOne(() => Group, (group) => group.posts, { nullable: true })
   group: Group;
 
   @Column({ nullable: true, type: "varchar" })
