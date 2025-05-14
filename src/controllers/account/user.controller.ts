@@ -1511,9 +1511,9 @@ export class UserController {
                 settings?.showCurrentExperienceDetails
                   ? exp
                   : {
-                      type: exp.type,
+                      // type: exp.type,
                       title: exp.title,
-                      company: exp.company,
+                      // company: exp.company,
                     }
               ),
           }),
@@ -1524,9 +1524,9 @@ export class UserController {
                 settings?.showPastExperienceDetails
                   ? exp
                   : {
-                      type: exp.type,
+                      // type: exp.type,
                       title: exp.title,
-                      company: exp.company,
+                      // company: exp.company,
                     }
               ),
           }),
