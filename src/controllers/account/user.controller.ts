@@ -1485,66 +1485,9 @@ export class UserController {
       const settings = user.profileSettings;
       let about = user.about as any;
 
-      const filteredProfile: any = {
-        bondCount: count,
-        firstName: user.firstName,
-        ...(settings?.showLastName && { lastName: user.lastName }),
-        ...(settings?.showEmail && { email: user.email }),
-        ...(settings?.showProfilePhoto && {
-          profileImage: user.profileImage,
-          coverImage: user.coverImage,
-        }),
-        ...(settings?.showHeadline && { designation: user.designation }),
-        ...(settings?.showOrganizationsAndInterests && {
-          company: user.company,
-          industry: user.industry,
-        }),
-        city: user.city,
-        country: user.country,
-        about: {
-          ...(settings?.showSummary && { bio: about?.bio }),
 
-          ...(settings?.showCurrentExperience && {
-            currentExperience: about?.experience
-              .filter((exp: { currently: boolean }) => exp.currently)
-              .map((exp: any) =>
-                settings?.showCurrentExperienceDetails
-                  ? exp
-                  : {
-                      // type: exp.type,
-                      title: exp.title,
-                      // company: exp.company,
-                    }
-              ),
-          }),
-          ...(settings?.showPastExperience && {
-            pastExperience: about?.experience
-              .filter((exp: { currently: boolean }) => !exp?.currently)
-              .map((exp: any) =>
-                settings?.showPastExperienceDetails
-                  ? exp
-                  : {
-                      // type: exp.type,
-                      title: exp.title,
-                      // company: exp.company,
-                    }
-              ),
-          }),
-          ...(settings?.showEducation && {
-            education: about?.education.map((edu: any) =>
-              settings?.showEducationDetails ? edu : { school: edu.school }
-            ),
-          }),
-          ...(settings?.showCertifications && {
-            certifications: about?.certifications,
-          }),
-          ...(settings?.showProjects && { projects: about?.projects }),
-          ...(settings?.showLanguages && { languages: about?.languages }),
-          ...(settings?.showSkills && { skills: about?.skills }),
-          ...(settings?.pageVisitVisibility && {}),
-        },
-      };
 
+      const filteredProfile: any = this.buildFilteredProfile(user, about, settings, count);
       res
         .status(HTTP_STATUS.OK)
         .json(
@@ -1557,6 +1500,84 @@ export class UserController {
       return next(error);
     }
   }
+
+
+  private buildFilteredProfile(user: any, about: any, settings: any, count: number) {
+  // 1️⃣ Normalize all possible arrays up front
+  const exps = Array.isArray(about?.experience) ? about.experience : [];
+  const edus = Array.isArray(about?.education) ? about.education : [];
+  const certs = Array.isArray(about?.certifications) ? about.certifications : [];
+  const projects = Array.isArray(about?.projects) ? about.projects : [];
+  const langs = Array.isArray(about?.languages) ? about.languages : [];
+  const skills = Array.isArray(about?.skills) ? about.skills : [];
+
+  // 2️⃣ Build your profile object
+  const filteredProfile: any = {
+    bondCount: count,
+    firstName: user.firstName,
+    ...(settings?.showLastName && { lastName: user.lastName }),
+    ...(settings?.showEmail && { email: user.email }),
+    ...(settings?.showProfilePhoto && {
+      profileImage: user.profileImage,
+      coverImage: user.coverImage,
+    }),
+    ...(settings?.showHeadline && { designation: user.designation }),
+    ...(settings?.showOrganizationsAndInterests && {
+      company: user.company,
+      industry: user.industry,
+    }),
+    city: user.city,
+    country: user.country,
+    about: {
+      ...(settings?.showSummary && { bio: about?.bio }),
+
+      // Current experience (always safe even if exps is empty)
+      ...(settings?.showCurrentExperience && {
+        currentExperience: exps
+          .filter((exp: { currently: any; }) => exp.currently)
+          .map((exp: { title: any; }) =>
+            settings?.showCurrentExperienceDetails
+              ? exp
+              : { title: exp.title }
+          ),
+      }),
+
+      // Past experience (safe on empty too)
+      ...(settings?.showPastExperience && {
+        pastExperience: exps
+          .filter((exp: { currently: any; }) => !exp.currently)
+          .map((exp: { title: any; }) =>
+            settings?.showPastExperienceDetails
+              ? exp
+              : { title: exp.title }
+          ),
+      }),
+
+      // Education
+      ...(settings?.showEducation && {
+        education: edus.map((edu: { school: any; }) =>
+          settings?.showEducationDetails ? edu : { school: edu.school }
+        ),
+      }),
+
+      // Certifications
+      ...(settings?.showCertifications && { certifications: certs }),
+
+      // Projects
+      ...(settings?.showProjects && { projects: projects }),
+
+      // Languages
+      ...(settings?.showLanguages && { languages: langs }),
+
+      // Skills
+      ...(settings?.showSkills && { skills: skills }),
+
+      ...(settings?.pageVisitVisibility && {}),
+    },
+  };
+
+  return filteredProfile;
+}
 
   async getPublicUserBonds(
     req: ICustomRequest,
