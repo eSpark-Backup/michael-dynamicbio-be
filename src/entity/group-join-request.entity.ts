@@ -13,7 +13,7 @@ export class GroupJoinRequest extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @ManyToOne(() => Group, { onDelete: "CASCADE" })
+  @ManyToOne(() => Group, (group) => group.groupJoinRequests, { onDelete: "CASCADE" })
   group: Group;
 
   @Column()

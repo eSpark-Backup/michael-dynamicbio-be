@@ -290,7 +290,14 @@ export class GroupController {
         .leftJoinAndSelect("group.admins", "admin")
         .leftJoinAndSelect("group.followers", "follower")
         .leftJoinAndSelect("group.groupPostRequests", "postRequest")
+        .leftJoinAndSelect(
+    "group.groupJoinRequests",
+    "joinRequest",
+    "joinRequest.groupId = group.id AND joinRequest.isApproved = :isApproved",
+    { isApproved: false }
+  )
         .where("group.id = :id", { id })
+        // .andWhere("joinRequest.isApproved = :isApproved", { isApproved: false })
         .getOne();
 
       if (!group) {
@@ -323,10 +330,13 @@ export class GroupController {
 
       const isCreator = group.creator?.id === userId;
 
-      if (isAdmin  || isCreator) {
-        (group as any).pendingPost = group.groupPostRequests.length;
+      if (isAdmin || isCreator) {
+        (group as any).pendingPostRequest = group.groupPostRequests.length;
+        (group as any).pendingJoinRequest = group.groupJoinRequests.length;
       }
-        delete group.groupPostRequests;
+      // Remove unnecessary fields
+      delete group.groupPostRequests;
+      delete group.groupJoinRequests;
 
       // Add additional fields
       const responseData = {
