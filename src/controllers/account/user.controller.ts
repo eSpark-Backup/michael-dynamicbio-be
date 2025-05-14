@@ -1485,9 +1485,12 @@ export class UserController {
       const settings = user.profileSettings;
       let about = user.about as any;
 
-
-
-      const filteredProfile: any = this.buildFilteredProfile(user, about, settings, count);
+      const filteredProfile: any = this.buildFilteredProfile(
+        user,
+        about,
+        settings,
+        count
+      );
       res
         .status(HTTP_STATUS.OK)
         .json(
@@ -1501,83 +1504,95 @@ export class UserController {
     }
   }
 
+  private buildFilteredProfile(
+    user: any,
+    about: any,
+    settings: any,
+    count: number
+  ) {
+    // 1️⃣ Normalize all possible arrays up front
+    const exps = Array.isArray(about?.experience) ? about.experience : [];
+    const edus = Array.isArray(about?.education) ? about.education : [];
+    const certs = Array.isArray(about?.certifications)
+      ? about.certifications
+      : [];
+    const projects = Array.isArray(about?.projects) ? about.projects : [];
+    const langs = Array.isArray(about?.languages) ? about.languages : [];
+    const skills = Array.isArray(about?.skills) ? about.skills : [];
 
-  private buildFilteredProfile(user: any, about: any, settings: any, count: number) {
-  // 1️⃣ Normalize all possible arrays up front
-  const exps = Array.isArray(about?.experience) ? about.experience : [];
-  const edus = Array.isArray(about?.education) ? about.education : [];
-  const certs = Array.isArray(about?.certifications) ? about.certifications : [];
-  const projects = Array.isArray(about?.projects) ? about.projects : [];
-  const langs = Array.isArray(about?.languages) ? about.languages : [];
-  const skills = Array.isArray(about?.skills) ? about.skills : [];
+    // 2️⃣ Build your profile object
+    const filteredProfile: any = {
+      bondCount: count,
+      firstName: user.firstName,
+      phoneNumber: user.phoneNumber,
+      //split the lkastnaem and use first alphabet only
+      lastName: user.lastName
+        ? settings.showLastName
+          ? // Full, capitalized
+            user.lastName.charAt(0).toUpperCase() + user.lastName.slice(1)
+          : // Only initial, capitalized
+            user.lastName.charAt(0).toUpperCase()+ "."
+        : "",
+      ...(settings?.showEmail && { email: user.email }),
+      ...(settings?.showProfilePhoto && {
+        profileImage: user.profileImage,
+        coverImage: user.coverImage,
+      }),
+      ...(settings?.showHeadline && { designation: user.designation }),
+      ...(settings?.showOrganizationsAndInterests && {
+        company: user.company,
+        industry: user.industry,
+      }),
+      city: user.city,
+      country: user.country,
+      about: {
+        ...(settings?.showSummary && { bio: about?.bio }),
 
-  // 2️⃣ Build your profile object
-  const filteredProfile: any = {
-    bondCount: count,
-    firstName: user.firstName,
-    ...(settings?.showLastName && { lastName: user.lastName }),
-    ...(settings?.showEmail && { email: user.email }),
-    ...(settings?.showProfilePhoto && {
-      profileImage: user.profileImage,
-      coverImage: user.coverImage,
-    }),
-    ...(settings?.showHeadline && { designation: user.designation }),
-    ...(settings?.showOrganizationsAndInterests && {
-      company: user.company,
-      industry: user.industry,
-    }),
-    city: user.city,
-    country: user.country,
-    about: {
-      ...(settings?.showSummary && { bio: about?.bio }),
+        // Current experience (always safe even if exps is empty)
+        ...(settings?.showCurrentExperience && {
+          currentExperience: exps
+            .filter((exp: { currently: any }) => exp.currently)
+            .map((exp: { title: any }) =>
+              settings?.showCurrentExperienceDetails
+                ? exp
+                : { title: exp.title }
+            ),
+        }),
 
-      // Current experience (always safe even if exps is empty)
-      ...(settings?.showCurrentExperience && {
-        currentExperience: exps
-          .filter((exp: { currently: any; }) => exp.currently)
-          .map((exp: { title: any; }) =>
-            settings?.showCurrentExperienceDetails
-              ? exp
-              : { title: exp.title }
+        // Past experience (safe on empty too)
+        ...(settings?.showPastExperience && {
+          pastExperience: exps
+            .filter((exp: { currently: any }) => !exp.currently)
+            .map((exp: { title: any }) =>
+              settings?.showPastExperienceDetails ? exp : { title: exp.title }
+            ),
+        }),
+
+        // Education
+        ...(settings?.showEducation && {
+          education: edus.map((edu: { school: any }) =>
+            settings?.showEducationDetails ? edu : { school: edu.school }
           ),
-      }),
+        }),
 
-      // Past experience (safe on empty too)
-      ...(settings?.showPastExperience && {
-        pastExperience: exps
-          .filter((exp: { currently: any; }) => !exp.currently)
-          .map((exp: { title: any; }) =>
-            settings?.showPastExperienceDetails
-              ? exp
-              : { title: exp.title }
-          ),
-      }),
+        // Certifications
+        ...(settings?.showCertifications && { certifications: certs }),
 
-      // Education
-      ...(settings?.showEducation && {
-        education: edus.map((edu: { school: any; }) =>
-          settings?.showEducationDetails ? edu : { school: edu.school }
-        ),
-      }),
+        // Projects
+        ...(settings?.showProjects && { projects: projects }),
 
-      // Certifications
-      ...(settings?.showCertifications && { certifications: certs }),
+        // Languages
+        ...(settings?.showLanguages && { languages: langs }),
 
-      // Projects
-      ...(settings?.showProjects && { projects: projects }),
+        // Skills
+        ...(settings?.showSkills && { skills: skills }),
 
-      // Languages
-      ...(settings?.showLanguages && { languages: langs }),
+        ...(settings?.pageVisitVisibility && {}),
+      },
+    };
 
-      // Skills
-      ...(settings?.showSkills && { skills: skills }),
-
-      ...(settings?.pageVisitVisibility && {}),
-    },
-  };
-
-  return filteredProfile;
-}
+    return filteredProfile;
+  }
 
   async getPublicUserBonds(
     req: ICustomRequest,
