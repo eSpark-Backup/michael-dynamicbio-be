@@ -1505,16 +1505,36 @@ export class UserController {
           ...(settings?.showSummary && { bio: about?.bio }),
 
           ...(settings?.showCurrentExperience && {
-            currentExperience: about?.experience?.filter(
-              (exp: { currently: any }) => exp?.currently
-            ),
+            currentExperience: about?.experience
+              .filter((exp: { currently: boolean }) => exp.currently)
+              .map((exp: any) =>
+                settings?.showCurrentExperienceDetails
+                  ? exp
+                  : {
+                      type: exp.type,
+                      title: exp.title,
+                      company: exp.company,
+                    }
+              ),
           }),
           ...(settings?.showPastExperience && {
-            pastExperience: about?.experience?.filter(
-              (exp: { currently: any }) => !exp?.currently
+            pastExperience: about?.experience
+              .filter((exp: { currently: boolean }) => !exp?.currently)
+              .map((exp: any) =>
+                settings?.showPastExperienceDetails
+                  ? exp
+                  : {
+                      type: exp.type,
+                      title: exp.title,
+                      company: exp.company,
+                    }
+              ),
+          }),
+          ...(settings?.showEducation && {
+            education: about?.education.map((edu: any) =>
+              settings?.showEducationDetails ? edu : { school: edu.school }
             ),
           }),
-          ...(settings?.showEducation && { education: about?.education }),
           ...(settings?.showCertifications && {
             certifications: about?.certifications,
           }),
