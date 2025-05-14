@@ -164,8 +164,11 @@ export class GroupController {
       }
 
       // Check if user is an admin
+
+      const isCreator = group.creator?.id === userId;
+
       const isAdmin = group.admins.some((admin) => admin.id === userId);
-      if (!isAdmin) {
+      if (!isAdmin && !isCreator) {
         throw new ApiError(
           "You are not authorized to update this group",
           HTTP_STATUS.FORBIDDEN
