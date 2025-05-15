@@ -313,6 +313,7 @@ export class GroupController {
         .leftJoinAndSelect("group.groupPostRequests", "postRequest")
         .leftJoinAndSelect("group.admins", "groupAdmin")
         .leftJoinAndSelect("groupAdmin.admin", "adminUser")
+        .leftJoinAndSelect("groupAdmin.createdBy", "adminCreatedBy")
         .leftJoinAndSelect(
           "group.groupJoinRequests",
           "joinRequest",

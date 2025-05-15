@@ -25,7 +25,7 @@ const schema = new Schema(
       select: false,
     },
     avatar: {
-      type: Object,
+      type: String,
       required: false,
     },
   },

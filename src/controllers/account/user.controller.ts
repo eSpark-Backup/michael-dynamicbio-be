@@ -391,11 +391,12 @@ export class UserController {
       user.designation = designation || user.designation;
       user.city = city || user.city;
 
-      // const chatUser = await UserForChat.findById(req.user?._id);
-      // chatUser.name = name;
-      // await chatUser.save();
 
       const updatedUser = await this.usersRepo.save(user);
+
+      const chatUser = await UserForChat.findById(req.user?._id);
+      chatUser.avatar = imageUrls[0]?.url;
+      await chatUser.save();
 
       const { password: _, ...userProfile } = updatedUser;
 
@@ -665,14 +666,13 @@ export class UserController {
 
           delete post.page.followers;
         }
-          if (post.group) {
+        if (post.group) {
           const isFollowing = post.group.followers.some(
             (follower) => follower.id === userId
           );
           (post as any).isGroupFollowing = isFollowing;
 
-          (post as any).groupFollowerCount =
-            post.group.followers.length;
+          (post as any).groupFollowerCount = post.group.followers.length;
 
           delete post.group.followers;
         }
