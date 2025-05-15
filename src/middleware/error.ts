@@ -28,7 +28,6 @@ const TryCatch = (passedFunc: any) => async (req: any, res: any, next: any) => {
   try {
     await passedFunc(req, res, next);
   } catch (error) {
-    console.log(error);
     next(error);
   }
 };

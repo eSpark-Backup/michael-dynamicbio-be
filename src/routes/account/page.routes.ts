@@ -372,7 +372,7 @@ router.post(
 );
 
 /**
- * @swaggerBeta
+ * @swagger
  * /page/{id}/admin:
  *   post:
  *     summary: Add a user as admin to a page
@@ -421,7 +421,7 @@ router.post(
 );
 
 /**
- * @swaggerBeta
+ * @swagger
  * /page/{id}/admin:
  *   delete:
  *     summary: Remove a user as admin from a page

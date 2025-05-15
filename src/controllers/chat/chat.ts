@@ -21,17 +21,30 @@ const getMyChats = TryCatch(async (req: any, res: any, next: any) => {
     "name avatar"
   );
 
-  if (chats.length < 1) {
-    return res.status(200).json({
-      success: true,
-      chats: { brands: [], spaces: [],events:[] },
-    });
-  }
+  const transformedChats = chats.map(({ _id, name, members, groupChat }) => {
+    const otherMember = getOtherMember(members, req.socketUserId);
 
-
+    return {
+      _id,
+      groupChat,
+      avatar: groupChat
+        ? members
+            .slice(0, 3)
+            .map(({ avatar }: { avatar: { url: string } }) => avatar?.url || "")
+        : [otherMember?.avatar?.url || ""], // 💡 fallback in case it's undefined
+      name: groupChat ? name : otherMember?.name || "Unknown", // 💡 default name if missing
+      members: members.reduce((prev: any, curr: any) => {
+        if (curr._id.toString() !== req.socketUserId.toString()) {
+          prev.push(curr._id);
+        }
+        return prev;
+      }, []),
+    };
+  });
 
   res.status(200).json({
     success: true,
+    chats: transformedChats,
   });
 });
 
@@ -121,7 +134,7 @@ const getChatDetails = TryCatch(async (req: any, res: any, next: any) => {
   } else {
     let chatDetails = await Chat.findById(chatId);
     let chat;
-   
+
     return res.status(200).json({
       success: true,
       chat,
@@ -162,7 +175,7 @@ const deleteChat = TryCatch(async (req: any, res: any, next: any) => {
 
   // Delete attachments from Cloudinary
   const attachmentsToDelete = messagesWithAttachments.flatMap(
-    (message:any) => message.attachments // An array of Cloudinary public_ids
+    (message: any) => message.attachments // An array of Cloudinary public_ids
   );
 
   if (attachmentsToDelete.length > 0) {

@@ -205,13 +205,14 @@ export class PostController {
           .createQueryBuilder("group")
           .leftJoinAndSelect("group.followers", "follower")
           .leftJoinAndSelect("group.creator", "creator")
-          .leftJoinAndSelect("group.admins", "admin")
+          .leftJoinAndSelect("group.admins", "groupAdmin")
+          .leftJoinAndSelect("groupAdmin.admin", "adminUser")
           .where("group.id = :groupId", { groupId })
           .andWhere(
             new Brackets((qb) => {
               qb.where("follower.id = :userId", { userId })
                 .orWhere("creator.id = :userId", { userId })
-                .orWhere("admin.id = :userId", { userId });
+                .orWhere("adminUser.id = :userId", { userId });
             })
           )
           .getOne();
@@ -974,7 +975,7 @@ export class PostController {
             case COMMENT_VISIBILITY.ONLY_ME:
               canComment = userId === postAuthorId;
               break;
-            
+
             case COMMENT_VISIBILITY.GROUPS:
               canComment = post.group?.followers.some(
                 (follower) => follower.id === userId
@@ -1018,16 +1019,15 @@ export class PostController {
             delete post.page.followers;
           }
           if (post.group) {
-          const isFollowing = post.group.followers.some(
-            (follower) => follower.id === userId
-          );
-          (post as any).isGroupFollowing = isFollowing;
+            const isFollowing = post.group.followers.some(
+              (follower) => follower.id === userId
+            );
+            (post as any).isGroupFollowing = isFollowing;
 
-          (post as any).groupFollowerCount =
-            post.group.followers.length;
+            (post as any).groupFollowerCount = post.group.followers.length;
 
-          delete post.group.followers;
-        }
+            delete post.group.followers;
+          }
           for (const like of post.likes) {
             const likeUserId = like.user.id;
 

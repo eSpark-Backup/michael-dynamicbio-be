@@ -9,7 +9,7 @@ import {
   ManyToMany,
   JoinTable,
 } from "typeorm";
-import { BaseEntity, GroupJoinRequest, GroupPostRequest, Post, User } from ".";
+import { BaseEntity, GroupAdmin, GroupJoinRequest, GroupPostRequest, Post, User } from ".";
 
 export enum GroupIndustryType {
   PRODUCTION = "PRODUCTION",
@@ -82,13 +82,16 @@ export class Group extends BaseEntity {
   })
   status: GroupStatus;
 
-  @ManyToMany(() => User)
-  @JoinTable({
-    name: "group_admins",
-    joinColumn: { name: "group_id", referencedColumnName: "id" },
-    inverseJoinColumn: { name: "user_id", referencedColumnName: "id" },
-  })
-  admins: User[];
+  // @ManyToMany(() => User)
+  // @JoinTable({
+  //   name: "group_admins",
+  //   joinColumn: { name: "group_id", referencedColumnName: "id" },
+  //   inverseJoinColumn: { name: "user_id", referencedColumnName: "id" },
+  // })
+  // admins: User[];
+
+  @OneToMany(() => GroupAdmin, (groupAdmin) => groupAdmin.group)
+  admins: GroupAdmin[]; 
 
   @ManyToMany(() => User)
   @JoinTable({

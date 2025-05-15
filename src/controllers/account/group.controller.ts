@@ -1,6 +1,13 @@
 import { ICustomRequest, IFileObject, IFileRequest } from "../../interfaces";
 
-import { User, Group, GroupJoinRequest, GroupPostRequest, PostRequestStatus } from "../../entity";
+import {
+  User,
+  Group,
+  GroupJoinRequest,
+  GroupPostRequest,
+  PostRequestStatus,
+  GroupAdmin,
+} from "../../entity";
 import { Repository } from "typeorm";
 import { NextFunction, Response } from "express";
 
@@ -19,7 +26,8 @@ export class GroupController {
     private groupRepo: Repository<Group>,
     private notificationModel: typeof Notification,
     private groupJoinRequestRepo: Repository<GroupJoinRequest>,
-    private groupPostRequestRepo: Repository<GroupPostRequest>
+    private groupPostRequestRepo: Repository<GroupPostRequest>,
+    private groupAdminRepo: Repository<GroupAdmin>
   ) {}
 
   async createGroup(
@@ -101,11 +109,21 @@ export class GroupController {
         newGroup.coverImagePublicId = coverUrls[0].public_id;
       }
 
-      // Set creator as admin
-      newGroup.admins = [user];
+      // // Set creator as admin
+      // newGroup.admins = [user];
 
       // Save page
       const savedPage = await this.groupRepo.save(newGroup);
+
+      const groupAdmin = this.groupAdminRepo.create({
+        group: savedPage,
+        groupId: savedPage.id,
+        admin: user,
+        adminId: user.id,
+        createdBy: user,
+        createdById: user.id,
+      });
+      await this.groupAdminRepo.save(groupAdmin);
 
       const files = fs.readdirSync(uploadsPath);
       files.forEach((file) => {
@@ -293,12 +311,14 @@ export class GroupController {
         .leftJoinAndSelect("group.admins", "admin")
         .leftJoinAndSelect("group.followers", "follower")
         .leftJoinAndSelect("group.groupPostRequests", "postRequest")
+        .leftJoinAndSelect("group.admins", "groupAdmin")
+        .leftJoinAndSelect("groupAdmin.admin", "adminUser")
         .leftJoinAndSelect(
-    "group.groupJoinRequests",
-    "joinRequest",
-    "joinRequest.groupId = group.id AND joinRequest.isApproved = :isApproved",
-    { isApproved: false }
-  )
+          "group.groupJoinRequests",
+          "joinRequest",
+          "joinRequest.groupId = group.id AND joinRequest.isApproved = :isApproved",
+          { isApproved: false }
+        )
         .where("group.id = :id", { id })
         // .andWhere("joinRequest.isApproved = :isApproved", { isApproved: false })
         .getOne();
@@ -329,7 +349,9 @@ export class GroupController {
       const isFollowing = group.followers.some(
         (follower) => follower.id === userId
       );
-      const isAdmin = group.admins.some((admin) => admin.id === userId);
+      const isAdmin = group?.admins.some(
+        (groupAdmin) => groupAdmin.admin.id === userId
+      );
 
       const isCreator = group.creator?.id === userId;
 
@@ -377,8 +399,9 @@ export class GroupController {
       if (role === "admin") {
         // Get pages where user is admin
         queryBuilder = queryBuilder
-          .leftJoinAndSelect("group.admins", "admin")
-          .where("admin.id = :userId", { userId });
+          .leftJoinAndSelect("group.admins", "groupAdmin")
+          .leftJoinAndSelect("groupAdmin.admin", "adminUser")
+          .where("adminUser.id = :userId", { userId });
       } else if (role === "creator") {
         // Get pages created by user
         queryBuilder = queryBuilder
@@ -388,8 +411,10 @@ export class GroupController {
         // Default: get all pages where user is either creator or admin
         queryBuilder = queryBuilder
           .leftJoinAndSelect("group.creator", "creator")
-          .leftJoinAndSelect("group.admins", "admin")
-          .where("creator.id = :userId OR admin.id = :userId", { userId });
+          .leftJoinAndSelect("group.admins", "groupAdmin")
+          .leftJoinAndSelect("groupAdmin.admin", "adminUser")
+
+          .where("creator.id = :userId OR adminUser.id = :userId", { userId });
       }
 
       // Add follower count
@@ -415,7 +440,7 @@ export class GroupController {
         ...group,
         followerCount: group.followers.length,
         isAdmin:
-          group.admins?.some((admin) => admin.id === userId) ||
+          group?.admins.some((groupAdmin) => groupAdmin.admin.id === userId) ||
           group.creator?.id === userId,
       }));
 
@@ -830,7 +855,9 @@ export class GroupController {
         .leftJoinAndSelect("request.group", "group")
         .where("request.isApproved = :isApproved", { isApproved: false })
         .andWhere("request.group = :groupId", { groupId: group.id })
-        .andWhere("request.status = :status", { status: PostRequestStatus.PENDING })
+        .andWhere("request.status = :status", {
+          status: PostRequestStatus.PENDING,
+        })
         .orderBy("request.createdAt", "DESC")
         .getMany();
 
@@ -944,7 +971,8 @@ export class GroupController {
       // Get the page
       const group = await this.groupRepo
         .createQueryBuilder("group")
-        .leftJoinAndSelect("group.admins", "admin")
+        .leftJoinAndSelect("group.admins", "groupAdmin")
+        .leftJoinAndSelect("groupAdmin.admin", "adminUser")
         .leftJoinAndSelect("group.creator", "creator")
         .where("group.id = :id", { id })
         .getOne();
@@ -952,9 +980,14 @@ export class GroupController {
       if (!group) {
         throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
       }
+      const currentUser = await this.usersRepo.findOne({
+        where: { id: currentUserId },
+      });
 
       // Check if current user is admin
-      const isAdmin = group.admins.some((admin) => admin.id === currentUserId);
+      const isAdmin = group?.admins.some(
+        (groupAdmin) => groupAdmin.admin.id === currentUserId
+      );
       if (!isAdmin && group.creator.id !== currentUserId) {
         throw new ApiError(
           "You are not authorized to add admins to this group",
@@ -969,7 +1002,9 @@ export class GroupController {
       }
 
       // Check if user is already an admin
-      const isAlreadyAdmin = group.admins.some((admin) => admin.id === userId);
+      const isAlreadyAdmin = group?.admins.some(
+        (groupAdmin) => groupAdmin.admin.id === userId
+      );
       if (isAlreadyAdmin) {
         throw new ApiError(
           "User is already an admin of this group",
@@ -978,8 +1013,17 @@ export class GroupController {
       }
 
       // Add the user as admin
-      group.admins.push(newAdmin);
-      await this.groupRepo.save(group);
+      const groupAdmin = this.groupAdminRepo.create({
+        group: group,
+        groupId: group.id,
+        admin: newAdmin,
+        adminId: newAdmin.id,
+        createdBy: currentUser,
+        createdById: currentUser.id,
+      });
+      await this.groupAdminRepo.save(groupAdmin);
+
+      // await this.groupRepo.save(group);
 
       // Create notification for the new admin
       try {
@@ -1058,10 +1102,11 @@ export class GroupController {
       const { userId } = req.body;
       const currentUserId = req.user?.id;
 
-      // Get the group
+      // Get the group with creator and admins
       const group = await this.groupRepo
         .createQueryBuilder("group")
-        .leftJoinAndSelect("group.admins", "admin")
+        .leftJoinAndSelect("group.admins", "groupAdmin")
+        .leftJoinAndSelect("groupAdmin.admin", "adminUser")
         .leftJoinAndSelect("group.creator", "creator")
         .where("group.id = :id", { id })
         .getOne();
@@ -1086,23 +1131,24 @@ export class GroupController {
         );
       }
 
-      // Check if user is an admin
-      const isAdmin = group.admins.some((admin) => admin.id === userId);
-      if (!isAdmin) {
+      // Find the GroupAdmin entry for the given user
+      const adminToRemove = group.admins.find((ga) => ga.admin.id === userId);
+
+      if (!adminToRemove) {
         throw new ApiError(
           "User is not an admin of this group",
           HTTP_STATUS.BAD_REQUEST
         );
       }
 
-      // Remove the user from admins
-      group.admins = group.admins.filter((admin) => admin.id !== userId);
-      await this.groupRepo.save(group);
+      // Remove the GroupAdmin entry
+      await this.groupAdminRepo.delete(adminToRemove.id);
 
-      // Find the removed admin user for notification
+      // Notify the user
       const removedAdmin = await this.usersRepo.findOne({
         where: { id: userId },
       });
+
       if (removedAdmin) {
         try {
           await this.notificationModel.create({

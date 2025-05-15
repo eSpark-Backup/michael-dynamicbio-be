@@ -4,7 +4,7 @@ import {
   setPagination,
   validateRoles,
 } from "../../middleware";
-import { User, Group, GroupJoinRequest, GroupPostRequest } from "../../entity";
+import { User, Group, GroupJoinRequest, GroupPostRequest, GroupAdmin } from "../../entity";
 import { AppDataSource } from "../../typeorm.config";
 import { Router } from "express";
 import { ROLES, FILE_FIELDS } from "../../constants";
@@ -20,12 +20,18 @@ const groupJoinRequestRepository =
   const groupPostRequestRepository =
   AppDataSource.getRepository(GroupPostRequest);
 
+
+    const groupAdminRepository =
+  AppDataSource.getRepository(GroupAdmin);
+
+
 const groupController = new GroupController(
   userRepository,
   groupRepository,
   Notification,
   groupJoinRequestRepository,
-  groupPostRequestRepository
+  groupPostRequestRepository,
+  groupAdminRepository
 );
 
 /**

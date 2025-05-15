@@ -45,7 +45,7 @@ const login = TryCatch(async (req: any, res: any, next: any) => {
 });
 
 const getMyProfile = TryCatch(async (req: any, res: any, next: any) => {
-  const user = await UserForChat.findById(req.userId);
+  const user = await UserForChat.findById(req.socketUserId);
 
   if (!user) return next(new ErrorHandler("User not found", 404));
 
@@ -221,3 +221,6 @@ export {
   searchUser,
   sendFriendRequest,
 };
+
+
+//localhost:3001/api/chat/user/me

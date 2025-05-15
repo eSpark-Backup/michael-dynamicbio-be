@@ -1,6 +1,7 @@
 import { NextFunction, Request, RequestHandler, Response } from "express";
 import { Bond, BondStatus, ProfileStatus, User } from "../../entity";
 import { commonHelper } from "../../helpers";
+import { Chat } from "../../models";
 
 import { ApiError } from "../../errors";
 import { Repository } from "typeorm";
@@ -19,6 +20,7 @@ import {
   CLOUD_FOLDERS,
   HTTP_STATUS,
   NEW_BOND_REQUEST,
+  REFETCH_CHATS,
 } from "../../constants";
 import jwt from "jsonwebtoken";
 import { UserForChat } from "../../models";
@@ -143,8 +145,7 @@ export class BondController {
       let query = this.usersRepo
         .createQueryBuilder("user")
         .where("user.id != :id", { id: req.user.id })
-        .leftJoinAndSelect("user.profileSettings", "profileSettings")
-
+        .leftJoinAndSelect("user.profileSettings", "profileSettings");
 
       if (id) {
         query = query.andWhere("user.id = :userId", { userId: id });
@@ -419,9 +420,9 @@ export class BondController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const { bondId, action,otherUserId } = req.body;
+      const { bondId, action, otherUserId } = req.body;
       const userId = req.user.id;
-      if(otherUserId){
+      if (otherUserId) {
         const bond = await this.bondsRepo.findOne({
           where: [
             { requester: { id: userId }, recipient: { id: otherUserId } },
@@ -430,20 +431,19 @@ export class BondController {
           relations: ["requester", "recipient"],
         });
         if (bond) {
-        if( action == "unfriend") {
-          await this.bondsRepo.remove(bond);
-          res
-            .status(HTTP_STATUS.OK)
-            .json(handleResponse("Bond removed successfully", bond));
-          return;
+          if (action == "unfriend") {
+            await this.bondsRepo.remove(bond);
+            res
+              .status(HTTP_STATUS.OK)
+              .json(handleResponse("Bond removed successfully", bond));
+            return;
+          }
+        } else {
+          throw new ApiError("Bond not found", HTTP_STATUS.NOT_FOUND);
         }
-      }else {
-        throw new ApiError("Bond not found", HTTP_STATUS.NOT_FOUND);
-
-      }
-        res.status(HTTP_STATUS.OK).json(
-          handleResponse("Bond request updated successfully", bond)
-        );
+        res
+          .status(HTTP_STATUS.OK)
+          .json(handleResponse("Bond request updated successfully", bond));
         return;
       }
       const bond = await this.bondsRepo.findOne({
@@ -511,7 +511,6 @@ export class BondController {
         await this.bondsRepo.remove(bond);
       }
 
-      const members = [bond.requester.userChatId];
       if (action == "accepted") {
         const notificationData = {
           title: commonHelper.getNotificationTitle(action),
@@ -525,6 +524,18 @@ export class BondController {
           requesterProfileImage: bond.requester.profileImage,
           bondStatus: bond.status,
         };
+
+        let members = [bond.requester.userChatId, bond.recipient.userChatId];
+        await Promise.all([
+          Chat.create({
+            members,
+            name: `${bond.requester.firstName} - ${bond.recipient.firstName}`,
+          }),
+        ]);
+
+        emitEvent(req, REFETCH_CHATS, members);
+
+        members = [bond.requester.userChatId];
 
         emitEvent(req, BOND_REQUEST_UPDATED, members, notificationData);
 
