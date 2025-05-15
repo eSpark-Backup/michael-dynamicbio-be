@@ -616,12 +616,6 @@ router.get(
  *                       rejectionReason:
  *                         type: string
  *                         nullable: true
- *                       user:
- *                         $ref: '#/components/schemas/User'
- *                       post:
- *                         $ref: '#/components/schemas/Post'
- *                       group:
- *                         $ref: '#/components/schemas/Group'
  *       403:
  *         description: Forbidden - not an admin or creator of the group
  *       404:
@@ -703,7 +697,7 @@ router.patch(
 
 
 /**
- * @swaggerBeta
+ * @swagger
  * /group/{id}/admin:
  *   post:
  *     summary: Add a user as admin to a group
@@ -752,7 +746,7 @@ router.post(
 );
 
 /**
- * @swaggerBeta
+ * @swagger
  * /group/{id}/admin:
  *   delete:
  *     summary: Remove a user as admin from a group
