@@ -921,6 +921,8 @@ export class PostController {
           .leftJoinAndSelect("comment.user", "commentUser")
           .leftJoinAndSelect("post.page", "page")
           .leftJoinAndSelect("page.followers", "follower")
+          .leftJoinAndSelect("post.group", "group")
+          .leftJoinAndSelect("group.followers", "groupFollower")
           .select([
             "post",
             "author",
@@ -940,6 +942,8 @@ export class PostController {
             "comment",
             "page",
             "follower",
+            "group",
+            "groupFollower",
           ])
           .orderBy("post.createdAt", "DESC")
           .addOrderBy("like.createdAt", "DESC")

@@ -1,6 +1,6 @@
 import { ICustomRequest, IFileObject, IFileRequest } from "../../interfaces";
 
-import { User, Group, GroupJoinRequest, GroupPostRequest } from "../../entity";
+import { User, Group, GroupJoinRequest, GroupPostRequest, PostRequestStatus } from "../../entity";
 import { Repository } from "typeorm";
 import { NextFunction, Response } from "express";
 
@@ -830,6 +830,7 @@ export class GroupController {
         .leftJoinAndSelect("request.group", "group")
         .where("request.isApproved = :isApproved", { isApproved: false })
         .andWhere("request.group = :groupId", { groupId: group.id })
+        .andWhere("request.status = :status", { status: PostRequestStatus.PENDING })
         .orderBy("request.createdAt", "DESC")
         .getMany();
 
@@ -894,6 +895,7 @@ export class GroupController {
       if (action === "approve") {
         groupPostRequest.isApproved = true;
         groupPostRequest.rejectionReason = null;
+        groupPostRequest.status = PostRequestStatus.APPROVED;
       } else if (action === "reject") {
         if (!rejectionReason) {
           throw new ApiError(
@@ -903,6 +905,7 @@ export class GroupController {
         }
         groupPostRequest.rejectionReason = rejectionReason;
         groupPostRequest.isApproved = false;
+        groupPostRequest.status = PostRequestStatus.REJECTED;
       } else {
         throw new ApiError(
           "Invalid action. Must be 'approve' or 'reject'",

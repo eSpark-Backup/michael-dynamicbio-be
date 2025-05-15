@@ -8,6 +8,12 @@ import { Group } from "./group.entity";
 import { User } from "./users.entity";
 import { BaseEntity } from ".";
 
+
+export enum GroupRequestStatus {
+  PENDING = "PENDING",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+}
 @Entity("group_join_requests")
 export class GroupJoinRequest extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
@@ -27,4 +33,14 @@ export class GroupJoinRequest extends BaseEntity {
 
   @Column({ default: false })
   isApproved: boolean;
+
+
+
+
+  @Column({
+      type: "enum",
+      enum: GroupRequestStatus,
+      default: GroupRequestStatus.PENDING,
+    })
+    status: GroupRequestStatus;
 }
