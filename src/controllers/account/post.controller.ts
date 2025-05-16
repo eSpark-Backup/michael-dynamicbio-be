@@ -235,7 +235,10 @@ export class PostController {
           post.visibility = PostVisibility.GROUPS;
           post.commentVisibility = COMMENT_VISIBILITY.GROUPS;
         }
-
+            const groupPostRequest = new GroupPostRequest();
+        groupPostRequest.user = user;
+        groupPostRequest.group = group;
+        groupPostRequest.post = post;
         if (!isAdmin && !isCreator) {
           groupPostRequest.status = PostRequestStatus.PENDING;
           groupPostRequest.isApproved = false;
@@ -246,10 +249,10 @@ export class PostController {
 
         await this.groupPostRequestRepo.save(groupPostRequest);
 
-        savedPost.group = group;
-        savedPost.groupId = group.id;
-        savedPost.isGroupPost = true;
-        await this.postRepo.save(savedPost);
+        post.group = group;
+        post.groupId = group.id;
+        post.isGroupPost = true;
+        await this.postRepo.save(post);
       }
 
       // If it's a scheduled post, create the job
