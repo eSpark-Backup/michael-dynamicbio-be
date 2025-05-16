@@ -17,6 +17,7 @@ import {
   Group,
   GroupPostRequest,
   GroupStatus,
+  PostRequestStatus,
 } from "../../entity";
 import {
   ICustomRequest,
@@ -1496,6 +1497,11 @@ export class PostController {
             HTTP_STATUS.NOT_FOUND
           );
         }
+        const isAdmin = group?.admins.some(
+          (groupAdmin) => groupAdmin.admin.id === userId
+        );
+
+        const isCreator = group.creator?.id === userId;
 
         // Check if the group requires post approval
         if (group.status == GroupStatus.PRIVATE) {
@@ -1507,7 +1513,18 @@ export class PostController {
         groupPostRequest.user = user;
         groupPostRequest.group = group;
         groupPostRequest.post = savedPost;
+
+        if (!isAdmin && !isCreator) {
+          groupPostRequest.status = PostRequestStatus.PENDING;
+          groupPostRequest.isApproved = false;
+        } else {
+          groupPostRequest.status = PostRequestStatus.APPROVED;
+          groupPostRequest.isApproved = true;
+
+        }
+
         await this.groupPostRequestRepo.save(groupPostRequest);
+
         savedPost.group = group;
         savedPost.groupId = group.id;
         savedPost.isGroupPost = true;

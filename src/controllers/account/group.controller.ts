@@ -679,8 +679,9 @@ export class GroupController {
 
       const group = await this.groupRepo
         .createQueryBuilder("group")
-        .leftJoinAndSelect("group.admins", "admin")
         .leftJoinAndSelect("group.creator", "creator")
+        .leftJoinAndSelect("group.admins", "groupAdmin")
+        .leftJoinAndSelect("groupAdmin.admin", "adminUser")
         .where("group.id = :id", { id: groupId })
         .getOne();
 
@@ -688,7 +689,10 @@ export class GroupController {
         throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
       }
 
-      const isAdmin = group.admins.some((admin) => admin.id === currentUserId);
+      const isAdmin = group?.admins.some(
+        (groupAdmin) => groupAdmin.admin.id === currentUserId
+      );
+
       const isCreator = group.creator?.id === currentUserId;
 
       if (!isAdmin && !isCreator) {
@@ -834,8 +838,9 @@ export class GroupController {
       const currentUserId = req.user?.id;
       const group = await this.groupRepo
         .createQueryBuilder("group")
-        .leftJoinAndSelect("group.admins", "admin")
         .leftJoinAndSelect("group.creator", "creator")
+        .leftJoinAndSelect("group.admins", "groupAdmin")
+        .leftJoinAndSelect("groupAdmin.admin", "adminUser")
         .where("group.id = :id", { id: groupId })
         .getOne();
 
@@ -843,7 +848,10 @@ export class GroupController {
         throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
       }
 
-      const isAdmin = group.admins.some((admin) => admin.id === currentUserId);
+      const isAdmin = group?.admins.some(
+        (groupAdmin) => groupAdmin.admin.id === currentUserId
+      );
+
       const isCreator = group.creator?.id === currentUserId;
 
       if (!isAdmin && !isCreator) {
