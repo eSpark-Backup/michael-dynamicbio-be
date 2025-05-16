@@ -1423,7 +1423,7 @@ export class PostController {
   ): Promise<void> {
     try {
       // Get the post data
-      const { poll, content, status, visibility, type } = req.body;
+      const { poll, content, status, visibility, type, groupId, } = req.body;
 
       if (type !== PostType.POLL) {
         throw new ApiError("Post type must be POLL", HTTP_STATUS.BAD_REQUEST);
@@ -1473,6 +1473,46 @@ export class PostController {
         where: { id: savedPost.id },
         relations: ["author", "poll"],
       });
+         if (groupId) {
+        const group = await this.groupRepo
+          .createQueryBuilder("group")
+          .leftJoinAndSelect("group.followers", "follower")
+          .leftJoinAndSelect("group.creator", "creator")
+          .leftJoinAndSelect("group.admins", "groupAdmin")
+          .leftJoinAndSelect("groupAdmin.admin", "adminUser")
+          .where("group.id = :groupId", { groupId })
+          .andWhere(
+            new Brackets((qb) => {
+              qb.where("follower.id = :userId", { userId })
+                .orWhere("creator.id = :userId", { userId })
+                .orWhere("adminUser.id = :userId", { userId });
+            })
+          )
+          .getOne();
+
+        if (!group) {
+          throw new ApiError(
+            "Group not found or you're not a member of Group",
+            HTTP_STATUS.NOT_FOUND
+          );
+        }
+
+        // Check if the group requires post approval
+        if (group.status == GroupStatus.PRIVATE) {
+          savedPost.visibility = PostVisibility.GROUPS;
+          savedPost.commentVisibility = COMMENT_VISIBILITY.GROUPS;
+        }
+
+        const groupPostRequest = new GroupPostRequest();
+        groupPostRequest.user = user;
+        groupPostRequest.group = group;
+        groupPostRequest.post = savedPost;
+        await this.groupPostRequestRepo.save(groupPostRequest);
+        savedPost.group = group;
+        savedPost.groupId = group.id;
+        savedPost.isGroupPost = true;
+         await this.postRepo.save(savedPost);
+      }
 
       res
         .status(HTTP_STATUS.CREATED)
