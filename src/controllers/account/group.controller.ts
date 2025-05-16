@@ -173,7 +173,9 @@ export class GroupController {
 
       const group = await this.groupRepo
         .createQueryBuilder("group")
-        .leftJoinAndSelect("group.admins", "admin")
+        .leftJoinAndSelect("group.creator", "creator")
+        .leftJoinAndSelect("group.admins", "groupAdmin")
+        .leftJoinAndSelect("groupAdmin.admin", "adminUser")
         .where("group.id = :id", { id })
         .getOne();
 
@@ -185,8 +187,8 @@ export class GroupController {
 
       const isCreator = group.creator?.id === userId;
 
-      const isAdmin = group.admins.some((admin) => admin.id === userId);
-      if (!isAdmin && !isCreator) {
+      // const isAdmin = group.admins.some((admin) => admin.id === userId);
+      if (!isCreator) {
         throw new ApiError(
           "You are not authorized to update this group",
           HTTP_STATUS.FORBIDDEN
@@ -256,11 +258,13 @@ export class GroupController {
       if (industry) group.industry = industry;
       if (description) group.description = description;
       if (rules) group.rules = rules;
-      if (allowMemberInvites !== undefined)
-        group.allowMemberInvites = allowMemberInvites;
+      if (allowMemberInvites !== undefined) {
+        group.allowMemberInvites = allowMemberInvites === "true";
+      }
 
-      if (requirePostApproval !== undefined)
-        group.requirePostApproval = requirePostApproval;
+      if (requirePostApproval !== undefined) {
+        group.requirePostApproval = requirePostApproval === "true";
+      }
 
       if (logoUrl) group.logoUrl = logoUrl;
       if (logoPublicId) group.logoPublicId = logoPublicId;
@@ -399,7 +403,10 @@ export class GroupController {
       const skipNumber = Number(skip);
       const takeNumber = Number(take);
 
-      let queryBuilder = this.groupRepo.createQueryBuilder("group");
+      let queryBuilder = this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.admins", "groupAdmin")
+        .leftJoinAndSelect("groupAdmin.admin", "adminUser");
 
       if (role === "admin") {
         // Get pages where user is admin
@@ -416,8 +423,6 @@ export class GroupController {
         // Default: get all pages where user is either creator or admin
         queryBuilder = queryBuilder
           .leftJoinAndSelect("group.creator", "creator")
-          .leftJoinAndSelect("group.admins", "groupAdmin")
-          .leftJoinAndSelect("groupAdmin.admin", "adminUser")
 
           .where("creator.id = :userId OR adminUser.id = :userId", { userId });
       }
@@ -431,6 +436,7 @@ export class GroupController {
       // Get groups with pagination
       const [groups, totalItems] = await queryBuilder
         .orderBy("group.createdAt", "DESC")
+
         .skip(skipNumber)
         .take(takeNumber)
         .getManyAndCount();
@@ -479,6 +485,7 @@ export class GroupController {
 
       const group = await this.groupRepo
         .createQueryBuilder("group")
+        .leftJoinAndSelect("group.creator", "creator")
         .leftJoinAndSelect("group.admins", "admin")
         .where("group.id = :id", { id })
         .getOne();
@@ -486,9 +493,9 @@ export class GroupController {
       if (!group) {
         throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
       }
+      const isCreator = group.creator?.id === userId;
 
-      const isAdmin = group.admins.some((admin) => admin.id === userId);
-      if (!isAdmin) {
+      if (!isCreator) {
         throw new ApiError(
           "You are not authorized to delete this group",
           HTTP_STATUS.FORBIDDEN

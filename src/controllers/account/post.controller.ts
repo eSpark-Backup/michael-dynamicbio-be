@@ -235,7 +235,7 @@ export class PostController {
           post.visibility = PostVisibility.GROUPS;
           post.commentVisibility = COMMENT_VISIBILITY.GROUPS;
         }
-            const groupPostRequest = new GroupPostRequest();
+        const groupPostRequest = new GroupPostRequest();
         groupPostRequest.user = user;
         groupPostRequest.group = group;
         groupPostRequest.post = post;
@@ -1549,6 +1549,27 @@ export class PostController {
     } catch (error) {
       logger.error(
         `PostController :: createPostWithPoll :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+  async getGroupPosts(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const {groupId}=req.params;
+
+        const { page, take, skip } = req?.query;
+      const userId = req.user?.id;
+
+      const skipNumber = Number(skip);
+      const takeNumber = Number(take);
+
+    } catch (error) {
+      logger.error(
+        `PostController :: getGroupPosts :: ${(error as Error)?.message}`
       );
       return next(error);
     }
