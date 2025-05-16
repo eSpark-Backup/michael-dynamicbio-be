@@ -310,7 +310,10 @@ export class GroupController {
         .leftJoinAndSelect("group.creator", "creator")
         .leftJoinAndSelect("group.admins", "admin")
         .leftJoinAndSelect("group.followers", "follower")
-        .leftJoinAndSelect("group.groupPostRequests", "postRequest")
+        .leftJoinAndSelect("group.groupPostRequests", "postRequest",
+          "postRequest.groupId = group.id AND postRequest.status = :status",
+          { status: PostRequestStatus.PENDING }
+        )
         .leftJoinAndSelect("group.admins", "groupAdmin")
         .leftJoinAndSelect("groupAdmin.admin", "adminUser")
         .leftJoinAndSelect("groupAdmin.createdBy", "adminCreatedBy")
@@ -321,7 +324,6 @@ export class GroupController {
           { isApproved: false }
         )
         .where("group.id = :id", { id })
-        // .andWhere("joinRequest.isApproved = :isApproved", { isApproved: false })
         .getOne();
 
       if (!group) {

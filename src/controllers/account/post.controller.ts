@@ -1423,7 +1423,7 @@ export class PostController {
   ): Promise<void> {
     try {
       // Get the post data
-      const { poll, content, status, visibility, type, groupId, } = req.body;
+      const { poll, content, status, visibility, type, groupId } = req.body;
 
       if (type !== PostType.POLL) {
         throw new ApiError("Post type must be POLL", HTTP_STATUS.BAD_REQUEST);
@@ -1473,7 +1473,7 @@ export class PostController {
         where: { id: savedPost.id },
         relations: ["author", "poll"],
       });
-         if (groupId) {
+      if (groupId) {
         const group = await this.groupRepo
           .createQueryBuilder("group")
           .leftJoinAndSelect("group.followers", "follower")
@@ -1511,7 +1511,7 @@ export class PostController {
         savedPost.group = group;
         savedPost.groupId = group.id;
         savedPost.isGroupPost = true;
-         await this.postRepo.save(savedPost);
+        await this.postRepo.save(savedPost);
       }
 
       res
