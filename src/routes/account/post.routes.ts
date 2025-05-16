@@ -689,6 +689,51 @@ router.get(
   setPagination,
   (req, res, next) => postController.getPagePosts(req, res, next)
 );
+/**
+ * @swagger
+ * /post/group/{groupId}:
+ *   get:
+ *     summary: Get all posts for a specific group
+ *     description: Retrieves all published posts for a specified group with pagination.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Post
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         description: ID of the group to get posts for
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: pageSize
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           example: 10
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         description: Page number to retrieve (for paginated results).
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *     responses:
+ *       200:
+ *         description: Posts retrieved successfully
+ *       404:
+ *         description: Group not found
+ *       500:
+ *         description: Server error
+ */
+router.get(
+  "/group/:groupId",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  setPagination,
+  (req, res, next) => postController.getGroupPosts(req, res, next)
+);
 
 /**
  * @swagger
