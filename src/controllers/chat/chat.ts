@@ -131,11 +131,10 @@ const getChatDetails = TryCatch(async (req: any, res: any, next: any) => {
     });
   } else {
     let chatDetails = await Chat.findById(chatId);
-    let chat;
 
     return res.status(200).json({
       success: true,
-      chat,
+      chatDetails,
     });
   }
 });
@@ -231,6 +230,9 @@ const getMessages = TryCatch(async (req: any, res: any, next: any) => {
     success: true,
     messages: messages.reverse(),
     totalPages,
+    currentPage: Number(page),
+    itemsOnPage:messages.length,
+    
   });
 });
 

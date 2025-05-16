@@ -7,7 +7,7 @@ interface CreateNotificationParams {
   userId: Types.ObjectId | string;
   title: string;
   message: string;
-  type?: "info" | "warning" | "alert";
+  type?: "info" | "warning" | "alert" | "reminder" | "success" | "group_join_request";  
   metadata?: Record<string, any>;
 }
 

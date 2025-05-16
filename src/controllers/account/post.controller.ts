@@ -200,7 +200,7 @@ export class PostController {
             uploadedArticleUrls,
         }) as Object) || null;
       let post = await this.postRepo.save(newPost);
-        let msg="Post Created Successfully";
+      let msg = "Post Created Successfully";
       if (groupId) {
         const group = await this.groupRepo
           .createQueryBuilder("group")
@@ -242,7 +242,7 @@ export class PostController {
         if (!isAdmin && !isCreator) {
           groupPostRequest.status = PostRequestStatus.PENDING;
           groupPostRequest.isApproved = false;
-          msg ="Post Created Successfully, waiting for admin approval";
+          msg = "Post Created Successfully, waiting for admin approval";
         } else {
           groupPostRequest.status = PostRequestStatus.APPROVED;
           groupPostRequest.isApproved = true;
@@ -286,9 +286,7 @@ export class PostController {
         fs.unlinkSync(filePath);
         console.log(`Deleted file: ${filePath}`);
       });
-      res
-        .status(HTTP_STATUS.OK)
-        .json(handleResponse(msg, post));
+      res.status(HTTP_STATUS.OK).json(handleResponse(msg, post));
     } catch (error) {
       const uploadsPath = path.join(process.cwd(), "uploads");
 
@@ -1560,14 +1558,218 @@ export class PostController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const {groupId}=req.params;
+      const { groupId } = req.params;
 
-        const { page, take, skip } = req?.query;
+      const { page, take, skip } = req?.query;
       const userId = req.user?.id;
 
       const skipNumber = Number(skip);
       const takeNumber = Number(take);
+      const groupEntity = await this.groupRepo.findOne({
+        where: { id: groupId },
+        relations: ["followers"],
+      });
+      if (!groupEntity) {
+        throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
+      }
 
+      if (groupEntity) {
+        const isFollowing = groupEntity.followers.some(
+          (follower) => follower.id === userId
+        );
+        (groupEntity as any).isGroupFollowing = isFollowing;
+
+        (groupEntity as any).groupFollowerCount = groupEntity.followers.length;
+
+        delete groupEntity.followers;
+      }
+
+      const bonds = await this.bondsRepo
+        .createQueryBuilder("bond")
+        .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+          userId,
+        })
+        .leftJoinAndSelect("bond.requester", "requester")
+        .leftJoinAndSelect("bond.recipient", "recipient")
+        .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
+        .getMany();
+
+      const bondedUserIds = bonds.map((bond) =>
+        bond.requester.id === userId ? bond.recipient.id : bond.requester.id
+      );
+
+      bondedUserIds.push(userId);
+
+      const [posts, totalItems] = await this.postRepo
+        .createQueryBuilder("post")
+        .where("post.groupId = :groupId", { groupId })
+        .leftJoinAndSelect("post.author", "author")
+        .leftJoinAndSelect("post.likes", "like")
+        .leftJoinAndSelect("like.user", "likedUser")
+        .leftJoinAndSelect("like.user", "lastLikedUser")
+        .leftJoinAndSelect("post.poll", "poll") // Include poll data
+        .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+        .leftJoinAndSelect("post.comments", "comment")
+        .leftJoinAndSelect("comment.user", "commentUser")
+        .leftJoinAndSelect("post.group", "group")
+        .leftJoinAndSelect("group.followers", "groupFollower")
+        .select([
+          "post",
+          "author",
+          "like",
+          "likedUser.id",
+          "likedUser.firstName",
+          "likedUser.lastName",
+          "likedUser.profileImage",
+          "likedUser.role",
+          "likedUser.company",
+          "likedUser.designation",
+          "likedUser.industry",
+          "poll", // Include poll fields
+          "pollVotes.id",
+          "pollVotes.optionIndex",
+          "pollVotes.userId",
+          "comment",
+          "group",
+          "groupFollower",
+        ])
+        .orderBy("post.createdAt", "DESC")
+        .addOrderBy("like.createdAt", "DESC")
+        .skip(skipNumber)
+        .take(takeNumber)
+        .getManyAndCount();
+
+      if (posts.length === 0) {
+        res.status(200).json(handleResponse("No Posts Found for this Group"));
+        return next();
+      }
+      for (const post of posts) {
+        praseMedia(post);
+        let canComment = false;
+        const postAuthorId = post.author.id;
+
+        switch (post.commentVisibility) {
+          case COMMENT_VISIBILITY.PUBLIC:
+            canComment = true;
+            break;
+
+          case COMMENT_VISIBILITY.CONNECTIONS:
+            canComment = bondedUserIds.includes(postAuthorId);
+            break;
+
+          case COMMENT_VISIBILITY.ONLY_ME:
+            canComment = userId === postAuthorId;
+            break;
+
+          case COMMENT_VISIBILITY.GROUPS:
+            canComment = post.group?.followers.some(
+              (follower) => follower.id === userId
+            );
+            break;
+
+          default:
+            canComment = false;
+            break;
+        }
+
+        (post as any).canComment = canComment;
+
+        const bond = await this.bondsRepo.findOne({
+          where: [
+            { requester: { id: userId }, recipient: { id: post.author.id } },
+            { requester: { id: post.author.id }, recipient: { id: userId } },
+          ],
+        });
+        (post as any).isBond = !!bond;
+
+        ((post as any).shareableLink = generateShareableLink({
+          id: post.id,
+          type: "post",
+          typeName: post.type,
+        })),
+          ((post as any).commentsCount = post.comments.length);
+        (post as any).likesCount = post.likes.length;
+        const lastLike = post.likes[0];
+        (post as any).lastLikedUser = lastLike
+          ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
+          : null;
+
+        if (post.group) {
+          const isFollowing = post.group.followers.some(
+            (follower) => follower.id === userId
+          );
+          (post as any).isGroupFollowing = isFollowing;
+
+          (post as any).groupFollowerCount = post.group.followers.length;
+
+          delete post.group.followers;
+        }
+        for (const like of post.likes) {
+          const likeUserId = like.user.id;
+
+          const bond = await this.bondsRepo.findOne({
+            where: [
+              { requester: { id: userId }, recipient: { id: likeUserId } },
+              { requester: { id: likeUserId }, recipient: { id: userId } },
+            ],
+          });
+
+          (like as any).isBond = !!bond; // true if bond exists, false otherwise
+        }
+
+        // If the post is a poll, include vote statistics
+        if (post.type === PostType.POLL && post.poll) {
+          const voteCounts = await this.getPollVoteCounts(post.poll);
+          const userVote = this.getUserPollVote(post.poll, userId);
+
+          // Only show results if poll is configured to show results or user has voted
+          const shouldShowResults =
+            post.poll.showResults ||
+            (userVote !== null && userVote !== undefined);
+
+          (post as any).pollResults = shouldShowResults ? voteCounts : null;
+          (post as any).userVote = userVote;
+          (post as any).hasVoted = userVote !== null; // Add hasVoted flag
+
+          // Calculate poll statistics
+          if (post.poll.votes && post.poll.votes.length > 0) {
+            (post as any).pollStats = {
+              totalVotes: post.poll.votes.length,
+              hasEnded: post.poll.endDate
+                ? new Date() > post.poll.endDate
+                : false,
+            };
+          } else {
+            (post as any).pollStats = {
+              totalVotes: 0,
+              hasEnded: post.poll.endDate
+                ? new Date() > post.poll.endDate
+                : false,
+            };
+          }
+
+          // Remove sensitive data if poll is anonymous
+          if (post.poll.isAnonymous) {
+            delete post.poll.votes;
+          }
+        }
+      }
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Group posts retrieved successfully", {
+          group: {
+            id: groupEntity.id,
+            name: groupEntity.name,
+            logoUrl: groupEntity.logoUrl,
+          },
+          posts,
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page as string, 10),
+            pageSize: takeNumber,
+            totalPages: Math.ceil(totalItems / takeNumber),
+          },
+        })
+      );
     } catch (error) {
       logger.error(
         `PostController :: getGroupPosts :: ${(error as Error)?.message}`

@@ -17,7 +17,7 @@ const schema = new Schema(
     },
     type: {
       type: String,
-      enum: ["info", "warning", "alert"],
+      enum: ["info", "warning", "alert", "reminder", "success", "group_join_request"],
       default: "info",
     },
     isRead: {

@@ -14,9 +14,14 @@ import { NextFunction, Response } from "express";
 import fs from "fs";
 import path from "path";
 import { ApiError } from "../../errors";
-import { CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
+import { CLOUD_FOLDERS, GROUP_REQUEST_UPDATED, HTTP_STATUS, NEW_GROUP_REQUEST } from "../../constants";
 import { commonHelper } from "../../helpers";
-import { generateShareableLink, handleResponse, logger } from "../../utils";
+import {
+  emitEvent,
+  generateShareableLink,
+  handleResponse,
+  logger,
+} from "../../utils";
 import { uploadService } from "../../services";
 import { Notification } from "../../models";
 
@@ -410,10 +415,7 @@ export class GroupController {
 
       if (role === "admin") {
         // Get pages where user is admin
-        queryBuilder = queryBuilder
-          .leftJoinAndSelect("group.admins", "groupAdmin")
-          .leftJoinAndSelect("groupAdmin.admin", "adminUser")
-          .where("adminUser.id = :userId", { userId });
+        queryBuilder = queryBuilder.where("adminUser.id = :userId", { userId });
       } else if (role === "creator") {
         // Get pages created by user
         queryBuilder = queryBuilder
@@ -662,6 +664,30 @@ export class GroupController {
 
         await this.groupJoinRequestRepo.save(request);
 
+        // Send notification to group admins
+        const groupAdmins = await this.groupAdminRepo
+          .createQueryBuilder("groupAdmin")
+          .leftJoinAndSelect("groupAdmin.admin", "adminUser") // Corrected join
+          .where("groupAdmin.groupId = :groupId", { groupId: id })
+          .getMany();
+
+        const notificationPromises = groupAdmins.map(async (groupAdmin) => {
+          const notification = {
+            user: groupAdmin.admin.userChatId,
+            title: "Group Join Request",
+            type: "group_join_request",
+            message: `${user.firstName} ${user.lastName} has requested to join the group ${group.name}`,
+            link: `/groups/${id}/join-requests`,
+          };
+
+          const members = [groupAdmin.admin.userChatId];
+          emitEvent(req, NEW_GROUP_REQUEST, members, notification);
+
+          await this.notificationModel.create(notification);
+        });
+
+        await Promise.all(notificationPromises);
+
         res.status(HTTP_STATUS.OK).json(
           handleResponse("Join request sent to group admins", {
             requestSent: true,
@@ -757,10 +783,35 @@ export class GroupController {
         group.followers.push(request.user);
         await this.groupRepo.save(group);
 
+        const notification = {
+          user: request.user.userChatId,
+          title: "Group Join Request Approved",
+          type: "info",
+          message: `Your request to join the group ${request.group.name} has been approved.`,
+          link: `/groups/${request.group.id}`,
+        };
+        const members = [request.user.userChatId];
+        await Promise.all([
+          this.notificationModel.create(notification),
+          emitEvent(req, GROUP_REQUEST_UPDATED, members, notification),
+        ]);
+
         res
           .status(HTTP_STATUS.OK)
           .json(handleResponse("Join request approved", { approved: true }));
       } else if (action == "reject") {
+        const notification = {
+          user: request.user.userChatId,
+          title: "Group Join Request Rejected",
+          type: "info",
+          message: `Your request to join the group ${request.group.name} has been rejected.`,
+          link: `/groups/${request.group.id}`,
+        };
+        const members = [request.user.userChatId];
+        await Promise.all([
+          this.notificationModel.create(notification),
+          emitEvent(req, GROUP_REQUEST_UPDATED, members, notification),
+        ]);
         await this.groupJoinRequestRepo.remove(request);
 
         res
