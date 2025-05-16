@@ -200,7 +200,7 @@ export class PostController {
             uploadedArticleUrls,
         }) as Object) || null;
       let post = await this.postRepo.save(newPost);
-
+        let msg="Post Created Successfully";
       if (groupId) {
         const group = await this.groupRepo
           .createQueryBuilder("group")
@@ -242,6 +242,7 @@ export class PostController {
         if (!isAdmin && !isCreator) {
           groupPostRequest.status = PostRequestStatus.PENDING;
           groupPostRequest.isApproved = false;
+          msg ="Post Created Successfully, waiting for admin approval";
         } else {
           groupPostRequest.status = PostRequestStatus.APPROVED;
           groupPostRequest.isApproved = true;
@@ -287,7 +288,7 @@ export class PostController {
       });
       res
         .status(HTTP_STATUS.OK)
-        .json(handleResponse("Post Created Successfully", post));
+        .json(handleResponse(msg, post));
     } catch (error) {
       const uploadsPath = path.join(process.cwd(), "uploads");
 
