@@ -224,6 +224,11 @@ export class PostController {
             HTTP_STATUS.NOT_FOUND
           );
         }
+        const isAdmin = group?.admins.some(
+          (groupAdmin) => groupAdmin.admin.id === userId
+        );
+
+        const isCreator = group.creator?.id === userId;
 
         // Check if the group requires post approval
         if (group.status == GroupStatus.PRIVATE) {
@@ -231,15 +236,20 @@ export class PostController {
           post.commentVisibility = COMMENT_VISIBILITY.GROUPS;
         }
 
-        const groupPostRequest = new GroupPostRequest();
-        groupPostRequest.user = user;
-        groupPostRequest.group = group;
-        groupPostRequest.post = post;
+        if (!isAdmin && !isCreator) {
+          groupPostRequest.status = PostRequestStatus.PENDING;
+          groupPostRequest.isApproved = false;
+        } else {
+          groupPostRequest.status = PostRequestStatus.APPROVED;
+          groupPostRequest.isApproved = true;
+        }
+
         await this.groupPostRequestRepo.save(groupPostRequest);
-        post.group = group;
-        post.groupId = group.id;
-        post.isGroupPost = true;
-        post = await this.postRepo.save(post);
+
+        savedPost.group = group;
+        savedPost.groupId = group.id;
+        savedPost.isGroupPost = true;
+        await this.postRepo.save(savedPost);
       }
 
       // If it's a scheduled post, create the job
@@ -1520,7 +1530,6 @@ export class PostController {
         } else {
           groupPostRequest.status = PostRequestStatus.APPROVED;
           groupPostRequest.isApproved = true;
-
         }
 
         await this.groupPostRequestRepo.save(groupPostRequest);
