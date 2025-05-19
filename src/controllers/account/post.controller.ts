@@ -1573,8 +1573,9 @@ export class PostController {
       if (!groupEntity) {
         throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
       }
-      const adminIds = groupEntity.admins.map((adminEntry) => adminEntry.adminId);
-
+      const adminIds = groupEntity.admins.map(
+        (adminEntry) => adminEntry.adminId
+      );
 
       if (groupEntity) {
         const isFollowing = groupEntity.followers.some(
@@ -1764,7 +1765,7 @@ export class PostController {
             name: groupEntity.name,
             logoUrl: groupEntity.logoUrl,
             creator: groupEntity.creatorId,
-            admins:adminIds
+            admins: adminIds,
           },
           posts,
           pagination: {
@@ -1839,6 +1840,8 @@ export class PostController {
         .leftJoinAndSelect("post.author", "author")
         .leftJoinAndSelect("post.likes", "like")
         .leftJoinAndSelect("like.user", "likedUser")
+        .leftJoinAndSelect("post.poll", "poll") // Include poll data
+        .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
         .leftJoinAndSelect("post.page", "page")
         .leftJoinAndSelect("post.comments", "comment")
         .leftJoinAndSelect("comment.user", "commentUser")
