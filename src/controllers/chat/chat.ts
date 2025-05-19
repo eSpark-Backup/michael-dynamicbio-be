@@ -14,6 +14,17 @@ import {
   ErrorHandler,
 } from "../../utils";
 import { AppDataSource } from "../../typeorm.config";
+interface IMessage {
+  _id: string;
+  content: string;
+  sender: {
+    _id: string;
+    name: string;
+    avatar?: string;
+  };
+  chat: string;
+  createdAt: Date;
+}
 
 const getMyChats = TryCatch(async (req: any, res: any, next: any) => {
   const chats = await Chat.find({ members: req.socketUserId }).populate(
@@ -21,24 +32,42 @@ const getMyChats = TryCatch(async (req: any, res: any, next: any) => {
     "name avatar"
   );
 
-  const transformedChats = chats.map(({ _id, name, members, groupChat }) => {
-    const otherMember = getOtherMember(members, req.socketUserId);
+  const transformedChats = await Promise.all(
+    chats.map(async ({ _id, name, members, groupChat }) => {
+      const otherMember = getOtherMember(members, req.socketUserId);
 
-    return {
-      _id,
-      groupChat,
-      avatar: groupChat
-        ? members.slice(0, 3).map((m: any) => m.avatar || "")
-        : [otherMember?.avatar || ""],
-      name: groupChat ? name : otherMember?.name || "Unknown",
-      members: members.reduce((prev: any, curr: any) => {
-        if (curr._id.toString() !== req.socketUserId.toString()) {
-          prev.push(curr._id);
-        }
-        return prev;
-      }, []),
-    };
-  });
+      const latestMessage = await Message.findOne({ chat: _id })
+        .sort({ createdAt: -1 })
+        .populate("sender", "name avatar")
+        .lean<IMessage>();
+
+      return {
+        _id,
+        groupChat,
+        avatar: groupChat
+          ? members.slice(0, 3).map((m: any) => m.avatar || "")
+          : [otherMember?.avatar || ""],
+        name: groupChat ? name : otherMember?.name || "Unknown",
+        members: members.reduce((prev: any, curr: any) => {
+          if (curr._id.toString() !== req.socketUserId.toString()) {
+            prev.push(curr._id);
+          }
+          return prev;
+        }, []),
+        lastMessage: latestMessage
+          ? {
+              content: latestMessage.content,
+              sender:
+                latestMessage.sender?._id.toString() ===
+                req.socketUserId.toString()
+                  ? "You"
+                  : latestMessage.sender?.name || "Unknown",
+              createdAt: latestMessage.createdAt,
+            }
+          : null,
+      };
+    })
+  );
 
   res.status(200).json({
     success: true,
@@ -231,8 +260,7 @@ const getMessages = TryCatch(async (req: any, res: any, next: any) => {
     messages: messages.reverse(),
     totalPages,
     currentPage: Number(page),
-    itemsOnPage:messages.length,
-    
+    itemsOnPage: messages.length,
   });
 });
 
