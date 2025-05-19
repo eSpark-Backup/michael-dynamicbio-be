@@ -1567,11 +1567,14 @@ export class PostController {
       const takeNumber = Number(take);
       const groupEntity = await this.groupRepo.findOne({
         where: { id: groupId },
-        relations: ["followers"],
+        relations: ["followers", "admins"], // include admins relation too
       });
+
       if (!groupEntity) {
         throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
       }
+      const adminIds = groupEntity.admins.map((adminEntry) => adminEntry.adminId);
+
 
       if (groupEntity) {
         const isFollowing = groupEntity.followers.some(
@@ -1760,6 +1763,8 @@ export class PostController {
             id: groupEntity.id,
             name: groupEntity.name,
             logoUrl: groupEntity.logoUrl,
+            creator: groupEntity.creatorId,
+            admins:adminIds
           },
           posts,
           pagination: {
