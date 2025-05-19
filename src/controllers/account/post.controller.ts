@@ -1862,6 +1862,8 @@ export class PostController {
           "page.logoUrl",
           "comment",
           "follower",
+          "poll", // Include poll fields
+          "pollVotes",
         ])
         .orderBy("post.createdAt", "DESC")
         .skip(skipNumber)
