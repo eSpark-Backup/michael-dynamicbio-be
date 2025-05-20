@@ -249,7 +249,7 @@ const getMessages = TryCatch(async (req: any, res: any, next: any) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(resultPerPage)
-      .populate("sender", "name _id")
+      .populate("sender", "name _id avatar")
       .lean(),
     Message.countDocuments({ chat: chatId }),
   ]);
@@ -258,7 +258,9 @@ const getMessages = TryCatch(async (req: any, res: any, next: any) => {
    const transformedMessages = messages.reverse().map((msg) => ({
     ...msg,
     sender: msg.sender._id.toString() === userId ? "You" : msg.sender.name,
+    senderId: msg.sender._id.toString(),
     isUser: msg.sender._id.toString() === userId,
+    avatar: msg.sender.avatar || "",
   }));
 
   res.status(200).json({
