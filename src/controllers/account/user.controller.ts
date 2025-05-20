@@ -1800,6 +1800,10 @@ export class UserController {
           "post.poll.votes",
           "post.page",
           "post.page.followers",
+          "post.group",
+          "post.group.followers",
+          "post.group.admins",
+          "post.group.admins.admin",
         ],
         order: { createdAt: "DESC" },
         skip: skipNumber,
@@ -1838,6 +1842,19 @@ export class UserController {
           (post as any).pageFollowerCount = post.page.followers.length;
 
           delete post.page.followers;
+        }
+           if (post.group) {
+          const isFollowing = post.group.followers.some(
+            (follower) => follower.id === userId
+          );
+          (post as any).isGroupFollowing = isFollowing;
+
+          (post as any).groupFollowerCount = post.group.followers.length;
+          (post as any).isAdmin = post.group.admins.some(
+            (admin) => admin.admin.id === userId
+          );
+          (post as any).isCreator = post.group.creatorId === userId;
+          delete post.group.followers;
         }
         // Loop over likes to check bonds
         for (const like of post.likes || []) {
