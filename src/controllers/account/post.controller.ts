@@ -1574,23 +1574,28 @@ export class PostController {
 
       const skipNumber = Number(skip);
       const takeNumber = Number(take);
-      const groupEntity = await this.groupRepo.findOne({
-        where: { id: groupId },
-        relations: ["followers", "admins"], // include admins relation too
-      });
+      const groupEntity = await this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.followers", "groupFollower")
+        .leftJoinAndSelect("group.admins", "groupAdmin")
+        .leftJoinAndSelect("groupAdmin.admin", "adminUser")
+        .where("group.id = :groupId", { groupId })
+        .getOne();
 
       if (!groupEntity) {
         throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
       }
-      const adminIds = groupEntity.admins.map(
-        (adminEntry) => adminEntry.adminId
-      );
+     
 
       if (groupEntity) {
         const isFollowing = groupEntity.followers.some(
           (follower) => follower.id === userId
         );
         (groupEntity as any).isGroupFollowing = isFollowing;
+        (groupEntity as any).isAdmin = groupEntity?.admins.some(
+          (groupAdmin) => groupAdmin.admin.id === userId
+        );
+        (groupEntity as any).isCreator = groupEntity.creatorId === userId;
 
         (groupEntity as any).groupFollowerCount = groupEntity.followers.length;
 
@@ -1626,6 +1631,7 @@ export class PostController {
         .leftJoinAndSelect("comment.user", "commentUser")
         .leftJoinAndSelect("post.group", "group")
         .leftJoinAndSelect("group.followers", "groupFollower")
+
         .select([
           "post",
           "author",
