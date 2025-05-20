@@ -114,13 +114,14 @@ AppDataSource.initialize()
         };
 
         const membersSocket = getSockets(members);
+        if((membersSocket as any).length > 0) {
         io.of("/socket").to(membersSocket).emit(NEW_MESSAGE, {
           chatId,
           message: messageForRealTime,
         });
         console.log("membersSocket", membersSocket);
         io.of("/socket").to(membersSocket).emit(NEW_MESSAGE_ALERT, { chatId });
-
+      }
         try {
           await Message.create(messageForDB);
         } catch (error) {
