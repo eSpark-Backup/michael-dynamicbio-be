@@ -391,7 +391,6 @@ export class UserController {
       user.designation = designation || user.designation;
       user.city = city || user.city;
 
-
       const updatedUser = await this.usersRepo.save(user);
 
       const chatUser = await UserForChat.findById(req.user?._id);
@@ -554,7 +553,8 @@ export class UserController {
         .leftJoinAndSelect("comment.user", "commentUser")
         .leftJoinAndSelect("post.group", "group")
         .leftJoinAndSelect("group.followers", "groupFollower")
-
+        .leftJoinAndSelect("group.admins", "groupAdmin")
+        .leftJoinAndSelect("groupAdmin.admin", "adminUser")
         .select([
           "post",
           "author",
@@ -585,6 +585,8 @@ export class UserController {
           "follower",
           "group",
           "groupFollower",
+          "groupAdmin",
+          "adminUser"
         ])
         .orderBy("post.createdAt", "DESC")
         .addOrderBy("like.createdAt", "DESC")
@@ -673,7 +675,10 @@ export class UserController {
           (post as any).isGroupFollowing = isFollowing;
 
           (post as any).groupFollowerCount = post.group.followers.length;
-
+          (post as any).isAdmin = post.group.admins.some(
+            (admin) => admin.admin.id === userId
+          );
+          (post as any).isCreator = post.group.creatorId=== userId;
           delete post.group.followers;
         }
 
