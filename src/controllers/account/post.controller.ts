@@ -1775,13 +1775,7 @@ export class PostController {
       }
       res.status(HTTP_STATUS.OK).json(
         handleResponse("Group posts retrieved successfully", {
-          group: {
-            id: groupEntity.id,
-            name: groupEntity.name,
-            logoUrl: groupEntity.logoUrl,
-            creator: groupEntity.creatorId,
-            admins: adminIds,
-          },
+          group: groupEntity,
           posts,
           pagination: {
             totalItems,
