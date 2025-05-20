@@ -723,6 +723,7 @@ export class PostController {
           .leftJoinAndSelect("post.group", "group")
           .leftJoinAndSelect("group.followers", "groupFollower")
           .leftJoinAndSelect("group.admins", "groupAdmin")
+          .leftJoinAndSelect("groupAdmin.admin", "adminUser")
 
           .select([
             "post",
@@ -750,6 +751,7 @@ export class PostController {
             "group",
             "groupFollower",
             "groupAdmin",
+            "adminUser",
           ])
           .addOrderBy("like.createdAt", "DESC")
           .getOne();
@@ -903,10 +905,11 @@ export class PostController {
           const isFollowing = singlePost.group.followers.some(
             (follower) => follower.id === userId
           );
-          const adminIds = singlePost.group.admins.map(
-            (adminEntry) => adminEntry.adminId
+          (singlePost as any).isAdmin = singlePost.group?.admins.some(
+            (groupAdmin) => groupAdmin.admin.id === userId
           );
-          (singlePost as any).adminIds = adminIds;
+          (singlePost as any).isCreator =
+            singlePost.group?.creatorId === userId;
           (singlePost as any).isGroupFollowing = isFollowing;
 
           (singlePost as any).groupFollowerCount =
