@@ -586,7 +586,7 @@ export class UserController {
           "group",
           "groupFollower",
           "groupAdmin",
-          "adminUser"
+          "adminUser",
         ])
         .orderBy("post.createdAt", "DESC")
         .addOrderBy("like.createdAt", "DESC")
@@ -678,7 +678,7 @@ export class UserController {
           (post as any).isAdmin = post.group.admins.some(
             (admin) => admin.admin.id === userId
           );
-          (post as any).isCreator = post.group.creatorId=== userId;
+          (post as any).isCreator = post.group.creatorId === userId;
           delete post.group.followers;
         }
 
@@ -1128,8 +1128,12 @@ export class UserController {
           .leftJoinAndSelect("post.poll", "poll") // Include poll data
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
           .leftJoinAndSelect("post.comments", "comment")
+          .leftJoinAndSelect("post.group", "group")
+          .leftJoinAndSelect("group.followers", "groupFollower")
           .leftJoinAndSelect("post.page", "page")
           .leftJoinAndSelect("page.followers", "follower")
+          .leftJoinAndSelect("group.admins", "groupAdmin")
+          .leftJoinAndSelect("groupAdmin.admin", "adminUser")
           .select([
             "post",
             "author",
@@ -1152,6 +1156,10 @@ export class UserController {
             "comment",
             "page",
             "follower",
+            "group",
+            "groupFollower",
+            "groupAdmin",
+            "adminUser",
           ])
           .addOrderBy("like.createdAt", "DESC")
           .getOne();
@@ -1181,6 +1189,20 @@ export class UserController {
             singlePost.page.followers.length;
 
           delete singlePost.page.followers;
+        }
+        if (singlePost.group) {
+          const isFollowing = singlePost.group.followers.some(
+            (follower) => follower.id === userId
+          );
+          (singlePost as any).isGroupFollowing = isFollowing;
+
+          (singlePost as any).groupFollowerCount =
+            singlePost.group.followers.length;
+          (singlePost as any).isAdmin = singlePost.group.admins.some(
+            (admin) => admin.admin.id === userId
+          );
+          (singlePost as any).isCreator = singlePost.group.creatorId === userId;
+          delete singlePost.group.followers;
         }
 
         // If the post is a poll, include vote statistics

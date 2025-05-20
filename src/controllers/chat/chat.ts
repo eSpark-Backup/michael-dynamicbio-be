@@ -231,6 +231,7 @@ const deleteChat = TryCatch(async (req: any, res: any, next: any) => {
 
 const getMessages = TryCatch(async (req: any, res: any, next: any) => {
   const chatId = req.params.id;
+  const userId = req.socketUserId;
   const { page = 1 } = req.query;
 
   const resultPerPage = 20;
@@ -248,16 +249,21 @@ const getMessages = TryCatch(async (req: any, res: any, next: any) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(resultPerPage)
-      .populate("sender", "name")
+      .populate("sender", "name _id")
       .lean(),
     Message.countDocuments({ chat: chatId }),
   ]);
 
   const totalPages = Math.ceil(totalMessagesCount / resultPerPage) || 0;
+   const transformedMessages = messages.reverse().map((msg) => ({
+    ...msg,
+    sender: msg.sender._id.toString() === userId ? "You" : msg.sender.name,
+    isUser: msg.sender._id.toString() === userId,
+  }));
 
   res.status(200).json({
     success: true,
-    messages: messages.reverse(),
+    messages: transformedMessages,
     totalPages,
     currentPage: Number(page),
     itemsOnPage: messages.length,
