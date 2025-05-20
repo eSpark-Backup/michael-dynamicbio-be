@@ -100,6 +100,8 @@ AppDataSource.initialize()
           sender: {
             _id: user._id,
             name: user.name,
+            avatar: user.avatar,
+
           },
           chat: chatId,
           createdAt: new Date().toISOString(),
