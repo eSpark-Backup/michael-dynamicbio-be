@@ -8,6 +8,7 @@ import {
   Poll,
   PollVote,
   Post,
+  PostRequestStatus,
   PostStatus,
   PostType,
   PostVisibility,
@@ -557,6 +558,10 @@ export class UserController {
         .leftJoinAndSelect("group.followers", "groupFollower")
         .leftJoinAndSelect("group.admins", "groupAdmin")
         .leftJoinAndSelect("groupAdmin.admin", "adminUser")
+        .leftJoinAndSelect("post.groupPostRequests", "request")
+        .andWhere("(post.group IS NULL OR request.status = :status)", {
+          status: PostRequestStatus.APPROVED,
+        })
         .select([
           "post",
           "author",
@@ -885,9 +890,15 @@ export class UserController {
         postCount?: number;
         followedGroupCount?: number;
         followedPageCount?: number;
-
       };
-       const [count, groupCount, pageCount, postCount,followedGroupCount,followedPageCount] = await Promise.all([
+      const [
+        count,
+        groupCount,
+        pageCount,
+        postCount,
+        followedGroupCount,
+        followedPageCount,
+      ] = await Promise.all([
         this.bondsRepo
           .createQueryBuilder("bond")
           .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
@@ -909,13 +920,13 @@ export class UserController {
           .createQueryBuilder("post")
           .where("post.authorId = :userId", { userId })
           .getCount(),
-      //get the count of groups which user is follower
+        //get the count of groups which user is follower
         this.groupRepo
-        .createQueryBuilder("group")
-        .leftJoinAndSelect("group.followers", "follower")
-        .where("follower.id = :userId", { userId })
-        .getCount(),
-      //get the count of pages which user is follower
+          .createQueryBuilder("group")
+          .leftJoinAndSelect("group.followers", "follower")
+          .where("follower.id = :userId", { userId })
+          .getCount(),
+        //get the count of pages which user is follower
         this.pageRepo
           .createQueryBuilder("page")
           .leftJoinAndSelect("page.followers", "follower")
@@ -1571,7 +1582,14 @@ export class UserController {
         throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
       }
 
-      const [count, groupCount, pageCount, postCount,followedGroupCount,followedPageCount] = await Promise.all([
+      const [
+        count,
+        groupCount,
+        pageCount,
+        postCount,
+        followedGroupCount,
+        followedPageCount,
+      ] = await Promise.all([
         this.bondsRepo
           .createQueryBuilder("bond")
           .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
@@ -1593,13 +1611,13 @@ export class UserController {
           .createQueryBuilder("post")
           .where("post.authorId = :userId", { userId })
           .getCount(),
-      //get the count of groups which user is follower
+        //get the count of groups which user is follower
         this.groupRepo
-        .createQueryBuilder("group")
-        .leftJoinAndSelect("group.followers", "follower")
-        .where("follower.id = :userId", { userId })
-        .getCount(),
-      //get the count of pages which user is follower
+          .createQueryBuilder("group")
+          .leftJoinAndSelect("group.followers", "follower")
+          .where("follower.id = :userId", { userId })
+          .getCount(),
+        //get the count of pages which user is follower
         this.pageRepo
           .createQueryBuilder("page")
           .leftJoinAndSelect("page.followers", "follower")

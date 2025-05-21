@@ -724,7 +724,10 @@ export class PostController {
           .leftJoinAndSelect("group.followers", "groupFollower")
           .leftJoinAndSelect("group.admins", "groupAdmin")
           .leftJoinAndSelect("groupAdmin.admin", "adminUser")
-
+          .leftJoinAndSelect("post.groupPostRequests", "request")
+          .andWhere("(post.group IS NULL OR request.status = :status)", {
+            status: PostRequestStatus.APPROVED,
+          })
           .select([
             "post",
             "author",
@@ -946,6 +949,10 @@ export class PostController {
           // .leftJoinAndSelect("page.followers", "follower")
           .leftJoinAndSelect("post.group", "group")
           .leftJoinAndSelect("group.followers", "groupFollower")
+          .leftJoinAndSelect("post.groupPostRequests", "request")
+          .andWhere("(post.group IS NULL OR request.status = :status)", {
+            status: PostRequestStatus.APPROVED,
+          })
           .select([
             "post",
             "author",
@@ -1585,7 +1592,6 @@ export class PostController {
       if (!groupEntity) {
         throw new ApiError("Group not found", HTTP_STATUS.NOT_FOUND);
       }
-     
 
       if (groupEntity) {
         const isFollowing = groupEntity.followers.some(
@@ -1621,6 +1627,7 @@ export class PostController {
       const [posts, totalItems] = await this.postRepo
         .createQueryBuilder("post")
         .where("post.groupId = :groupId", { groupId })
+
         .leftJoinAndSelect("post.author", "author")
         .leftJoinAndSelect("post.likes", "like")
         .leftJoinAndSelect("like.user", "likedUser")
@@ -1631,6 +1638,10 @@ export class PostController {
         .leftJoinAndSelect("comment.user", "commentUser")
         .leftJoinAndSelect("post.group", "group")
         .leftJoinAndSelect("group.followers", "groupFollower")
+        .leftJoinAndSelect("post.groupPostRequests", "request")
+        .andWhere("request.status = :status", {
+          status: PostRequestStatus.APPROVED,
+        })
 
         .select([
           "post",
