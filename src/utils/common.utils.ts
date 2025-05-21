@@ -58,7 +58,9 @@ export function buildFilteredProfile(
 
   // 2️⃣ Build your profile object
   const filteredProfile: any = {
-
+    id: user.id,
+    createdAt: user.createdAt,
+    
     firstName: user.firstName,
     phoneNumber: user.phoneNumber,
     showConnections: settings.showConnections,
