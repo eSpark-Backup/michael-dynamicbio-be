@@ -101,7 +101,6 @@ AppDataSource.initialize()
             _id: user._id,
             name: user.name,
             avatar: user.avatar,
-
           },
           chat: chatId,
           createdAt: new Date().toISOString(),
@@ -114,14 +113,16 @@ AppDataSource.initialize()
         };
 
         const membersSocket = getSockets(members);
-        if((membersSocket as any).length > 0) {
-        io.of("/socket").to(membersSocket).emit(NEW_MESSAGE, {
-          chatId,
-          message: messageForRealTime,
-        });
-        console.log("membersSocket", membersSocket);
-        io.of("/socket").to(membersSocket).emit(NEW_MESSAGE_ALERT, { chatId });
-      }
+        if ((membersSocket as any).length > 0) {
+          io.of("/socket").to(membersSocket).emit(NEW_MESSAGE, {
+            chatId,
+            message: messageForRealTime,
+          });
+          console.log("membersSocket", membersSocket);
+          io.of("/socket")
+            .to(membersSocket)
+            .emit(NEW_MESSAGE_ALERT, { chatId });
+        }
         try {
           await Message.create(messageForDB);
         } catch (error) {
@@ -131,12 +132,16 @@ AppDataSource.initialize()
 
       socket.on(START_TYPING, ({ members, chatId }) => {
         const membersSocket = getSockets(members);
-        socket.to(membersSocket).emit(START_TYPING, { chatId });
+        if ((membersSocket as any).length > 0) {
+          socket.to(membersSocket).emit(START_TYPING, { chatId });
+        }
       });
 
       socket.on(STOP_TYPING, ({ members, chatId }) => {
         const membersSocket = getSockets(members);
-        socket.to(membersSocket).emit(STOP_TYPING, { chatId });
+        if ((membersSocket as any).length > 0) {
+          socket.to(membersSocket).emit(STOP_TYPING, { chatId });
+        }
       });
 
       socket.on(CHAT_JOINED, () => {
@@ -165,7 +170,7 @@ AppDataSource.initialize()
             .filter((id: string) => id !== socket.id);
 
           if (sockets.length === 0) {
-            userSocketIDs.delete(userId); 
+            userSocketIDs.delete(userId);
           } else {
             userSocketIDs.set(userId, sockets);
           }
