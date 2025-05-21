@@ -3,6 +3,7 @@ import {
   Bond,
   BondStatus,
   COMMENT_VISIBILITY,
+  Group,
   Page,
   Poll,
   PollVote,
@@ -66,6 +67,7 @@ export class UserController {
     private savedRepo: Repository<Saved>,
     private pollVoteRepo: Repository<PollVote>,
     private pageRepo: Repository<Page>,
+    private groupRepo: Repository<Group>,
     private readonly profileSettingsRepo: Repository<ProfileSettings>
   ) {}
 
@@ -1530,13 +1532,41 @@ export class UserController {
         throw new ApiError("User profile not found", HTTP_STATUS.NOT_FOUND);
       }
 
-      const count = await this.bondsRepo
-        .createQueryBuilder("bond")
-        .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
-          userId,
-        })
-        .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
-        .getCount();
+      const [count, groupCount, pageCount, postCount,followedGroupCount,followedPageCount] = await Promise.all([
+        this.bondsRepo
+          .createQueryBuilder("bond")
+          .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+            userId,
+          })
+          .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
+          .getCount(),
+        this.groupRepo
+          .createQueryBuilder("group")
+          .where("group.creatorId = :userId", { userId })
+          .getCount(),
+
+        this.pageRepo
+          .createQueryBuilder("page")
+          .where("page.creatorId = :userId", { userId })
+          .getCount(),
+
+        this.postsRepo
+          .createQueryBuilder("post")
+          .where("post.authorId = :userId", { userId })
+          .getCount(),
+      //get the count of groups which user is follower
+        this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.followers", "follower")
+        .where("follower.id = :userId", { userId })
+        .getCount(),
+      //get the count of pages which user is follower
+        this.pageRepo
+          .createQueryBuilder("page")
+          .leftJoinAndSelect("page.followers", "follower")
+          .where("follower.id = :userId", { userId })
+          .getCount(),
+      ]);
 
       const settings = user.profileSettings;
       let about = user.about as any;
@@ -1545,7 +1575,12 @@ export class UserController {
         user,
         about,
         settings,
-        count
+        count,
+        groupCount,
+        pageCount,
+        postCount,
+        followedGroupCount,
+        followedPageCount
       );
       res
         .status(HTTP_STATUS.OK)
@@ -1564,7 +1599,12 @@ export class UserController {
     user: any,
     about: any,
     settings: any,
-    count: number
+    count: number,
+    groupCount: number,
+    pageCount: number,
+    postCount: number,
+    followedGroupCount: number,
+    followedPageCount: number
   ) {
     // 1️⃣ Normalize all possible arrays up front
     const exps = Array.isArray(about?.experience) ? about.experience : [];
@@ -1579,6 +1619,11 @@ export class UserController {
     // 2️⃣ Build your profile object
     const filteredProfile: any = {
       bondCount: count,
+      yourGroupCount: groupCount,
+      yourPageCount: pageCount,
+      yourPostCount: postCount,
+      followedGroupCount: followedGroupCount,
+      followedPageCount: followedPageCount,
       firstName: user.firstName,
       phoneNumber: user.phoneNumber,
       //split the lkastnaem and use first alphabet only
@@ -1843,7 +1888,7 @@ export class UserController {
 
           delete post.page.followers;
         }
-           if (post.group) {
+        if (post.group) {
           const isFollowing = post.group.followers.some(
             (follower) => follower.id === userId
           );
