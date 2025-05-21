@@ -139,19 +139,19 @@ AppDataSource.initialize()
         socket.to(membersSocket).emit(STOP_TYPING, { chatId });
       });
 
-      socket.on(CHAT_JOINED, ({ userId, members }) => {
+      socket.on(CHAT_JOINED, ({ userId }) => {
         onlineUsers.add(userId.toString());
 
-        const membersSocket = getSockets(members);
+        const membersSocket = getSockets();
         io.of("/socket")
           .to(membersSocket)
           .emit(ONLINE_USERS, Array.from(onlineUsers));
       });
 
-      socket.on(CHAT_LEFT, ({ userId, members }) => {
+      socket.on(CHAT_LEFT, ({ userId }) => {
         onlineUsers.delete(userId.toString());
 
-        const membersSocket = getSockets(members);
+        const membersSocket = getSockets();
         io.of("/socket")
           .to(membersSocket)
           .emit(ONLINE_USERS, Array.from(onlineUsers));
