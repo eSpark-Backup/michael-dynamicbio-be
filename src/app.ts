@@ -139,8 +139,8 @@ AppDataSource.initialize()
         socket.to(membersSocket).emit(STOP_TYPING, { chatId });
       });
 
-      socket.on(CHAT_JOINED, ({ userId }) => {
-        onlineUsers.add(userId.toString());
+      socket.on(CHAT_JOINED, () => {
+        onlineUsers.add(user._id.toString());
 
         const membersSocket = getSockets();
         io.of("/socket")
@@ -148,8 +148,8 @@ AppDataSource.initialize()
           .emit(ONLINE_USERS, Array.from(onlineUsers));
       });
 
-      socket.on(CHAT_LEFT, ({ userId }) => {
-        onlineUsers.delete(userId.toString());
+      socket.on(CHAT_LEFT, () => {
+        onlineUsers.delete(user._id.toString());
 
         const membersSocket = getSockets();
         io.of("/socket")
