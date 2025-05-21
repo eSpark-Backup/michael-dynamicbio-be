@@ -65,13 +65,22 @@ const getMyChats = TryCatch(async (req: any, res: any, next: any) => {
               createdAt: latestMessage.createdAt,
             }
           : null,
+        latestMessageDate: latestMessage?.createdAt || new Date(0), // fallback to old date
       };
     })
+  );
+  transformedChats.sort(
+    (a, b) =>
+      new Date(b.latestMessageDate).getTime() -
+      new Date(a.latestMessageDate).getTime()
+  );
+  const finalChats = transformedChats.map(
+    ({ latestMessageDate, ...rest }) => rest
   );
 
   res.status(200).json({
     success: true,
-    chats: transformedChats,
+    chats: finalChats,
   });
 });
 
@@ -255,7 +264,7 @@ const getMessages = TryCatch(async (req: any, res: any, next: any) => {
   ]);
 
   const totalPages = Math.ceil(totalMessagesCount / resultPerPage) || 0;
-   const transformedMessages = messages.reverse().map((msg) => ({
+  const transformedMessages = messages.reverse().map((msg) => ({
     ...msg,
     sender: msg.sender._id.toString() === userId ? "You" : msg.sender.name,
     senderId: msg.sender._id.toString(),
