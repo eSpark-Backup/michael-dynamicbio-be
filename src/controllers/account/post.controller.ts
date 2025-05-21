@@ -33,6 +33,7 @@ import { ApiError } from "../../errors";
 import { CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
 import { commonHelper } from "../../helpers";
 import {
+  buildFilteredProfile,
   generateShareableLink,
   handleResponse,
   logger,
@@ -711,6 +712,7 @@ export class PostController {
             })
           )
           .leftJoinAndSelect("post.author", "author")
+          .leftJoinAndSelect("author.profileSettings", "profileSettings")
           .leftJoinAndSelect("post.likes", "like")
           .leftJoinAndSelect("like.user", "likeUser")
           .leftJoinAndSelect("like.user", "lastLikedUser")
@@ -755,6 +757,7 @@ export class PostController {
             "groupFollower",
             "groupAdmin",
             "adminUser",
+            "profileSettings",
           ])
           .addOrderBy("like.createdAt", "DESC")
           .getOne();
@@ -814,6 +817,19 @@ export class PostController {
           ],
         });
         (singlePost as any).isBond = !!bond;
+
+        if (singlePost.author.profileSettings) {
+          const user = singlePost.author;
+          const settings = user.profileSettings;
+          let about = user.about as any;
+
+          const filteredProfile: any = buildFilteredProfile(
+            user,
+            about,
+            settings
+          );
+          (singlePost as any).author = filteredProfile;
+        }
 
         praseMedia(singlePost);
         (singlePost as any).likesCount = singlePost.likes.length;
@@ -1629,6 +1645,7 @@ export class PostController {
         .where("post.groupId = :groupId", { groupId })
 
         .leftJoinAndSelect("post.author", "author")
+        .leftJoinAndSelect("author.profileSettings", "profileSettings")
         .leftJoinAndSelect("post.likes", "like")
         .leftJoinAndSelect("like.user", "likedUser")
         .leftJoinAndSelect("like.user", "lastLikedUser")
@@ -1662,6 +1679,7 @@ export class PostController {
           "comment",
           "group",
           "groupFollower",
+          "profileSettings",
         ])
         .orderBy("post.createdAt", "DESC")
         .addOrderBy("like.createdAt", "DESC")
@@ -1700,6 +1718,19 @@ export class PostController {
           default:
             canComment = false;
             break;
+        }
+
+        if (post.author.profileSettings) {
+          const user = post.author;
+          const settings = user.profileSettings;
+          let about = user.about as any;
+
+          const filteredProfile: any = buildFilteredProfile(
+            user,
+            about,
+            settings
+          );
+          (post as any).author = filteredProfile;
         }
 
         (post as any).canComment = canComment;
@@ -1858,6 +1889,7 @@ export class PostController {
         .where("post.pageId = :pageId", { pageId })
         .andWhere("post.status = :status", { status: PostStatus.PUBLISH })
         .leftJoinAndSelect("post.author", "author")
+          .leftJoinAndSelect("author.profileSettings", "profileSettings")
         .leftJoinAndSelect("post.likes", "like")
         .leftJoinAndSelect("like.user", "likedUser")
         .leftJoinAndSelect("post.poll", "poll") // Include poll data
@@ -1884,6 +1916,8 @@ export class PostController {
           "follower",
           "poll", // Include poll fields
           "pollVotes",
+            "profileSettings",
+
         ])
         .orderBy("post.createdAt", "DESC")
         .skip(skipNumber)
@@ -1921,6 +1955,18 @@ export class PostController {
             break;
         }
 
+         if (post.author.profileSettings) {
+          const user = post.author;
+          const settings = user.profileSettings;
+          let about = user.about as any;
+
+          const filteredProfile: any = buildFilteredProfile(
+            user,
+            about,
+            settings
+          );
+          (post as any).author = filteredProfile;
+        }
         (post as any).canComment = canComment;
 
         const bond = await this.bondsRepo.findOne({

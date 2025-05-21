@@ -22,6 +22,7 @@ import {
 import { ApiError } from "../../errors";
 import { Brackets, Repository } from "typeorm";
 import {
+  buildFilteredProfile,
   cookieOptions,
   decrypt,
   decryptShareableLink,
@@ -545,6 +546,7 @@ export class UserController {
           })
         )
         .leftJoinAndSelect("post.author", "author")
+        .leftJoinAndSelect("author.profileSettings", "profileSettings")
         .leftJoinAndSelect("post.page", "page")
         .leftJoinAndSelect("page.followers", "follower")
         .leftJoinAndSelect("post.likes", "like")
@@ -594,6 +596,7 @@ export class UserController {
           "groupFollower",
           "groupAdmin",
           "adminUser",
+          "profileSettings",
         ])
         .orderBy("post.createdAt", "DESC")
         .addOrderBy("like.createdAt", "DESC")
@@ -634,6 +637,19 @@ export class UserController {
           default:
             canComment = false;
             break;
+        }
+
+        if (post.author.profileSettings) {
+          const user = post.author;
+          const settings = user.profileSettings;
+          let about = user.about as any;
+
+          const filteredProfile: any = buildFilteredProfile(
+            user,
+            about,
+            settings
+          );
+          (post as any).author = filteredProfile;
         }
 
         (post as any).canComment = canComment;

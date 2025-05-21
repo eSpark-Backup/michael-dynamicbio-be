@@ -40,6 +40,95 @@ export const praseMedia = (obj: any) => {
   }
 };
 
+export function buildFilteredProfile(
+  user: any,
+  about: any,
+  settings: any,
+
+) {
+  // 1️⃣ Normalize all possible arrays up front
+  const exps = Array.isArray(about?.experience) ? about.experience : [];
+  const edus = Array.isArray(about?.education) ? about.education : [];
+  const certs = Array.isArray(about?.certifications)
+    ? about.certifications
+    : [];
+  const projects = Array.isArray(about?.projects) ? about.projects : [];
+  const langs = Array.isArray(about?.languages) ? about.languages : [];
+  const skills = Array.isArray(about?.skills) ? about.skills : [];
+
+  // 2️⃣ Build your profile object
+  const filteredProfile: any = {
+
+    firstName: user.firstName,
+    phoneNumber: user.phoneNumber,
+    showConnections: settings.showConnections,
+    //split the lkastnaem and use first alphabet only
+    lastName: user.lastName
+      ? settings.showLastName
+        ? // Full, capitalized
+          user.lastName.charAt(0).toUpperCase() + user.lastName.slice(1)
+        : // Only initial, capitalized
+          user.lastName.charAt(0).toUpperCase() + "."
+      : "",
+    ...(settings?.showEmail && { email: user.email }),
+    ...(settings?.showProfilePhoto && {
+      profileImage: user.profileImage,
+      coverImage: user.coverImage,
+    }),
+    ...(settings?.showHeadline && { designation: user.designation }),
+    ...(settings?.showOrganizationsAndInterests && {
+      company: user.company,
+      industry: user.industry,
+    }),
+    city: user.city,
+    country: user.country,
+    about: {
+      ...(settings?.showSummary && { bio: about?.bio }),
+
+      // Current experience (always safe even if exps is empty)
+      ...(settings?.showCurrentExperience && {
+        currentExperience: exps
+          .filter((exp: { currently: any }) => exp.currently)
+          .map((exp: { title: any }) =>
+            settings?.showCurrentExperienceDetails ? exp : { title: exp.title }
+          ),
+      }),
+
+      // Past experience (safe on empty too)
+      ...(settings?.showPastExperience && {
+        pastExperience: exps
+          .filter((exp: { currently: any }) => !exp.currently)
+          .map((exp: { title: any }) =>
+            settings?.showPastExperienceDetails ? exp : { title: exp.title }
+          ),
+      }),
+
+      // Education
+      ...(settings?.showEducation && {
+        education: edus.map((edu: { school: any }) =>
+          settings?.showEducationDetails ? edu : { school: edu.school }
+        ),
+      }),
+
+      // Certifications
+      ...(settings?.showCertifications && { certifications: certs }),
+
+      // Projects
+      ...(settings?.showProjects && { projects: projects }),
+
+      // Languages
+      ...(settings?.showLanguages && { languages: langs }),
+
+      // Skills
+      ...(settings?.showSkills && { skills: skills }),
+
+      ...(settings?.pageVisitVisibility && {}),
+    },
+  };
+
+  return filteredProfile;
+}
+
 export function calculatePricing(
   pricing: PricingTerm[],
   dateRangeInDays: number
@@ -147,7 +236,7 @@ export const getTime = (
 };
 
 export const generateToken = (
-  payload: {userId: string,newEmail:string },
+  payload: { userId: string; newEmail: string },
   expiresIn: string = "1h"
 ) => {
   // Handle expiration time
@@ -169,7 +258,13 @@ export const generateToken = (
   return payloadWithExpiration;
 };
 export const generateTokenForRegistration = (
-  payload: {email: string,password:string,firstName:string,lastName:string ,about:object},
+  payload: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    about: object;
+  },
   expiresIn: string = "1h"
 ) => {
   // Handle expiration time
@@ -187,7 +282,7 @@ export const generateTokenForRegistration = (
     password: payload.password,
     firstName: payload.firstName,
     lastName: payload.lastName,
-    about:payload.about,
+    about: payload.about,
     expiresAt: expirationDate.toISOString(), // Add expiration time to the payload
   };
 
@@ -226,9 +321,10 @@ const convertToMilliseconds = (expiresIn: string) => {
   }
 };
 
-
 export const generateShareableLink = (
-  entity: { id: string; type: string, typeName: string } | { id: string; type: string, typeName: string }[]
+  entity:
+    | { id: string; type: string; typeName: string }
+    | { id: string; type: string; typeName: string }[]
 ) => {
   const entitiesArray = Array.isArray(entity) ? entity : [entity];
   const jsonString = JSON.stringify(entitiesArray);
@@ -238,8 +334,9 @@ export const generateShareableLink = (
   ).toString();
   const encoded = encodeURIComponent(encrypted);
   const firstEntity = entitiesArray[0];
-  const sanitizedTypeName = firstEntity.typeName.replace(/\s+/g, "-").toLowerCase();
-
+  const sanitizedTypeName = firstEntity.typeName
+    .replace(/\s+/g, "-")
+    .toLowerCase();
 
   if (entitiesArray.some((e) => e.type === "post")) {
     return `https://fusion-stg.esparkconsultants.com/post/${sanitizedTypeName}/share?data=${encoded}`;
