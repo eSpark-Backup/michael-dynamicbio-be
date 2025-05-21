@@ -1665,6 +1665,7 @@ export class UserController {
       followedPageCount: followedPageCount,
       firstName: user.firstName,
       phoneNumber: user.phoneNumber,
+      showConnections: settings.showConnections,
       //split the lkastnaem and use first alphabet only
       lastName: user.lastName
         ? settings.showLastName
