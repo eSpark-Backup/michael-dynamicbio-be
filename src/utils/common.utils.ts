@@ -40,12 +40,7 @@ export const praseMedia = (obj: any) => {
   }
 };
 
-export function buildFilteredProfile(
-  user: any,
-  about: any,
-  settings: any,
-
-) {
+export function buildFilteredProfile(user: any, about: any, settings: any) {
   // 1️⃣ Normalize all possible arrays up front
   const exps = Array.isArray(about?.experience) ? about.experience : [];
   const edus = Array.isArray(about?.education) ? about.education : [];
@@ -60,7 +55,7 @@ export function buildFilteredProfile(
   const filteredProfile: any = {
     id: user.id,
     createdAt: user.createdAt,
-    
+
     firstName: user.firstName,
     phoneNumber: user.phoneNumber,
     showConnections: settings.showConnections,

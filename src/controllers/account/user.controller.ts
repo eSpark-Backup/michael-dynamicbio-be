@@ -2092,10 +2092,20 @@ export class UserController {
                         bondedUserIds,
                       });
                   })
+                )
+                .orWhere(
+                  new Brackets((groupQb) => {
+                    groupQb
+                      .where("post.visibility = :groups", {
+                        groups: PostVisibility.GROUPS,
+                      })
+                      .andWhere("groupFollower.id = :userId", { userId });
+                  })
                 );
             })
           )
           .leftJoinAndSelect("post.author", "author")
+          .leftJoinAndSelect("author.profileSettings", "profileSettings")
           .leftJoinAndSelect("post.likes", "like")
           .leftJoinAndSelect("like.user", "likeUser")
           .leftJoinAndSelect("like.user", "lastLikedUser")
@@ -2105,6 +2115,14 @@ export class UserController {
           .leftJoinAndSelect("post.page", "page")
           .leftJoinAndSelect("comment.user", "commentUser")
           .leftJoinAndSelect("page.followers", "follower")
+          .leftJoinAndSelect("post.group", "group")
+          .leftJoinAndSelect("group.followers", "groupFollower")
+          .leftJoinAndSelect("group.admins", "groupAdmin")
+          .leftJoinAndSelect("groupAdmin.admin", "adminUser")
+          .leftJoinAndSelect("post.groupPostRequests", "request")
+          .andWhere("(post.group IS NULL OR request.status = :status)", {
+            status: PostRequestStatus.APPROVED,
+          })
 
           .select([
             "post",
@@ -2128,6 +2146,11 @@ export class UserController {
             "comment",
             "page",
             "follower",
+            "group",
+            "groupFollower",
+            "groupAdmin",
+            "adminUser",
+            "profileSettings",
           ])
           .addOrderBy("like.createdAt", "DESC")
           .getOne();
@@ -2153,6 +2176,12 @@ export class UserController {
             canComment = userId === postAuthorId;
             break;
 
+          case COMMENT_VISIBILITY.GROUPS:
+            canComment = singlePost.group?.followers.some(
+              (follower) => follower.id === userId
+            );
+            break;
+
           default:
             canComment = false;
             break;
@@ -2160,6 +2189,18 @@ export class UserController {
 
         (singlePost as any).canComment = canComment;
 
+        if (singlePost.author.profileSettings) {
+          const user = singlePost.author;
+          const settings = user.profileSettings;
+          let about = user.about as any;
+
+          const filteredProfile: any = buildFilteredProfile(
+            user,
+            about,
+            settings
+          );
+          (singlePost as any).author = filteredProfile;
+        }
         praseMedia(singlePost);
         (singlePost as any).likesCount = singlePost.likes.length;
         (singlePost as any).commentsCount = singlePost.comments.length;
@@ -2252,6 +2293,23 @@ export class UserController {
 
           (like as any).isBond = !!bond; // true if bond exists, false otherwise
         }
+        if (singlePost.group) {
+          const isFollowing = singlePost.group.followers.some(
+            (follower) => follower.id === userId
+          );
+          (singlePost as any).isAdmin = singlePost.group?.admins.some(
+            (groupAdmin) => groupAdmin.admin.id === userId
+          );
+          (singlePost as any).isCreator =
+            singlePost.group?.creatorId === userId;
+          (singlePost as any).isGroupFollowing = isFollowing;
+
+          (singlePost as any).groupFollowerCount =
+            singlePost.group.followers.length;
+
+          delete singlePost.group.followers;
+        }
+
         ((singlePost as any).shareableLink = generateShareableLink({
           id: singlePost.id,
           type: "post",
@@ -2270,6 +2328,7 @@ export class UserController {
           .where("post.author = :userId", { userId: profileId })
           .andWhere("post.status= :status", { status: PostStatus.PUBLISH })
           .leftJoinAndSelect("post.author", "author")
+          .leftJoinAndSelect("author.profileSettings", "profileSettings")
           .leftJoinAndSelect("post.likes", "like")
           .leftJoinAndSelect("like.user", "likedUser")
           .leftJoinAndSelect("like.user", "lastLikedUser")
@@ -2279,6 +2338,14 @@ export class UserController {
           .leftJoinAndSelect("comment.user", "commentUser")
           .leftJoinAndSelect("post.page", "page")
           .leftJoinAndSelect("page.followers", "follower")
+          .leftJoinAndSelect("post.group", "group")
+          .leftJoinAndSelect("group.followers", "groupFollower")
+          .leftJoinAndSelect("group.admins", "groupAdmin")
+          .leftJoinAndSelect("groupAdmin.admin", "adminUser")
+          .leftJoinAndSelect("post.groupPostRequests", "request")
+          // .andWhere("(post.group IS NULL OR request.status = :status)", {
+          //   status: PostRequestStatus.APPROVED,
+          // })
           .select([
             "post",
             "author",
@@ -2298,6 +2365,12 @@ export class UserController {
             "comment",
             "page",
             "follower",
+            "group",
+            "groupFollower",
+            "groupAdmin",
+            "adminUser",
+            "profileSettings",
+            "request",
           ])
           .orderBy("post.createdAt", "DESC")
           .addOrderBy("like.createdAt", "DESC")
@@ -2312,6 +2385,11 @@ export class UserController {
 
         // Process each post
         for (const post of posts) {
+          if (post.groupPostRequests) {
+            post.groupPostRequests = post.groupPostRequests.filter(
+              (request) => request.status === PostRequestStatus.APPROVED
+            );
+          }
           praseMedia(post);
 
           let canComment = false;
@@ -2330,9 +2408,27 @@ export class UserController {
               canComment = userId === postAuthorId;
               break;
 
+            case COMMENT_VISIBILITY.GROUPS:
+              canComment = post.group?.followers.some(
+                (follower) => follower.id === userId
+              );
+              break;
+
             default:
               canComment = false;
               break;
+          }
+          if (post.author.profileSettings) {
+            const user = post.author;
+            const settings = user.profileSettings;
+            let about = user.about as any;
+
+            const filteredProfile: any = buildFilteredProfile(
+              user,
+              about,
+              settings
+            );
+            (post as any).author = filteredProfile;
           }
 
           (post as any).canComment = canComment;
@@ -2375,6 +2471,20 @@ export class UserController {
             (post as any).pageFollowerCount = post.page.followers.length;
 
             delete post.page.followers;
+          }
+
+          if (post.group) {
+            const isFollowing = post.group.followers.some(
+              (follower) => follower.id === userId
+            );
+            (post as any).isGroupFollowing = isFollowing;
+
+            (post as any).groupFollowerCount = post.group.followers.length;
+            (post as any).isAdmin = post.group.admins.some(
+              (admin) => admin.admin.id === userId
+            );
+            (post as any).isCreator = post.group.creatorId === userId;
+            delete post.group.followers;
           }
 
           for (const like of post.likes) {

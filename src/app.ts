@@ -171,7 +171,7 @@ AppDataSource.initialize()
           }
         }
 
-        onlineUsers.delete(user._id.toString());
+        // onlineUsers.delete(user._id.toString());
         socket.broadcast.emit(ONLINE_USERS, Array.from(onlineUsers));
       });
     });
