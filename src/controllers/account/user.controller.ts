@@ -880,17 +880,56 @@ export class UserController {
 
       let { password: _, ...userProfile } = user as User & {
         bondCount?: number;
+        groupCount?: number;
+        pageCount?: number;
+        postCount?: number;
+        followedGroupCount?: number;
+        followedPageCount?: number;
+
       };
-      const count = await this.bondsRepo
-        .createQueryBuilder("bond")
-        .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
-          userId,
-        })
-        .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
-        .getCount();
+       const [count, groupCount, pageCount, postCount,followedGroupCount,followedPageCount] = await Promise.all([
+        this.bondsRepo
+          .createQueryBuilder("bond")
+          .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+            userId,
+          })
+          .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
+          .getCount(),
+        this.groupRepo
+          .createQueryBuilder("group")
+          .where("group.creatorId = :userId", { userId })
+          .getCount(),
+
+        this.pageRepo
+          .createQueryBuilder("page")
+          .where("page.creatorId = :userId", { userId })
+          .getCount(),
+
+        this.postsRepo
+          .createQueryBuilder("post")
+          .where("post.authorId = :userId", { userId })
+          .getCount(),
+      //get the count of groups which user is follower
+        this.groupRepo
+        .createQueryBuilder("group")
+        .leftJoinAndSelect("group.followers", "follower")
+        .where("follower.id = :userId", { userId })
+        .getCount(),
+      //get the count of pages which user is follower
+        this.pageRepo
+          .createQueryBuilder("page")
+          .leftJoinAndSelect("page.followers", "follower")
+          .where("follower.id = :userId", { userId })
+          .getCount(),
+      ]);
 
       const bondCount = count || 0;
       userProfile.bondCount = bondCount;
+      userProfile.groupCount = groupCount || 0;
+      userProfile.pageCount = pageCount || 0;
+      userProfile.postCount = postCount || 0;
+      userProfile.followedGroupCount = followedGroupCount || 0;
+      userProfile.followedPageCount = followedPageCount || 0;
       res
         .status(HTTP_STATUS.OK)
         .json(
