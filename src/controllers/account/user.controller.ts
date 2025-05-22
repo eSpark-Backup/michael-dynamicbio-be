@@ -20,7 +20,7 @@ import {
 } from "../../entity";
 
 import { ApiError } from "../../errors";
-import { Brackets, Repository } from "typeorm";
+import { Brackets, In, Repository } from "typeorm";
 import {
   buildFilteredProfile,
   cookieOptions,
@@ -1530,21 +1530,31 @@ export class UserController {
             where: [
               {
                 requester: { id: loggedInUserId },
-                status: BondStatus.ACCEPTED,
+                status: In([BondStatus.ACCEPTED, BondStatus.PENDING]),
               },
               {
                 recipient: { id: loggedInUserId },
-                status: BondStatus.ACCEPTED,
+                status: In([BondStatus.ACCEPTED, BondStatus.PENDING]),
               },
             ],
             relations: ["requester", "recipient"],
           });
 
-          const mutualUserIds = mutualBonds.map((bond) => {
-            return bond.requester.id === loggedInUserId
-              ? bond.recipient.id
-              : bond.requester.id;
-          });
+          const acceptedMutualUserIds: string[] = [];
+          const pendingMutualUserIds: string[] = [];
+
+          for (const bond of mutualBonds) {
+            const otherUserId =
+              bond.requester.id === loggedInUserId
+                ? bond.recipient.id
+                : bond.requester.id;
+
+            if (bond.status === BondStatus.ACCEPTED) {
+              acceptedMutualUserIds.push(otherUserId);
+            } else if (bond.status === BondStatus.PENDING) {
+              pendingMutualUserIds.push(otherUserId);
+            }
+          }
 
           const formattedBonds = bonds.map((bond) => {
             const otherUser =
@@ -1555,8 +1565,8 @@ export class UserController {
             return {
               bondId: bond.id,
               status: bond.status,
-              isPending: bond.status === BondStatus.PENDING,
-              isMutual: mutualUserIds.includes(otherUser.id), // Check if this user is in the mutual bonds
+              isPending:pendingMutualUserIds.includes(otherUser.id), // Check if this user is in the pending bonds
+              isMutual: acceptedMutualUserIds.includes(otherUser.id), // Check if this user is in the mutual bonds
               otherUser: {
                 id: otherUser.id,
                 firstName: otherUser.firstName,
