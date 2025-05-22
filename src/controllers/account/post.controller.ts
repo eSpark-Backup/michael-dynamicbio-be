@@ -961,8 +961,8 @@ export class PostController {
           .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
           .leftJoinAndSelect("post.comments", "comment")
           .leftJoinAndSelect("comment.user", "commentUser")
-          // .leftJoinAndSelect("post.page", "page")
-          // .leftJoinAndSelect("page.followers", "follower")
+          .leftJoinAndSelect("post.page", "page")
+          .leftJoinAndSelect("page.followers", "follower")
           .leftJoinAndSelect("post.group", "group")
           .leftJoinAndSelect("group.followers", "groupFollower")
           .leftJoinAndSelect("post.groupPostRequests", "request")
@@ -986,8 +986,8 @@ export class PostController {
             "pollVotes.optionIndex",
             "pollVotes.userId",
             "comment",
-            // "page",
-            // "follower",
+            "page",
+            "follower",
             "group",
             "groupFollower",
           ])
@@ -1053,16 +1053,16 @@ export class PostController {
           (post as any).lastLikedUser = lastLike
             ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
             : null;
-          // if (post.page) {
-          //   const isFollowing = post.page.followers.some(
-          //     (follower) => follower.id === userId
-          //   );
-          //   (post as any).isPageFollowing = isFollowing;
+          if (post.page) {
+            const isFollowing = post.page.followers.some(
+              (follower) => follower.id === userId
+            );
+            (post as any).isPageFollowing = isFollowing;
 
-          //   (post as any).pageFollowerCount = post.page.followers.length;
+            (post as any).pageFollowerCount = post.page.followers.length;
 
-          //   delete post.page.followers;
-          // }
+            delete post.page.followers;
+          }
           if (post.group) {
             const isFollowing = post.group.followers.some(
               (follower) => follower.id === userId
