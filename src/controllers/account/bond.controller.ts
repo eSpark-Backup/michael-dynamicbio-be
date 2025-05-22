@@ -306,6 +306,7 @@ export class BondController {
           "requester.country",
           "requester.about",
           "requester.city",
+          "requester.userChatId",
           "recipient.id",
           "recipient.firstName",
           "recipient.lastName",
@@ -317,6 +318,7 @@ export class BondController {
           "recipient.country",
           "recipient.about",
           "recipient.city",
+          "recipient.userChatId",
         ])
         .skip(skip || (page - 1) * pageSize)
         .take(pageSize)

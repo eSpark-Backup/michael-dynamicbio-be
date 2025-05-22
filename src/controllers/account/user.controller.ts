@@ -40,7 +40,7 @@ import {
   POST_STATUS,
 } from "../../constants";
 import jwt from "jsonwebtoken";
-import { UserForChat } from "../../models";
+import { Chat, UserForChat } from "../../models";
 
 import bcrypt from "bcryptjs";
 import {
@@ -70,7 +70,8 @@ export class UserController {
     private pollVoteRepo: Repository<PollVote>,
     private pageRepo: Repository<Page>,
     private groupRepo: Repository<Group>,
-    private readonly profileSettingsRepo: Repository<ProfileSettings>
+    private readonly profileSettingsRepo: Repository<ProfileSettings>,
+    private chatModel: typeof Chat
   ) {}
 
   async verifyTokenAPI(
@@ -2598,6 +2599,8 @@ export class UserController {
         bond.requester.id === loggedInUserId ? bond.recipient : bond.requester
       );
 
+      const chats = await Chat.find({ members: req.user._id });
+
       const birthdays = [];
       const anniversaries = [];
       const jobChanges = [];
@@ -2624,6 +2627,10 @@ export class UserController {
           if (startDate >= thirtyDaysAgo && startDate <= currentDate) {
             educationChanges.push({
               id: user.id,
+              userChatId: user.userChatId,
+              chatId: chats.find((chat) =>
+                chat.members.includes(user.userChatId)
+              )?._id,
               firstName: user.firstName,
               lastName: user.lastName,
               profileImage: user.profileImage,
@@ -2636,6 +2643,10 @@ export class UserController {
           if (endDate >= thirtyDaysAgo && endDate <= currentDate) {
             educationChanges.push({
               id: user.id,
+              userChatId: user.userChatId,
+              chatId: chats.find((chat) =>
+                chat.members.includes(user.userChatId)
+              )?._id,
               firstName: user.firstName,
               lastName: user.lastName,
               profileImage: user.profileImage,
@@ -2656,6 +2667,11 @@ export class UserController {
           if (past30Days.has(dobKey)) {
             birthdays.push({
               id: user.id,
+              userChatId: user.userChatId,
+              chatId: chats.find((chat) =>
+                chat.members.includes(user.userChatId)
+              )?._id,
+
               firstName: user.firstName,
               lastName: user.lastName,
               profileImage: user.profileImage,
@@ -2682,6 +2698,11 @@ export class UserController {
             ) {
               anniversaries.push({
                 id: user.id,
+
+                userChatId: user.userChatId,
+                chatId: chats.find((chat) =>
+                  chat.members.includes(user.userChatId)
+                )?._id,
                 firstName: user.firstName,
                 lastName: user.lastName,
                 profileImage: user.profileImage,
@@ -2702,6 +2723,10 @@ export class UserController {
             if (startDate >= thirtyDaysAgo && startDate <= currentDate) {
               jobChanges.push({
                 id: user.id,
+                userChatId: user.userChatId,
+                chatId: chats.find((chat) =>
+                  chat.members.includes(user.userChatId)
+                )?._id,
                 firstName: user.firstName,
                 lastName: user.lastName,
                 profileImage: user.profileImage,

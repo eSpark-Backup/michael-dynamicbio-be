@@ -13,7 +13,7 @@ import {
   setPagination,
   validateRoles,
 } from "../../middleware";
-import { Notification } from "../../models";
+import { Notification,Chat } from "../../models";
 import { FILE_FIELDS, ROLES } from "../../constants";
 import { parseJsonFields } from "../../utils";
 
@@ -35,7 +35,8 @@ const userController = new UserController(
   pollVoteRepository,
   pageRepository,
   groupRepository,
-  profileSettings
+  profileSettings,
+  Chat
 
 );
 
