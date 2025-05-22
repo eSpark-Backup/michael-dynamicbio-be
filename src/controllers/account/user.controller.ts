@@ -1931,6 +1931,7 @@ export class UserController {
           "post.likes",
           "post.likes.user",
           "post.author",
+          "post.author.profileSettings",
           "post.poll",
           "post.poll.votes",
           "post.page",
@@ -1953,6 +1954,18 @@ export class UserController {
         const post = saved.post;
 
         praseMedia(post);
+          if (post.author.profileSettings) {
+          const user = post.author;
+          const settings = user.profileSettings;
+          let about = user.about as any;
+
+          const filteredProfile: any = buildFilteredProfile(
+            user,
+            about,
+            settings
+          );
+          (post as any).author = filteredProfile;
+        }
 
         (post as any).shareableLink = generateShareableLink({
           id: post.id,
