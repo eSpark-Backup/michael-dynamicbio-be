@@ -133,14 +133,14 @@ AppDataSource.initialize()
       socket.on(START_TYPING, ({ members, chatId }) => {
         const membersSocket = getSockets(members);
         if ((membersSocket as any).length > 0) {
-          socket.to(membersSocket).emit(START_TYPING, { chatId });
+          socket.to(membersSocket).emit(START_TYPING, { chatId,userId });
         }
       });
 
       socket.on(STOP_TYPING, ({ members, chatId }) => {
         const membersSocket = getSockets(members);
         if ((membersSocket as any).length > 0) {
-          socket.to(membersSocket).emit(STOP_TYPING, { chatId });
+          socket.to(membersSocket).emit(STOP_TYPING, { chatId,userId });
         }
       });
 

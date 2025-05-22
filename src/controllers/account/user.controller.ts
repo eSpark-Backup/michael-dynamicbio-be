@@ -1559,6 +1559,7 @@ export class UserController {
                 id: otherUser.id,
                 firstName: otherUser.firstName,
                 lastName: otherUser.lastName,
+                bio: otherUser.about,
                 email: otherUser.email,
                 profileImage: otherUser.profileImage,
                 coverImage: otherUser.coverImage,
