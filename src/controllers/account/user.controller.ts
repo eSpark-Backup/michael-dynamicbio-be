@@ -1540,8 +1540,8 @@ export class UserController {
             relations: ["requester", "recipient"],
           });
 
-          const acceptedMutualUserIds: string[] = [];
-          const pendingMutualUserIds: string[] = [];
+          const acceptedMutualMap: Record<string, string> = {};
+          const pendingMutualMap: Record<string, string> = {};
 
           for (const bond of mutualBonds) {
             const otherUserId =
@@ -1550,9 +1550,9 @@ export class UserController {
                 : bond.requester.id;
 
             if (bond.status === BondStatus.ACCEPTED) {
-              acceptedMutualUserIds.push(otherUserId);
+              acceptedMutualMap[otherUserId] = bond.id;
             } else if (bond.status === BondStatus.PENDING) {
-              pendingMutualUserIds.push(otherUserId);
+              pendingMutualMap[otherUserId] = bond.id;
             }
           }
 
@@ -1561,12 +1561,15 @@ export class UserController {
               bond.requester.id === targetUserId
                 ? bond.recipient
                 : bond.requester;
+            const otherUserId = otherUser.id;
 
             return {
-              bondId: bond.id,
-              status: bond.status,
-              isPending:pendingMutualUserIds.includes(otherUser.id), // Check if this user is in the pending bonds
-              isMutual: acceptedMutualUserIds.includes(otherUser.id), // Check if this user is in the mutual bonds
+              // bondId: bond.id,
+              // status: bond.status,
+              mutualBondId: acceptedMutualMap[otherUserId] || null,
+              pendingBondId: pendingMutualMap[otherUserId] || null,
+              isPending: !!pendingMutualMap[otherUserId],
+              isMutual: !!acceptedMutualMap[otherUserId],
               otherUser: {
                 id: otherUser.id,
                 firstName: otherUser.firstName,
