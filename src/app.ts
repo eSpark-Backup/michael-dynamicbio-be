@@ -117,6 +117,7 @@ AppDataSource.initialize()
           io.of("/socket").to(membersSocket).emit(NEW_MESSAGE, {
             chatId,
             message: messageForRealTime,
+            members,
           });
           console.log("membersSocket", membersSocket);
           io.of("/socket")
