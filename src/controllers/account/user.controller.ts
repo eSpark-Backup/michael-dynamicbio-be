@@ -1555,6 +1555,7 @@ export class UserController {
             return {
               bondId: bond.id,
               status: bond.status,
+              isPending: bond.status === BondStatus.PENDING,
               isMutual: mutualUserIds.includes(otherUser.id), // Check if this user is in the mutual bonds
               otherUser: {
                 id: otherUser.id,
