@@ -4,7 +4,14 @@ import {
   setPagination,
   validateRoles,
 } from "../../middleware";
-import { User, Group, GroupJoinRequest, GroupPostRequest, GroupAdmin } from "../../entity";
+import {
+  User,
+  Group,
+  GroupJoinRequest,
+  GroupPostRequest,
+  GroupAdmin,
+  Post,
+} from "../../entity";
 import { AppDataSource } from "../../typeorm.config";
 import { Router } from "express";
 import { ROLES, FILE_FIELDS } from "../../constants";
@@ -17,13 +24,11 @@ const userRepository = AppDataSource.getRepository(User);
 const groupRepository = AppDataSource.getRepository(Group);
 const groupJoinRequestRepository =
   AppDataSource.getRepository(GroupJoinRequest);
-  const groupPostRequestRepository =
+const groupPostRequestRepository =
   AppDataSource.getRepository(GroupPostRequest);
+const postRepository = AppDataSource.getRepository(Post);
 
-
-    const groupAdminRepository =
-  AppDataSource.getRepository(GroupAdmin);
-
+const groupAdminRepository = AppDataSource.getRepository(GroupAdmin);
 
 const groupController = new GroupController(
   userRepository,
@@ -31,7 +36,8 @@ const groupController = new GroupController(
   Notification,
   groupJoinRequestRepository,
   groupPostRequestRepository,
-  groupAdminRepository
+  groupAdminRepository,
+  postRepository
 );
 
 /**
@@ -300,7 +306,6 @@ router.get("/:id", checkJwt, validateRoles([ROLES.USER]), (req, res, next) =>
   groupController.getGroupById(req, res, next)
 );
 
-
 /**
  * @swagger
  * /group:
@@ -401,7 +406,6 @@ router.post(
   (req, res, next) => groupController.followGroup(req, res, next)
 );
 
-
 /**
  * @swagger
  * /group/request/approve/{requestId}:
@@ -454,14 +458,12 @@ router.post(
  *         description: Server error
  */
 
-
 router.post(
   "/request/approve/:requestId",
   checkJwt,
   validateRoles([ROLES.USER]),
   (req, res, next) => groupController.approveGroupJoinRequest(req, res, next)
 );
-
 
 /**
  * @swagger
@@ -535,11 +537,8 @@ router.get(
   "/request/pending/:groupId",
   checkJwt,
   validateRoles([ROLES.USER]),
-  (req, res, next) =>
-    groupController.getPendingRequests(req, res, next)
+  (req, res, next) => groupController.getPendingRequests(req, res, next)
 );
-
-
 
 /**
  * @swagger
@@ -577,7 +576,6 @@ router.get(
   setPagination,
   (req, res, next) => groupController.getFollowedGroups(req, res, next)
 );
-
 
 /**
  * @swagger
@@ -631,10 +629,8 @@ router.get(
   "/:groupId/posts/pending",
   checkJwt,
   validateRoles([ROLES.USER]),
-  (req, res, next) =>
-    groupController.fetchAllPendingPosts(req, res, next)
+  (req, res, next) => groupController.fetchAllPendingPosts(req, res, next)
 );
-
 
 /**
  * @swagger
@@ -697,10 +693,8 @@ router.patch(
   "/posts/:requestId/action",
   checkJwt,
   validateRoles([ROLES.USER]),
-  (req, res, next) =>
-    groupController.approveOrRejectPost(req, res, next)
+  (req, res, next) => groupController.approveOrRejectPost(req, res, next)
 );
-
 
 /**
  * @swagger
@@ -800,7 +794,6 @@ router.delete(
   (req, res, next) => groupController.removeAdmin(req, res, next)
 );
 
-
 /**
  * @swagger
  * /group/sent/request:
@@ -858,9 +851,5 @@ router.get(
   validateRoles([ROLES.USER]),
   (req, res, next) => groupController.getFollowRequestedGroups(req, res, next)
 );
-
-
-
-
 
 export { router };

@@ -7,6 +7,11 @@ import {
   GroupPostRequest,
   PostRequestStatus,
   GroupAdmin,
+  Post,
+  GroupStatus,
+  PostStatus,
+  PostVisibility,
+  COMMENT_VISIBILITY,
 } from "../../entity";
 import { Repository } from "typeorm";
 import { NextFunction, Response } from "express";
@@ -14,7 +19,12 @@ import { NextFunction, Response } from "express";
 import fs from "fs";
 import path from "path";
 import { ApiError } from "../../errors";
-import { CLOUD_FOLDERS, GROUP_REQUEST_UPDATED, HTTP_STATUS, NEW_GROUP_REQUEST } from "../../constants";
+import {
+  CLOUD_FOLDERS,
+  GROUP_REQUEST_UPDATED,
+  HTTP_STATUS,
+  NEW_GROUP_REQUEST,
+} from "../../constants";
 import { commonHelper } from "../../helpers";
 import {
   emitEvent,
@@ -32,7 +42,8 @@ export class GroupController {
     private notificationModel: typeof Notification,
     private groupJoinRequestRepo: Repository<GroupJoinRequest>,
     private groupPostRequestRepo: Repository<GroupPostRequest>,
-    private groupAdminRepo: Repository<GroupAdmin>
+    private groupAdminRepo: Repository<GroupAdmin>,
+    private postRepo: Repository<Post>
   ) {}
 
   async createGroup(
@@ -258,7 +269,27 @@ export class GroupController {
       }
 
       if (name) group.name = name;
-      if (status) group.status = status;
+      if (status) {
+        group.status = status;
+        const groupPost = await this.postRepo
+          .createQueryBuilder("post")
+          .where("post.groupId = :groupId", { groupId: group.id })
+          .getMany();
+
+        const savePromises = groupPost.map((post) => {
+          if (status == GroupStatus.PRIVATE) {
+            post.visibility = PostVisibility.GROUPS;
+            post.commentVisibility = COMMENT_VISIBILITY.GROUPS;
+          } else {
+            post.visibility = PostVisibility.PUBLIC;
+            post.commentVisibility = COMMENT_VISIBILITY.PUBLIC;
+          }
+          return this.postRepo.save(post);
+        });
+
+        await Promise.all(savePromises); 
+      }
+
       if (address) group.address = address;
       if (industry) group.industry = industry;
       if (description) group.description = description;
