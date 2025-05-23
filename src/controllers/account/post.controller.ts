@@ -267,6 +267,12 @@ export class PostController {
               type: "group_post_request",
               message: `${user.firstName} ${user.lastName} has requested to post in ${group.name}`,
               link: `/groups/${groupPost.id}/post-requests`,
+              metaData:{
+                postId: groupPost.id,
+                groupId: group.id,
+                userId: user.id,
+                image:group.logoUrl
+              }
             };
 
             const members = [groupAdmin.admin.userChatId];

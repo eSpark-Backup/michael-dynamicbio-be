@@ -709,6 +709,12 @@ export class GroupController {
             type: "group_join_request",
             message: `${user.firstName} ${user.lastName} has requested to join the group ${group.name}`,
             link: `/groups/${id}/join-requests`,
+            metaData: {
+              image: user.profileImage,
+              groupId: group.id,
+              userId:user.id,
+              groupName: group.name,
+            },
           };
 
           const members = [groupAdmin.admin.userChatId];
@@ -820,6 +826,11 @@ export class GroupController {
           type: "info",
           message: `Your request to join the group ${request.group.name} has been approved.`,
           link: `/groups/${request.group.id}`,
+          metaData:{
+            image: request.group.logoUrl,
+            groupId: request.group.id,
+            groupName: request.group.name,
+          }
         };
         const members = [request.user.userChatId];
         await Promise.all([
@@ -837,6 +848,11 @@ export class GroupController {
           type: "info",
           message: `Your request to join the group ${request.group.name} has been rejected.`,
           link: `/groups/${request.group.id}`,
+          metaData:{
+            image: request.group.logoUrl,
+            groupId: request.group.id,
+            groupName: request.group.name,
+          }
         };
         const members = [request.user.userChatId];
         await Promise.all([
@@ -1034,6 +1050,7 @@ export class GroupController {
           message: `Your request to post in the group ${groupPostRequest.group.name} has been approved.`,
           link: `/groups/${groupPostRequest.group.id}`,
           metaData: {
+            image: group.logoUrl,
             postId: groupPostRequest.post.id,
             groupId: groupPostRequest.group.id,
           },
@@ -1060,6 +1077,7 @@ export class GroupController {
           message: `Your request to post in the group ${groupPostRequest.group.name} has been rejected.`,
           link: `/groups/${groupPostRequest.group.id}`,
           metaData: {
+            image: group.logoUrl,
             postId: groupPostRequest.post.id,
             groupId: groupPostRequest.group.id,
           },
@@ -1170,6 +1188,7 @@ export class GroupController {
           type: "info",
           metadata: {
             groupId: group.id,
+            image: group.logoUrl,
           },
         });
       } catch (error) {
@@ -1294,6 +1313,7 @@ export class GroupController {
             type: "info",
             metadata: {
               groupId: group.id,
+              image: group.logoUrl,
             },
           });
         } catch (error) {

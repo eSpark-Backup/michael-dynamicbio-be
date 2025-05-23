@@ -5,6 +5,9 @@ import {
   getMessages,
   getMyChats,
   sendAttachments,
+  addMembers,
+  newGroupChat,
+  removeMember,
 } from "../../controllers";
 import { atachmentsMulter, isAuthenticated } from "../../middleware";
 import {
@@ -138,6 +141,121 @@ router.post(
  *         description: Server error.
  */
 router.get("/message/:id", chatIdValidator(), validateHandler, getMessages);
+
+
+/**
+ * @swagger
+ * /chat/group/create:
+ *   post:
+ *     summary: Create a new group chat
+ *     description: Create a new group chat with given members and creator.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Chat
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "My Awesome Group"
+ *               members:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["userId1", "userId2"]
+ *     responses:
+ *       201:
+ *         description: Group chat created successfully.
+ *       400:
+ *         description: Bad request or missing fields.
+ *       500:
+ *         description: Server error.
+ */
+router.post("/group/create", newGroupChat);
+
+/**
+ * @swagger
+ * /chat/group/member/add:
+ *   put:
+ *     summary: Add members to a group chat
+ *     description: Only the group creator can add members to the group chat.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Chat
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               chatId:
+ *                 type: string
+ *               members:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *             example:
+ *               chatId: "abc123"
+ *               members: ["user123", "user456"]
+ *     responses:
+ *       200:
+ *         description: Members added successfully.
+ *       400:
+ *         description: Invalid input or limit reached.
+ *       403:
+ *         description: Not authorized to add members.
+ *       404:
+ *         description: Chat not found.
+ */
+router.put("/group/member/add", addMembers);
+
+/**
+ * @swagger
+ * /chat/group/member/remove:
+ *   delete:
+ *     summary: Remove a member from a group chat
+ *     description: Only the group creator can remove members from the group chat.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Chat
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               chatId:
+ *                 type: string
+ *               userId:
+ *                 type: string
+ *             example:
+ *               chatId: "abc123"
+ *               userId: "user123"
+ *     responses:
+ *       200:
+ *         description: Member removed successfully.
+ *       400:
+ *         description: Group has minimum number of members or bad input.
+ *       403:
+ *         description: Not authorized to remove members.
+ *       404:
+ *         description: Chat or user not found.
+ */
+router.delete("/group/member/remove", removeMember);
+
+
+
+
+
 
 // Get Chat Details, Rename, Delete
 /**

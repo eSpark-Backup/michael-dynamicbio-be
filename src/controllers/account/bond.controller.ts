@@ -106,6 +106,13 @@ export class BondController {
         requesterId: requester.userChatId,
         requesterProfileImage: requester.profileImage,
         bondStatus: BondStatus.PENDING,
+        metadata: {
+          bondId: bond.id,
+          requesterId: requester.userChatId,
+          requesterName: `${requester.firstName} ${requester.lastName}`,
+          requesterProfileImage: requester.profileImage,
+          bondStatus: BondStatus.PENDING,
+        },
       };
 
       emitEvent(req, NEW_BOND_REQUEST, members, notificationData);

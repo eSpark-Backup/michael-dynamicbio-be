@@ -1,4 +1,4 @@
-export const ALERT = "ALERT";
+export const GROUP_CHAT_ALERT = "GROUP_CHAT_ALERT";
 export const REFETCH_CHATS = "REFETCH_CHATS";
 
 export const NEW_ATTACHMENT = "NEW_ATTACHMENT";
