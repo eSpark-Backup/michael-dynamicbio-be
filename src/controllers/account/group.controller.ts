@@ -287,7 +287,7 @@ export class GroupController {
           return this.postRepo.save(post);
         });
 
-        await Promise.all(savePromises); 
+        await Promise.all(savePromises);
       }
 
       if (address) group.address = address;
@@ -994,7 +994,7 @@ export class GroupController {
 
       const groupPostRequest = await this.groupPostRequestRepo.findOne({
         where: { id: requestId },
-        relations: ["group", "group.admins", "group.creator", "post"],
+        relations: ["group", "group.admins", "group.creator", "post", "user"],
       });
 
       if (!groupPostRequest) {
@@ -1026,6 +1026,23 @@ export class GroupController {
         groupPostRequest.isApproved = true;
         groupPostRequest.rejectionReason = null;
         groupPostRequest.status = PostRequestStatus.APPROVED;
+
+        const notification = {
+          user: groupPostRequest.user.userChatId,
+          title: "Group Post Request Approved",
+          type: "info",
+          message: `Your request to post in the group ${groupPostRequest.group.name} has been approved.`,
+          link: `/groups/${groupPostRequest.group.id}`,
+          metaData: {
+            postId: groupPostRequest.post.id,
+            groupId: groupPostRequest.group.id,
+          },
+        };
+        const members = [groupPostRequest.user.userChatId];
+        await Promise.all([
+          this.notificationModel.create(notification),
+          emitEvent(req, GROUP_REQUEST_UPDATED, members, notification),
+        ]);
       } else if (action === "reject") {
         if (!rejectionReason) {
           throw new ApiError(
@@ -1036,6 +1053,22 @@ export class GroupController {
         groupPostRequest.rejectionReason = rejectionReason;
         groupPostRequest.isApproved = false;
         groupPostRequest.status = PostRequestStatus.REJECTED;
+        const notification = {
+          user: groupPostRequest.user.userChatId,
+          title: "Group Post Request Rejected",
+          type: "info",
+          message: `Your request to post in the group ${groupPostRequest.group.name} has been rejected.`,
+          link: `/groups/${groupPostRequest.group.id}`,
+          metaData: {
+            postId: groupPostRequest.post.id,
+            groupId: groupPostRequest.group.id,
+          },
+        };
+        const members = [groupPostRequest.user.userChatId];
+        await Promise.all([
+          this.notificationModel.create(notification),
+          emitEvent(req, GROUP_REQUEST_UPDATED, members, notification),
+        ]);
       } else {
         throw new ApiError(
           "Invalid action. Must be 'approve' or 'reject'",

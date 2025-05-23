@@ -30,10 +30,15 @@ import { Brackets, Repository } from "typeorm";
 import fs from "fs";
 import path from "path";
 import { ApiError } from "../../errors";
-import { CLOUD_FOLDERS, HTTP_STATUS } from "../../constants";
+import {
+  CLOUD_FOLDERS,
+  HTTP_STATUS,
+  NEW_GROUP_POST_REQUEST,
+} from "../../constants";
 import { commonHelper } from "../../helpers";
 import {
   buildFilteredProfile,
+  emitEvent,
   generateShareableLink,
   handleResponse,
   logger,
@@ -41,6 +46,7 @@ import {
 } from "../../utils";
 import { uploadService } from "../../services";
 import { schedulerService } from "../../services/scheduler.service";
+import { Notification } from "../../models";
 
 export class PostController {
   constructor(
@@ -54,7 +60,8 @@ export class PostController {
     private pollVoteRepo: Repository<PollVote>,
     private savedRepo: Repository<Saved>,
     private groupRepo: Repository<Group>,
-    private groupPostRequestRepo: Repository<GroupPostRequest>
+    private groupPostRequestRepo: Repository<GroupPostRequest>,
+    private notificationModel: typeof Notification
   ) {}
 
   async createPost(
@@ -249,7 +256,27 @@ export class PostController {
           groupPostRequest.isApproved = true;
         }
 
-        await this.groupPostRequestRepo.save(groupPostRequest);
+        const groupPost = await this.groupPostRequestRepo.save(
+          groupPostRequest
+        );
+        if (!isAdmin && !isCreator) {
+          const notificationPromises = group.admins.map(async (groupAdmin) => {
+            const notification = {
+              user: groupAdmin.admin.userChatId,
+              title: "Group Post Request",
+              type: "group_post_request",
+              message: `${user.firstName} ${user.lastName} has requested to post in ${group.name}`,
+              link: `/groups/${groupPost.id}/post-requests`,
+            };
+
+            const members = [groupAdmin.admin.userChatId];
+            emitEvent(req, NEW_GROUP_POST_REQUEST, members, notification);
+
+            await this.notificationModel.create(notification);
+          });
+
+          await Promise.all(notificationPromises);
+        }
 
         post.group = group;
         post.groupId = group.id;
@@ -1889,7 +1916,7 @@ export class PostController {
         .where("post.pageId = :pageId", { pageId })
         .andWhere("post.status = :status", { status: PostStatus.PUBLISH })
         .leftJoinAndSelect("post.author", "author")
-          .leftJoinAndSelect("author.profileSettings", "profileSettings")
+        .leftJoinAndSelect("author.profileSettings", "profileSettings")
         .leftJoinAndSelect("post.likes", "like")
         .leftJoinAndSelect("like.user", "likedUser")
         .leftJoinAndSelect("post.poll", "poll") // Include poll data
@@ -1916,8 +1943,7 @@ export class PostController {
           "follower",
           "poll", // Include poll fields
           "pollVotes",
-            "profileSettings",
-
+          "profileSettings",
         ])
         .orderBy("post.createdAt", "DESC")
         .skip(skipNumber)
@@ -1955,7 +1981,7 @@ export class PostController {
             break;
         }
 
-         if (post.author.profileSettings) {
+        if (post.author.profileSettings) {
           const user = post.author;
           const settings = user.profileSettings;
           let about = user.about as any;

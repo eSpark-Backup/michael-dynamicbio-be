@@ -58,7 +58,8 @@ const postController = new PostController(
   pollVoteRepository,
   savedRepository,
   groupRepository,
-  groupPostRequestRepository
+  groupPostRequestRepository,
+  Notification
 
 );
 
