@@ -268,6 +268,7 @@ export class PostController {
               message: `${user.firstName} ${user.lastName} has requested to post in ${group.name}`,
               link: `/groups/${groupPost.id}/post-requests`,
               metadata:{
+                event:NEW_GROUP_POST_REQUEST,
                 postId: groupPost.id,
                 groupId: group.id,
                 userId: user.id,

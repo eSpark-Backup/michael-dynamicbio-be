@@ -21,6 +21,7 @@ import path from "path";
 import { ApiError } from "../../errors";
 import {
   CLOUD_FOLDERS,
+  GROUP_POST_REQUEST_UPDATED,
   GROUP_REQUEST_UPDATED,
   HTTP_STATUS,
   NEW_GROUP_REQUEST,
@@ -711,6 +712,7 @@ export class GroupController {
             link: `/groups/${id}/join-requests`,
             metadata: {
               image: user.profileImage,
+              event:NEW_GROUP_REQUEST,
               groupId: group.id,
               userId:user.id,
               groupName: group.name,
@@ -827,6 +829,7 @@ export class GroupController {
           message: `Your request to join the group ${request.group.name} has been approved.`,
           link: `/groups/${request.group.id}`,
           metadata:{
+            event:GROUP_REQUEST_UPDATED,
             image: request.group.logoUrl,
             groupId: request.group.id,
             groupName: request.group.name,
@@ -849,6 +852,7 @@ export class GroupController {
           message: `Your request to join the group ${request.group.name} has been rejected.`,
           link: `/groups/${request.group.id}`,
           metadata:{
+            event:GROUP_REQUEST_UPDATED,
             image: request.group.logoUrl,
             groupId: request.group.id,
             groupName: request.group.name,
@@ -1050,6 +1054,7 @@ export class GroupController {
           message: `Your request to post in the group ${groupPostRequest.group.name} has been approved.`,
           link: `/groups/${groupPostRequest.group.id}`,
           metadata: {
+            event: GROUP_POST_REQUEST_UPDATED,
             image: group.logoUrl,
             postId: groupPostRequest.post.id,
             groupId: groupPostRequest.group.id,
@@ -1058,7 +1063,7 @@ export class GroupController {
         const members = [groupPostRequest.user.userChatId];
         await Promise.all([
           this.notificationModel.create(notification),
-          emitEvent(req, GROUP_REQUEST_UPDATED, members, notification),
+          emitEvent(req, GROUP_POST_REQUEST_UPDATED, members, notification),
         ]);
       } else if (action === "reject") {
         if (!rejectionReason) {
@@ -1078,6 +1083,7 @@ export class GroupController {
           link: `/groups/${groupPostRequest.group.id}`,
           metadata: {
             image: group.logoUrl,
+            event: GROUP_POST_REQUEST_UPDATED,
             postId: groupPostRequest.post.id,
             groupId: groupPostRequest.group.id,
           },
@@ -1085,7 +1091,7 @@ export class GroupController {
         const members = [groupPostRequest.user.userChatId];
         await Promise.all([
           this.notificationModel.create(notification),
-          emitEvent(req, GROUP_REQUEST_UPDATED, members, notification),
+          emitEvent(req, GROUP_POST_REQUEST_UPDATED, members, notification),
         ]);
       } else {
         throw new ApiError(
@@ -1187,6 +1193,7 @@ export class GroupController {
           message: `You have been made an admin of the group: ${group.name}`,
           type: "info",
           metadata: {
+
             groupId: group.id,
             image: group.logoUrl,
           },

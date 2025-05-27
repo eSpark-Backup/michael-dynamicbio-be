@@ -108,6 +108,7 @@ export class BondController {
         bondStatus: BondStatus.PENDING,
         metadata: {
           bondId: bond.id,
+          event:NEW_BOND_REQUEST,
           requesterId: requester.userChatId,
           image: requester.profileImage,
           requesterName: `${requester.firstName} ${requester.lastName}`,
@@ -125,6 +126,7 @@ export class BondController {
         type: "info",
         metadata: {
           bondId: bond.id,
+          event:NEW_BOND_REQUEST,
           requesterId: requester.userChatId,
           image: requester.profileImage,
           requesterName: `${requester.firstName} ${requester.lastName}`,
@@ -557,6 +559,7 @@ export class BondController {
           type: "info",
           metadata: {
             bondId: bond.id,
+            event: BOND_REQUEST_UPDATED,
             requesterId: bond.requester.userChatId,
             requesterName: `${bond.recipient.firstName} ${bond.recipient.lastName}`,
             requesterProfileImage: bond.recipient.profileImage,
