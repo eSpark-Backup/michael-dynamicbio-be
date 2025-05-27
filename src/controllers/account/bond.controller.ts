@@ -130,7 +130,6 @@ export class BondController {
           requesterId: requester.userChatId,
           image: requester.profileImage,
           requesterName: `${requester.firstName} ${requester.lastName}`,
-          image: requester.profileImage,
           bondStatus: BondStatus.PENDING,
         },
       });
