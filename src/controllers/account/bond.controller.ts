@@ -109,6 +109,7 @@ export class BondController {
         metadata: {
           bondId: bond.id,
           requesterId: requester.userChatId,
+          image: requester.profileImage,
           requesterName: `${requester.firstName} ${requester.lastName}`,
           requesterProfileImage: requester.profileImage,
           bondStatus: BondStatus.PENDING,
@@ -125,6 +126,7 @@ export class BondController {
         metadata: {
           bondId: bond.id,
           requesterId: requester.userChatId,
+          image: requester.profileImage,
           requesterName: `${requester.firstName} ${requester.lastName}`,
           requesterProfileImage: requester.profileImage,
           bondStatus: BondStatus.PENDING,
