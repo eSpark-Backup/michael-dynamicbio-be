@@ -112,7 +112,7 @@ export class BondController {
           requesterId: requester.userChatId,
           image: requester.profileImage,
           requesterName: `${requester.firstName} ${requester.lastName}`,
-          requesterProfileImage: requester.profileImage,
+          image: requester.profileImage,
           bondStatus: BondStatus.PENDING,
         },
       };
@@ -130,7 +130,7 @@ export class BondController {
           requesterId: requester.userChatId,
           image: requester.profileImage,
           requesterName: `${requester.firstName} ${requester.lastName}`,
-          requesterProfileImage: requester.profileImage,
+          image: requester.profileImage,
           bondStatus: BondStatus.PENDING,
         },
       });
