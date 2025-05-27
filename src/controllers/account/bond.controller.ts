@@ -534,7 +534,7 @@ export class BondController {
           ),
           bondId: bond.id,
           requesterId: bond.requester.userChatId,
-          requesterProfileImage: bond.requester.profileImage,
+          image: bond.requester.profileImage,
           bondStatus: bond.status,
         };
 
@@ -562,7 +562,7 @@ export class BondController {
             event: BOND_REQUEST_UPDATED,
             requesterId: bond.requester.userChatId,
             requesterName: `${bond.recipient.firstName} ${bond.recipient.lastName}`,
-            requesterProfileImage: bond.recipient.profileImage,
+            image: bond.recipient.profileImage,
             bondStatus: bond.status,
           },
         });

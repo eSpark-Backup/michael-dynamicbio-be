@@ -12,6 +12,7 @@ import {
   PostStatus,
   PostVisibility,
   COMMENT_VISIBILITY,
+  GroupRequestStatus,
 } from "../../entity";
 import { Repository } from "typeorm";
 import { NextFunction, Response } from "express";
@@ -811,6 +812,7 @@ export class GroupController {
 
       if (action == "accept") {
         request.isApproved = true;
+        request.status = GroupRequestStatus.APPROVED;
         await this.groupJoinRequestRepo.save(request);
 
         // Add to followers
