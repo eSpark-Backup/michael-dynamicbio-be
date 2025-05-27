@@ -709,7 +709,7 @@ export class GroupController {
             type: "group_join_request",
             message: `${user.firstName} ${user.lastName} has requested to join the group ${group.name}`,
             link: `/groups/${id}/join-requests`,
-            metaData: {
+            metadata: {
               image: user.profileImage,
               groupId: group.id,
               userId:user.id,
@@ -826,7 +826,7 @@ export class GroupController {
           type: "info",
           message: `Your request to join the group ${request.group.name} has been approved.`,
           link: `/groups/${request.group.id}`,
-          metaData:{
+          metadata:{
             image: request.group.logoUrl,
             groupId: request.group.id,
             groupName: request.group.name,
@@ -848,7 +848,7 @@ export class GroupController {
           type: "info",
           message: `Your request to join the group ${request.group.name} has been rejected.`,
           link: `/groups/${request.group.id}`,
-          metaData:{
+          metadata:{
             image: request.group.logoUrl,
             groupId: request.group.id,
             groupName: request.group.name,
@@ -1049,7 +1049,7 @@ export class GroupController {
           type: "info",
           message: `Your request to post in the group ${groupPostRequest.group.name} has been approved.`,
           link: `/groups/${groupPostRequest.group.id}`,
-          metaData: {
+          metadata: {
             image: group.logoUrl,
             postId: groupPostRequest.post.id,
             groupId: groupPostRequest.group.id,
@@ -1076,7 +1076,7 @@ export class GroupController {
           type: "info",
           message: `Your request to post in the group ${groupPostRequest.group.name} has been rejected.`,
           link: `/groups/${groupPostRequest.group.id}`,
-          metaData: {
+          metadata: {
             image: group.logoUrl,
             postId: groupPostRequest.post.id,
             groupId: groupPostRequest.group.id,
