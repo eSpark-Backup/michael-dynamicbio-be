@@ -2,7 +2,7 @@ import { Router } from "express";
 import Joi from "joi";
 import { AuthValidation, UserValidation, validate } from "../../validations";
 import { UserController } from "../../controllers/account";
-import { Bond, Group, Page, PollVote, Post, ProfileSettings, Saved, User } from "../../entity";
+import { Bond, Group, GroupJoinRequest, Page, PollVote, Post, ProfileSettings, Saved, User } from "../../entity";
 import { getRepository } from "typeorm";
 import { AppDataSource } from "../../typeorm.config";
 import {
@@ -26,6 +26,8 @@ const pollVoteRepository = AppDataSource.getRepository(PollVote); // Assuming Us
 const pageRepository = AppDataSource.getRepository(Page); // Assuming User is the correct entity for notifications
 const groupRepository=AppDataSource.getRepository(Group);
 const profileSettings=AppDataSource.getRepository(ProfileSettings)
+const groupJoinRequestRepository =
+  AppDataSource.getRepository(GroupJoinRequest);
 const userController = new UserController(
   userRepository,
   Notification,
@@ -36,7 +38,8 @@ const userController = new UserController(
   pageRepository,
   groupRepository,
   profileSettings,
-  Chat
+  Chat,
+  groupJoinRequestRepository
 
 );
 
@@ -1134,4 +1137,152 @@ router.get(
   (req, res, next) => userController.getCatchUpData(req, res, next)
 );
 
+
+
+/**
+ * @swagger
+ * /user/search:
+ *   get:
+ *     summary: Universal search for users, groups, posts, and pages
+ *     description: >
+ *       Search across multiple entities (users, groups, posts, pages) with keyword filtering, pagination, and type filtering.  
+ *       For users, includes friendship status relative to the requester.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Search
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number (starting from 1).
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of results per entity per page.
+ *       - in: query
+ *         name: keyword
+ *         schema:
+ *           type: string
+ *           default: ""
+ *         description: Keyword to search for in entities.
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [all, people, group, post, page]
+ *           default: all
+ *         description: Entity type to search. Defaults to all.
+ *     responses:
+ *       200:
+ *         description: Search results fetched successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Search results fetched successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         users:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                               firstName:
+ *                                 type: string
+ *                               lastName:
+ *                                 type: string
+ *                               email:
+ *                                 type: string
+ *                               profileImage:
+ *                                 type: string
+ *                               bondId:
+ *                                 type: string
+ *                                 nullable: true
+ *                               bondStatus:
+ *                                 type: string
+ *                                 nullable: true
+ *                               isFriend:
+ *                                 type: boolean
+ *                               isPendingFriendRequest:
+ *                                 type: boolean
+ *                               requestSentByMe:
+ *                                 type: boolean
+ *                         pagination:
+ *                           type: object
+ *                           properties:
+ *                             totalItems:
+ *                               type: integer
+ *                             currentPage:
+ *                               type: integer
+ *                             pageSize:
+ *                               type: integer
+ *                             totalPages:
+ *                               type: integer
+ *                     group:
+ *                       type: array
+ *                       nullable: true
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                     post:
+ *                       type: array
+ *                       nullable: true
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           title:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                     page:
+ *                       type: array
+ *                       nullable: true
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *       400:
+ *         description: Validation error.
+ *       403:
+ *         description: Forbidden.
+ *       500:
+ *         description: Server error.
+ */
+router.get("/search", checkJwt, validateRoles([ROLES.USER]),
+setPagination,
+
+ (req, res, next) =>
+  userController.searchAllEntities(req, res, next)
+);
 export { router };

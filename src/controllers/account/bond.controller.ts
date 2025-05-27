@@ -1,7 +1,6 @@
 import { NextFunction, Request, RequestHandler, Response } from "express";
 import { Bond, BondStatus, ProfileStatus, User } from "../../entity";
 import { commonHelper } from "../../helpers";
-import { Chat } from "../../models";
 
 import { ApiError } from "../../errors";
 import { Repository } from "typeorm";
@@ -23,7 +22,6 @@ import {
   REFETCH_CHATS,
 } from "../../constants";
 import jwt from "jsonwebtoken";
-import { UserForChat } from "../../models";
 
 import bcrypt from "bcryptjs";
 import {
@@ -34,6 +32,7 @@ import {
 } from "../../interfaces";
 import { createNotification } from "../../services";
 import { object } from "joi";
+import { UserForChat, Message, Chat } from "../../models";
 
 export class BondController {
   constructor(
