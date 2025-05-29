@@ -107,7 +107,7 @@ export class BondController {
         bondStatus: BondStatus.PENDING,
         metadata: {
           bondId: bond.id,
-          event:NEW_BOND_REQUEST,
+          event: NEW_BOND_REQUEST,
           requesterId: requester.userChatId,
           image: requester.profileImage,
           requesterName: `${requester.firstName} ${requester.lastName}`,
@@ -124,7 +124,7 @@ export class BondController {
         type: "info",
         metadata: {
           bondId: bond.id,
-          event:NEW_BOND_REQUEST,
+          event: NEW_BOND_REQUEST,
           requesterId: requester.userChatId,
           image: requester.profileImage,
           requesterName: `${requester.firstName} ${requester.lastName}`,
@@ -535,13 +535,19 @@ export class BondController {
           bondStatus: bond.status,
         };
 
-        let members = [bond.requester.userChatId, bond.recipient.userChatId];
-        await Promise.all([
-          Chat.create({
+        let members = [
+          bond.requester.userChatId,
+          bond.recipient.userChatId,
+        ].sort();
+        const existingChat = await Chat.findOne({
+          members: { $all: members, $size: 2 },
+        });
+        if (!existingChat) {
+          await Chat.create({
             members,
             name: `${bond.requester.firstName} - ${bond.recipient.firstName}`,
-          }),
-        ]);
+          });
+        }
 
         emitEvent(req, REFETCH_CHATS, members);
 
