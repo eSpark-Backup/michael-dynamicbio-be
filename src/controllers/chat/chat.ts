@@ -26,56 +26,62 @@ interface IMessage {
   createdAt: Date;
 }
 
-
-
 const getMyChats = TryCatch(async (req: any, res: any, next: any) => {
   const chats = await Chat.find({ members: req.socketUserId }).populate(
     "members",
-    "name avatar"
+    "name avatar accountId"
   );
 
   const transformedChats = await Promise.all(
-    chats.map(async ({ _id, name, members, groupChat }) => {
-      const otherMember = getOtherMember(members, req.socketUserId);
+    chats.map(
+      async ({ _id, name, members, groupChat, accountId, createdAt }) => {
+        const otherMember = getOtherMember(members, req.socketUserId);
 
-      const latestMessage = await Message.findOne({ chat: _id })
-        .sort({ createdAt: -1 })
-        .populate("sender", "name avatar")
-        .lean<IMessage>();
+        const latestMessage = await Message.findOne({ chat: _id })
+          .sort({ createdAt: -1 })
+          .populate("sender", "name avatar accountId")
+          .lean<IMessage>();
 
-      return {
-        _id,
-        groupChat,
-        avatar: groupChat
-          ? members.slice(0, 3).map((m: any) => m.avatar || "")
-          : [otherMember?.avatar || ""],
-        name: groupChat ? name : otherMember?.name || "Unknown",
-        members: members.reduce((prev: any, curr: any) => {
-          if (curr._id.toString() !== req.socketUserId.toString()) {
-            prev.push(curr._id);
-          }
-          return prev;
-        }, []),
-        lastMessage: latestMessage
-          ? {
-              content: latestMessage.content,
-              sender:
-                latestMessage.sender?._id.toString() ===
-                req.socketUserId.toString()
-                  ? "You"
-                  : latestMessage.sender?.name || "Unknown",
-              createdAt: latestMessage.createdAt,
+        return {
+          _id,
+          groupChat,
+          avatar: groupChat
+            ? members.slice(0, 3).map((m: any) => m.avatar || "")
+            : [otherMember?.avatar || ""],
+          name: groupChat ? name : otherMember?.name || "Unknown",
+          accountId: groupChat
+            ? members.slice(0, 3).map((m: any) => m.accountId || "")
+            : otherMember?.accountId || "",
+          members: members.reduce((prev: any, curr: any) => {
+            if (curr._id.toString() !== req.socketUserId.toString()) {
+              prev.push(curr._id);
             }
-          : null,
-        latestMessageDate: latestMessage?.createdAt || new Date(0), // fallback to old date
-      };
-    })
+            return prev;
+          }, []),
+          lastMessage: latestMessage
+            ? {
+                content: latestMessage.content,
+                sender:
+                  latestMessage.sender?._id.toString() ===
+                  req.socketUserId.toString()
+                    ? "You"
+                    : latestMessage.sender?.name || "Unknown",
+                createdAt: latestMessage.createdAt,
+              }
+            : null,
+          latestMessageDate: latestMessage?.createdAt || null,
+
+          createdAt: createdAt,
+        };
+      }
+    )
   );
-  transformedChats.sort(
-    (a, b) =>
-      new Date(b.latestMessageDate).getTime() -
-      new Date(a.latestMessageDate).getTime()
-  );
+  transformedChats.sort((a, b) => {
+    const dateA = new Date(a.latestMessageDate || a.createdAt).getTime();
+    const dateB = new Date(b.latestMessageDate || b.createdAt).getTime();
+    return dateB - dateA; 
+  });
+
   const finalChats = transformedChats.map(
     ({ latestMessageDate, ...rest }) => rest
   );
@@ -85,10 +91,6 @@ const getMyChats = TryCatch(async (req: any, res: any, next: any) => {
     chats: finalChats,
   });
 });
-
-
-
-
 
 const sendAttachments = TryCatch(async (req: any, res: any, next: any) => {
   const { chatId } = req.body;
@@ -286,7 +288,7 @@ const getMessages = TryCatch(async (req: any, res: any, next: any) => {
     itemsOnPage: messages.length,
   });
 });
-const addMembers = TryCatch(async (req:any, res:any, next:any) => {
+const addMembers = TryCatch(async (req: any, res: any, next: any) => {
   const { chatId, members } = req.body;
 
   if (!members || members.length < 1)
@@ -314,7 +316,9 @@ const addMembers = TryCatch(async (req:any, res:any, next:any) => {
       )
     );
 
-  const allNewMembersPromise = members.map((i:any) => UserForChat.findById(i, "name"));
+  const allNewMembersPromise = members.map((i: any) =>
+    UserForChat.findById(i, "name")
+  );
 
   const allNewMembers = await Promise.all(allNewMembersPromise);
 
@@ -343,7 +347,7 @@ const addMembers = TryCatch(async (req:any, res:any, next:any) => {
     message: "Members added successfully",
   });
 });
-const newGroupChat = TryCatch(async (req:any, res:any, next:any) => {
+const newGroupChat = TryCatch(async (req: any, res: any, next: any) => {
   const { name, members } = req.body;
 
   const allMembers = [...members, req.socketUserId];
@@ -366,10 +370,11 @@ const newGroupChat = TryCatch(async (req:any, res:any, next:any) => {
 
   res.status(201).json({
     success: true,
+    data: chat,
     message: "Group chat created successfully",
   });
 });
-const removeMember = TryCatch(async (req:any, res:any, next:any) => {
+const removeMember = TryCatch(async (req: any, res: any, next: any) => {
   const { userId, chatId } = req.body;
 
   const [chat, userThatWillBeRemoved] = await Promise.all([
@@ -393,10 +398,10 @@ const removeMember = TryCatch(async (req:any, res:any, next:any) => {
       )
     );
 
-  const allChatMembers = chat.members.map((i:any) => i.toString());
+  const allChatMembers = chat.members.map((i: any) => i.toString());
 
   chat.members = chat.members.filter(
-    (member:any) => member.toString() !== userId.toString()
+    (member: any) => member.toString() !== userId.toString()
   );
 
   await chat.save();
@@ -413,4 +418,13 @@ const removeMember = TryCatch(async (req:any, res:any, next:any) => {
     message: "Member removed successfully",
   });
 });
-export {removeMember,addMembers,newGroupChat, deleteChat, getChatDetails, getMessages, getMyChats, sendAttachments };
+export {
+  removeMember,
+  addMembers,
+  newGroupChat,
+  deleteChat,
+  getChatDetails,
+  getMessages,
+  getMyChats,
+  sendAttachments,
+};

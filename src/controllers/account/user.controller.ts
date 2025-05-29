@@ -332,7 +332,7 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.user?.id;
-      const { about, country, industry, designation, company, city } = req.body;
+      const { about, country, industry, designation, company, city,firstName,lastName } = req.body;
 
       // const name = [firstName, lastName].filter(Boolean).join(" ");
       const imageFilesPath = path.join(process.cwd(), "uploads");
@@ -397,11 +397,14 @@ export class UserController {
       user.company = company || user.company;
       user.designation = designation || user.designation;
       user.city = city || user.city;
+      user.firstName = firstName || user.firstName;
+      user.lastName= lastName || user.lastName;
 
       const updatedUser = await this.usersRepo.save(user);
 
       const chatUser = await UserForChat.findById(req.user?._id);
       chatUser.avatar = imageUrls[0]?.url;
+      chatUser.name= `${updatedUser.firstName} ${updatedUser.lastName}`;
       await chatUser.save();
 
       const { password: _, ...userProfile } = updatedUser;

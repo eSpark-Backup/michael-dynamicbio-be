@@ -298,6 +298,12 @@ router.put(
  *               company:
  *                 type: string
  *                 description: Details about the User.
+ *               firstName:
+ *                 type: string
+ *                 description: first name of the User.
+ *               lastName:
+ *                 type: string
+ *                 description: last name of the User.
  *               about:
  *                  type: object
  *                  required: false
