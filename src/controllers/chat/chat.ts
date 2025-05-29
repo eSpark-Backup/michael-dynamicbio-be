@@ -49,6 +49,9 @@ const getMyChats = TryCatch(async (req: any, res: any, next: any) => {
             ? members.slice(0, 3).map((m: any) => m.avatar || "")
             : [otherMember?.avatar || ""],
           name: groupChat ? name : otherMember?.name || "Unknown",
+          memberName: groupChat
+            ? members.slice(0, 3).map((m: any) => m.name || "")
+            : otherMember?.name || "",
           accountId: groupChat
             ? members.slice(0, 3).map((m: any) => m.accountId || "")
             : otherMember?.accountId || "",
@@ -79,7 +82,7 @@ const getMyChats = TryCatch(async (req: any, res: any, next: any) => {
   transformedChats.sort((a, b) => {
     const dateA = new Date(a.latestMessageDate || a.createdAt).getTime();
     const dateB = new Date(b.latestMessageDate || b.createdAt).getTime();
-    return dateB - dateA; 
+    return dateB - dateA;
   });
 
   const finalChats = transformedChats.map(
