@@ -34,7 +34,15 @@ const getMyChats = TryCatch(async (req: any, res: any, next: any) => {
 
   const transformedChats = await Promise.all(
     chats.map(
-      async ({ _id, name, members, groupChat, accountId, createdAt }) => {
+      async ({
+        _id,
+        name,
+        members,
+        groupChat,
+        accountId,
+        createdAt,
+        creator,
+      }) => {
         const otherMember = getOtherMember(members, req.socketUserId);
 
         const latestMessage = await Message.findOne({ chat: _id })
@@ -46,14 +54,15 @@ const getMyChats = TryCatch(async (req: any, res: any, next: any) => {
           _id,
           groupChat,
           avatar: groupChat
-            ? members.slice(0, 3).map((m: any) => m.avatar || "")
+            ? members.map((m: any) => m.avatar || "")
             : [otherMember?.avatar || ""],
           name: groupChat ? name : otherMember?.name || "Unknown",
           memberName: groupChat
-            ? members.slice(0, 3).map((m: any) => m.name || "")
+            ? members.map((m: any) => m.name || "")
             : otherMember?.name || "",
+          admin: groupChat ? creator.toString() : false,
           accountId: groupChat
-            ? members.slice(0, 3).map((m: any) => m.accountId || "")
+            ? members.map((m: any) => m.accountId || "")
             : otherMember?.accountId || "",
           members: members.reduce((prev: any, curr: any) => {
             if (curr._id.toString() !== req.socketUserId.toString()) {

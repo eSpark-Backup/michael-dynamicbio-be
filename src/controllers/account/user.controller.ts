@@ -403,7 +403,7 @@ export class UserController {
       const updatedUser = await this.usersRepo.save(user);
 
       const chatUser = await UserForChat.findById(req.user?._id);
-      chatUser.avatar = imageUrls[0]?.url;
+      chatUser.avatar =user.profileImage;
       chatUser.name= `${updatedUser.firstName} ${updatedUser.lastName}`;
       await chatUser.save();
 
