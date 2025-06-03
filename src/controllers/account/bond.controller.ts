@@ -442,6 +442,12 @@ export class BondController {
         });
         if (bond) {
           if (action == "unfriend") {
+            let members = [
+              bond.requester.userChatId,
+              bond.recipient.userChatId,
+            ].sort();
+            emitEvent(req, REFETCH_CHATS, members);
+
             await this.bondsRepo.remove(bond);
             res
               .status(HTTP_STATUS.OK)
