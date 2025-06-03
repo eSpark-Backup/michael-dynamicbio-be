@@ -7,6 +7,7 @@ import {
 import { getOtherMember } from "../../lib/";
 import { TryCatch } from "../../middleware";
 import { UserForChat, Message, Chat } from "../../models";
+import { User, Bond, BondStatus } from "../../entity";
 import {
   deleteFilesFromCloudinary,
   emitEvent,
@@ -31,9 +32,45 @@ const getMyChats = TryCatch(async (req: any, res: any, next: any) => {
     "members",
     "name avatar accountId"
   );
+  const bondsRepo = AppDataSource.getRepository(Bond);
+  const usersRepo = AppDataSource.getRepository(User);
+  const user = await usersRepo.findOneBy({ userChatId: req.socketUserId });
+  if (!user) return next(new ErrorHandler("User not found", 404));
+
+  const bonds = await bondsRepo
+    .createQueryBuilder("bond")
+    .leftJoinAndSelect("bond.requester", "requester")
+    .leftJoinAndSelect("bond.recipient", "recipient")
+    .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+      userId: user.id,
+    })
+    .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
+    .orderBy("bond.createdAt", "DESC")
+    .getMany();
+
+  const friendsSet = new Set(
+    bonds.map((bond) => {
+      const friend =
+        bond.requester.id === user.id ? bond.recipient : bond.requester;
+      return friend.userChatId;
+    })
+  );
+
+  const filteredChats = chats.filter((chat) => {
+    if (chat.groupChat) return true; 
+
+    const nonSelfMembers = chat.members.filter(
+      (member:any) => member._id.toString() !== req.socketUserId
+    );
+
+    return nonSelfMembers.every((member:any) =>
+      friendsSet.has(member._id.toString())
+    );
+  });
+
 
   const transformedChats = await Promise.all(
-    chats.map(
+    filteredChats.map(
       async ({
         _id,
         name,
