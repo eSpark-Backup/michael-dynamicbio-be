@@ -20,7 +20,7 @@ export const configs = {
 
   // Redis configuration for Bull
   REDIS_HOST: process.env.REDIS_HOST || '0.0.0.0',
-  REDIS_PORT: process.env.REDIS_PORT || '6379',
+  REDIS_PORT: process.env.REDIS_PORT || '5579',
   REDIS_PASSWORD: process.env.REDIS_PASSWORD || '',
 
   // Bull configuration
