@@ -19,7 +19,7 @@ export const configs = {
   FFMPEG_PATH: <string>getEnv("FFMPEG_PATH"),
 
   // Redis configuration for Bull
-  REDIS_HOST: process.env.REDIS_HOST || 'localhost',
+  REDIS_HOST: process.env.REDIS_HOST || 'ec2-54-162-117-48.compute-1.amazonaws.com',
   REDIS_PORT: process.env.REDIS_PORT || '5579',
   REDIS_PASSWORD: process.env.REDIS_PASSWORD || 'vIoc4ETiHMQ2kYV',
 

@@ -19,7 +19,7 @@ class SchedulerService {
         // Initialize Bull queue
         this.postQueue = new Queue<SchedulePostJob>('scheduled-posts', {
             redis: {
-                host: configs.REDIS_HOST || 'localhost',
+                host: configs.REDIS_HOST || 'ec2-54-162-117-48.compute-1.amazonaws.com',
                 port: Number(configs.REDIS_PORT) || 5579,
                 password: configs.REDIS_PASSWORD,
             },
