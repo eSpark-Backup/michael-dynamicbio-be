@@ -288,7 +288,7 @@ export class PostController {
         post.group = group;
         post.groupId = group.id;
         post.isGroupPost = true;
-        await this.postRepo.save(post);
+        post =await this.postRepo.save(post);
       }
 
       // If it's a scheduled post, create the job
