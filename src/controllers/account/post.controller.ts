@@ -267,13 +267,13 @@ export class PostController {
               type: "group_post_request",
               message: `${user.firstName} ${user.lastName} has requested to post in ${group.name}`,
               link: `/groups/${groupPost.id}/post-requests`,
-              metadata:{
-                event:NEW_GROUP_POST_REQUEST,
+              metadata: {
+                event: NEW_GROUP_POST_REQUEST,
                 postId: groupPost.id,
                 groupId: group.id,
                 userId: user.id,
-                image:group.logoUrl
-              }
+                image: group.logoUrl,
+              },
             };
 
             const members = [groupAdmin.admin.userChatId];
@@ -288,7 +288,7 @@ export class PostController {
         post.group = group;
         post.groupId = group.id;
         post.isGroupPost = true;
-        post =await this.postRepo.save(post);
+        post = await this.postRepo.save(post);
       }
 
       // If it's a scheduled post, create the job
@@ -307,7 +307,7 @@ export class PostController {
         } catch (error) {
           // If scheduling fails, still return success but log the error
           logger.error(`Failed to schedule post: ${(error as Error).message}`);
-             return next(error);
+          return next(error);
         }
       }
 
