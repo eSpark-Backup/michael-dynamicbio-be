@@ -19,19 +19,16 @@ export const configs = {
   FFMPEG_PATH: <string>getEnv("FFMPEG_PATH"),
 
   // Redis configuration for Bull
-  REDIS_HOST: <string>getEnv("REDIS_HOST") || "0.0.0.0",
-  REDIS_PORT: Number(getEnv("REDIS_PORT")) || 6379,
-  REDIS_PASSWORD: getEnv("REDIS_PASSWORD") || "",
+  REDIS_HOST: process.env.REDIS_HOST || '0.0.0.0',
+  REDIS_PORT: process.env.REDIS_PORT || '6379',
+  REDIS_PASSWORD: process.env.REDIS_PASSWORD || '',
 
   // Bull configuration
-  BULL_PREFIX: process.env.BULL_PREFIX || "bull",
+  BULL_PREFIX: process.env.BULL_PREFIX || 'bull',
 
   // Queue configuration
-  QUEUE_CLEAN_INTERVAL: parseInt(
-    process.env.QUEUE_CLEAN_INTERVAL || "86400000",
-    10
-  ), // 24 hours in ms
-  QUEUE_CONCURRENCY: parseInt(process.env.QUEUE_CONCURRENCY || "5", 10),
+  QUEUE_CLEAN_INTERVAL: parseInt(process.env.QUEUE_CLEAN_INTERVAL || '86400000', 10), // 24 hours in ms
+  QUEUE_CONCURRENCY: parseInt(process.env.QUEUE_CONCURRENCY || '5', 10),
 };
 
 export const MAILER_CONFIG = {
@@ -42,6 +39,8 @@ export const MAILER_CONFIG = {
   pass: getEnv("SMTP_PASS"),
   from: getEnv("SMTP_FROM"),
 };
+
+
 
 export const bcryptConfig = {
   salt: Number(getEnv("SALT")),
