@@ -307,7 +307,7 @@ export class PostController {
         } catch (error) {
           // If scheduling fails, still return success but log the error
           logger.error(`Failed to schedule post: ${(error as Error).message}`);
-          next(error);
+             return next(error);
         }
       }
 
