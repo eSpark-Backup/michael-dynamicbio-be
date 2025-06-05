@@ -13,3 +13,4 @@ export * from "./group.entity";
 export * from "./group-join-request.entity";
 export * from "./group-post-request.entity";
 export * from "./group-admins.entity";
+export * from "./chat-history.entity";
