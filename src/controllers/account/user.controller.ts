@@ -3383,7 +3383,7 @@ async getChatHistory(
         .createQueryBuilder("chat")
         .where("chat.user_id = :userId", { userId })
         .andWhere("chat.chatId = :chatId", { chatId })
-        .orderBy("chat.createdAt", "DESC")
+        .orderBy("chat.createdAt", "ASC")
         .skip(skip)
         .take(limit)
         .getManyAndCount();
