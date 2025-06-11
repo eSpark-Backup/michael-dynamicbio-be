@@ -6,8 +6,9 @@ import {
   ManyToOne,
   CreateDateColumn,
   Index,
-} from 'typeorm';
-import { BaseEntity, User } from './';
+  JoinColumn,
+} from "typeorm";
+import { BaseEntity, User } from "./";
 
 @Entity()
 export class ChatHistory extends BaseEntity {
@@ -15,14 +16,17 @@ export class ChatHistory extends BaseEntity {
   @Index()
   id: number;
 
-  @ManyToOne(() => User, (user) => user.chatHistory, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (user) => user.chatHistory, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "user_id" })
   user: User;
 
-  @Column({ type: 'text' })
+  @Column({ type: "text" })
   question: string;
 
-  @Column({ type: 'text' })
-  answer: string;
+  @Column({ type: "varchar", nullable: false })
+  @Index()
+  chatId: string;
 
- 
+  @Column({ type: "text" })
+  answer: string;
 }

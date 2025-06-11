@@ -2,6 +2,7 @@ import { NextFunction, Request, RequestHandler, Response } from "express";
 import {
   Bond,
   BondStatus,
+  ChatHistory,
   COMMENT_VISIBILITY,
   Group,
   GroupJoinRequest,
@@ -73,7 +74,8 @@ export class UserController {
     private groupRepo: Repository<Group>,
     private readonly profileSettingsRepo: Repository<ProfileSettings>,
     private chatModel: typeof Chat,
-    private groupJoinRequestRepo: Repository<GroupJoinRequest>
+    private groupJoinRequestRepo: Repository<GroupJoinRequest>,
+    private aiChatHistoryRepo: Repository<ChatHistory>
   ) {}
 
   async verifyTokenAPI(
@@ -332,7 +334,16 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.user?.id;
-      const { about, country, industry, designation, company, city,firstName,lastName } = req.body;
+      const {
+        about,
+        country,
+        industry,
+        designation,
+        company,
+        city,
+        firstName,
+        lastName,
+      } = req.body;
 
       // const name = [firstName, lastName].filter(Boolean).join(" ");
       const imageFilesPath = path.join(process.cwd(), "uploads");
@@ -398,13 +409,13 @@ export class UserController {
       user.designation = designation || user.designation;
       user.city = city || user.city;
       user.firstName = firstName || user.firstName;
-      user.lastName= lastName || user.lastName;
+      user.lastName = lastName || user.lastName;
 
       const updatedUser = await this.usersRepo.save(user);
 
       const chatUser = await UserForChat.findById(req.user?._id);
-      chatUser.avatar =user.profileImage;
-      chatUser.name= `${updatedUser.firstName} ${updatedUser.lastName}`;
+      chatUser.avatar = user.profileImage;
+      chatUser.name = `${updatedUser.firstName} ${updatedUser.lastName}`;
       await chatUser.save();
 
       const { password: _, ...userProfile } = updatedUser;
@@ -3261,4 +3272,67 @@ export class UserController {
       next(error);
     }
   }
+
+ async getChatHistory(
+  req: ICustomRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const chatId = req.query.chatId as string;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    if (!userId) {
+      res.status(400).json(handleResponse("User ID is missing"));
+      return next();
+    }
+
+    let chatHistory;
+
+    if (chatId) {
+      chatHistory = await this.aiChatHistoryRepo
+        .createQueryBuilder("chat")
+        .where("chat.user_id = :userId", { userId }) // ✅ fixed here
+        .andWhere("chat.chatId = :chatId", { chatId })
+        .orderBy("chat.createdAt", "ASC")
+        .getMany();
+    } else {
+      chatHistory = await this.aiChatHistoryRepo
+        .createQueryBuilder("chat")
+        .innerJoin(
+          (qb) =>
+            qb
+              .subQuery()
+              .select("MAX(sub.id)", "maxId")
+              .from(ChatHistory, "sub")
+              .where("sub.user_id = :userId", { userId }) // ✅ fixed here
+              .groupBy("sub.chatId"),
+          "latest",
+          "chat.id = latest.maxId"
+        )
+        .where("chat.user_id = :userId", { userId }) // ✅ and here
+        .orderBy("chat.updatedAt", "DESC")
+        .skip(skip)
+        .take(limit)
+        .getMany();
+    }
+
+    const response = {
+      page,
+      limit,
+      items: chatHistory,
+    };
+
+    res
+      .status(200)
+      .json(handleResponse("Chat history fetched successfully", response));
+    return next();
+  } catch (error) {
+    next(error);
+  }
+}
+
 }

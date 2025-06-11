@@ -2,7 +2,18 @@ import { Router } from "express";
 import Joi from "joi";
 import { AuthValidation, UserValidation, validate } from "../../validations";
 import { UserController } from "../../controllers/account";
-import { Bond, Group, GroupJoinRequest, Page, PollVote, Post, ProfileSettings, Saved, User } from "../../entity";
+import {
+  Bond,
+  ChatHistory,
+  Group,
+  GroupJoinRequest,
+  Page,
+  PollVote,
+  Post,
+  ProfileSettings,
+  Saved,
+  User,
+} from "../../entity";
 import { getRepository } from "typeorm";
 import { AppDataSource } from "../../typeorm.config";
 import {
@@ -13,7 +24,7 @@ import {
   setPagination,
   validateRoles,
 } from "../../middleware";
-import { Notification,Chat } from "../../models";
+import { Notification, Chat } from "../../models";
 import { FILE_FIELDS, ROLES } from "../../constants";
 import { parseJsonFields } from "../../utils";
 
@@ -24,8 +35,9 @@ const bondRepository = AppDataSource.getRepository(Bond);
 const savedRepository = AppDataSource.getRepository(Saved); // Assuming User is the correct entity for notifications
 const pollVoteRepository = AppDataSource.getRepository(PollVote); // Assuming User is the correct entity for notifications
 const pageRepository = AppDataSource.getRepository(Page); // Assuming User is the correct entity for notifications
-const groupRepository=AppDataSource.getRepository(Group);
-const profileSettings=AppDataSource.getRepository(ProfileSettings)
+const groupRepository = AppDataSource.getRepository(Group);
+const profileSettings = AppDataSource.getRepository(ProfileSettings);
+const aiChatHistory = AppDataSource.getRepository(ChatHistory);
 const groupJoinRequestRepository =
   AppDataSource.getRepository(GroupJoinRequest);
 const userController = new UserController(
@@ -39,8 +51,8 @@ const userController = new UserController(
   groupRepository,
   profileSettings,
   Chat,
-  groupJoinRequestRepository
-
+  groupJoinRequestRepository,
+  aiChatHistory
 );
 
 /**
@@ -919,10 +931,8 @@ router.put(
  *       500:
  *         description: Server error.
  */
-router.get(
-  "/public-profile",
-  checkJwt,
-  (req, res, next) => userController.getPublicUserProfile(req, res, next)
+router.get("/public-profile", checkJwt, (req, res, next) =>
+  userController.getPublicUserProfile(req, res, next)
 );
 
 /**
@@ -984,10 +994,6 @@ router.get(
   (req, res, next) => userController.getAllPostOfUser(req, res, next)
 );
 
-
-
-
-
 /**
  * @swagger
  * /user/save/{postId}:
@@ -1026,15 +1032,9 @@ router.get(
  *       500:
  *         description: Server error.
  */
-router.post(
-  "/save/:postId",
-  checkJwt,
-  (req, res, next) => userController.savePost(req, res, next)
+router.post("/save/:postId", checkJwt, (req, res, next) =>
+  userController.savePost(req, res, next)
 );
-
-
-
-
 
 /**
  * @swagger
@@ -1073,11 +1073,9 @@ router.get(
   "/saved-posts",
   checkJwt,
   validateRoles([ROLES.USER]),
-   setPagination,
+  setPagination,
   (req, res, next) => userController.getSavedPosts(req, res, next)
 );
-
-
 
 /**
  * @swagger
@@ -1143,15 +1141,13 @@ router.get(
   (req, res, next) => userController.getCatchUpData(req, res, next)
 );
 
-
-
 /**
  * @swagger
  * /user/search:
  *   get:
  *     summary: Universal search for users, groups, posts, and pages
  *     description: >
- *       Search across multiple entities (users, groups, posts, pages) with keyword filtering, pagination, and type filtering.  
+ *       Search across multiple entities (users, groups, posts, pages) with keyword filtering, pagination, and type filtering.
  *       For users, includes friendship status relative to the requester.
  *     security:
  *       - bearerAuth: []
@@ -1285,10 +1281,60 @@ router.get(
  *       500:
  *         description: Server error.
  */
-router.get("/search", checkJwt, validateRoles([ROLES.USER]),
-setPagination,
+router.get(
+  "/search",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  setPagination,
 
- (req, res, next) =>
-  userController.searchAllEntities(req, res, next)
+  (req, res, next) => userController.searchAllEntities(req, res, next)
 );
+
+/**
+ * @swagger
+ * /user/chat-history:
+ *   get:
+ *     summary: Get user's chat history
+ *     description: Fetch paginated chat history of the logged-in user.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - User
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         description: Page number to retrieve (for paginated results).
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         description: Number of records per page.
+ *         schema:
+ *           type: integer
+ *           example: 10
+ *       - in: query
+ *         name: chatId
+ *         required: false
+ *         description: ID of the specific chat thread. If provided, returns all messages from this chat thread.
+ *         schema:
+ *           type: string
+ *           example: "abc123xyz"
+ *     responses:
+ *       200:
+ *         description: Chat history fetched successfully
+ *       400:
+ *         description: Bad request or missing parameters
+ *       500:
+ *         description: Server error
+ */
+router.get(
+  "/chat-history",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  (req, res, next) => userController.getChatHistory(req, res, next)
+);
+
 export { router };
