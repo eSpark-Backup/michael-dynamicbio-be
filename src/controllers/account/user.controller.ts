@@ -3273,44 +3273,47 @@ export class UserController {
     }
   }
 
-async getChatHistory(
-  req: ICustomRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const userId = req.user?.id;
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.pageSize as string) || 10;
-    const skip = (page - 1) * limit;
+  async getChatHistory(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.pageSize as string) || 10;
+      const skip = (page - 1) * limit;
 
-    if (!userId) {
-      res.status(400).json(handleResponse("User ID is missing"));
-      return next();
-    }
+      if (!userId) {
+        res.status(400).json(handleResponse("User ID is missing"));
+        return next();
+      }
 
-    // Total unique chat sessions
-    const totalChats = await this.aiChatHistoryRepo
-      .createQueryBuilder("chat")
-      .select("DISTINCT chat.chatId")
-      .where("chat.user_id = :userId", { userId })
-      .getCount();
+      // Total unique chat sessions
+      const totalChats = await this.aiChatHistoryRepo
+        .createQueryBuilder("chat")
+        .select("DISTINCT chat.chatId")
+        .where("chat.user_id = :userId", { userId })
+        .getCount();
 
-    // Fetch latest chat entries with first message
-    const chatHistory = await this.aiChatHistoryRepo
-      .createQueryBuilder("chat")
-      .innerJoin(
-        (qb) =>
-          qb
-            .subQuery()
-            .select("MAX(sub.id)", "maxId")
-            .from(ChatHistory, "sub")
-            .where("sub.user_id = :userId", { userId })
-            .groupBy("sub.chatId"),
-        "latest",
-        "chat.id = latest.maxId"
-      )
-      .leftJoin(ChatHistory, "firstMessage", `
+      // Fetch latest chat entries with first message
+      const chatHistory = await this.aiChatHistoryRepo
+        .createQueryBuilder("chat")
+        .innerJoin(
+          (qb) =>
+            qb
+              .subQuery()
+              .select("MAX(sub.id)", "maxId")
+              .from(ChatHistory, "sub")
+              .where("sub.user_id = :userId", { userId })
+              .groupBy("sub.chatId"),
+          "latest",
+          "chat.id = latest.maxId"
+        )
+        .leftJoin(
+          ChatHistory,
+          "firstMessage",
+          `
         firstMessage.chatId = chat.chatId AND
         firstMessage.user_id = :userId AND
         firstMessage.id = (
@@ -3318,49 +3321,49 @@ async getChatHistory(
           FROM chat_history f
           WHERE f.chatId = chat.chatId AND f.user_id = :userId
         )
-      `)
-      .addSelect([
-        "chat.id",
-        "chat.chatId",
-        "chat.question",
-        "chat.answer",
-        "chat.createdAt",
-        "chat.updatedAt",
-        "firstMessage.question AS heading"
-      ])
-      .where("chat.user_id = :userId", { userId })
-      .orderBy("chat.updatedAt", "DESC")
-      .skip(skip)
-      .take(limit)
-      .setParameter("userId", userId)
-      .getRawMany();
+      `
+        )
+        .addSelect([
+          "chat.id",
+          "chat.chatId",
+          "chat.question",
+          "chat.answer",
+          "chat.createdAt",
+          "chat.updatedAt",
+          "firstMessage.question AS heading",
+        ])
+        .where("chat.user_id = :userId", { userId })
+        .orderBy("chat.updatedAt", "DESC")
+        .skip(skip)
+        .take(limit)
+        .setParameter("userId", userId)
+        .getRawMany();
 
-    // Map result
-    const items = chatHistory.map((item) => ({
-      id: item.chat_id,
-      chatId: item.chat_chatId,
-      question: item.chat_question,
-      answer: item.chat_answer,
-      updatedAt: item.chat_updatedAt,
-      createdAt: item.chat_createdAt,
-      heading: item.heading ?? null,
-    }));
+      // Map result
+      const items = chatHistory.map((item) => ({
+        id: item.chat_id,
+        chatId: item.chat_chatId,
+        question: item.chat_question,
+        answer: item.chat_answer,
+        updatedAt: item.chat_updatedAt,
+        createdAt: item.chat_createdAt,
+        heading: item.heading ?? null,
+      }));
 
-    res.status(200).json(
-      handleResponse("Chat history fetched", {
-        page,
-        limit,
-        totalItems: totalChats,
-        totalPages: Math.ceil(totalChats / limit),
-        items,
-      })
-    );
-    return next();
-  } catch (error) {
-    next(error);
+      res.status(200).json(
+        handleResponse("Chat history fetched", {
+          page,
+          limit,
+          totalItems: totalChats,
+          totalPages: Math.ceil(totalChats / limit),
+          items,
+        })
+      );
+      return next();
+    } catch (error) {
+      next(error);
+    }
   }
-}
-
 
   async getMessagesByChatId(
     req: ICustomRequest,
@@ -3388,7 +3391,7 @@ async getChatHistory(
         .take(limit)
         .getManyAndCount();
 
-        messages.reverse();
+      messages.reverse();
 
       const response = {
         page,
@@ -3399,6 +3402,42 @@ async getChatHistory(
       };
 
       res.status(200).json(handleResponse("Chat messages fetched", response));
+      return next();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteChatHistory(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const chatId = req.params.chatId;
+
+      if (!userId || !chatId) {
+        res.status(400).json(handleResponse("User ID or chat ID missing"));
+        return next();
+      }
+
+      const deleteResult = await this.aiChatHistoryRepo
+        .createQueryBuilder()
+        .delete()
+        .from(ChatHistory)
+        .where("user_id = :userId", { userId })
+        .andWhere("chatId = :chatId", { chatId })
+        .execute();
+
+      if (deleteResult.affected === 0) {
+        res
+          .status(404)
+          .json(handleResponse("Chat not found or already deleted"));
+      } else {
+        res.status(200).json(handleResponse("Chat deleted successfully"));
+      }
+
       return next();
     } catch (error) {
       next(error);

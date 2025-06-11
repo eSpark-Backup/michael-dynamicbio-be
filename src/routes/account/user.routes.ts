@@ -1365,4 +1365,35 @@ router.get(
   (req, res, next) => userController.getMessagesByChatId(req, res, next)
 );
 
+
+/**
+ * @swagger
+ * /user/chat-history/{chatId}:
+ *   delete:
+ *     summary: Delete chat history by chatId
+ *     description: Delete all messages in a chat thread for the authenticated user.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - User
+ *     parameters:
+ *       - in: path
+ *         name: chatId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the chat thread
+ *     responses:
+ *       200:
+ *         description: Chat deleted successfully
+ *       404:
+ *         description: Chat not found
+ */
+router.delete(
+  "/chat-history/:chatId",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  (req, res, next) => userController.deleteChatHistory(req, res, next)
+);
+
 export { router };
