@@ -3273,16 +3273,15 @@ export class UserController {
     }
   }
 
- async getChatHistory(
+async getChatHistory(
   req: ICustomRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
     const userId = req.user?.id;
-    const chatId = req.query.chatId as string;
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
+    const limit = parseInt(req.query.pageSize as string) || 10;
     const skip = (page - 1) * limit;
 
     if (!userId) {
@@ -3290,49 +3289,117 @@ export class UserController {
       return next();
     }
 
-    let chatHistory;
+    // Total unique chat sessions
+    const totalChats = await this.aiChatHistoryRepo
+      .createQueryBuilder("chat")
+      .select("DISTINCT chat.chatId")
+      .where("chat.user_id = :userId", { userId })
+      .getCount();
 
-    if (chatId) {
-      chatHistory = await this.aiChatHistoryRepo
-        .createQueryBuilder("chat")
-        .where("chat.user_id = :userId", { userId }) // ✅ fixed here
-        .andWhere("chat.chatId = :chatId", { chatId })
-        .orderBy("chat.createdAt", "ASC")
-        .getMany();
-    } else {
-      chatHistory = await this.aiChatHistoryRepo
-        .createQueryBuilder("chat")
-        .innerJoin(
-          (qb) =>
-            qb
-              .subQuery()
-              .select("MAX(sub.id)", "maxId")
-              .from(ChatHistory, "sub")
-              .where("sub.user_id = :userId", { userId }) // ✅ fixed here
-              .groupBy("sub.chatId"),
-          "latest",
-          "chat.id = latest.maxId"
+    // Fetch latest chat entries with first message
+    const chatHistory = await this.aiChatHistoryRepo
+      .createQueryBuilder("chat")
+      .innerJoin(
+        (qb) =>
+          qb
+            .subQuery()
+            .select("MAX(sub.id)", "maxId")
+            .from(ChatHistory, "sub")
+            .where("sub.user_id = :userId", { userId })
+            .groupBy("sub.chatId"),
+        "latest",
+        "chat.id = latest.maxId"
+      )
+      .leftJoin(ChatHistory, "firstMessage", `
+        firstMessage.chatId = chat.chatId AND
+        firstMessage.user_id = :userId AND
+        firstMessage.id = (
+          SELECT MIN(f.id)
+          FROM chat_history f
+          WHERE f.chatId = chat.chatId AND f.user_id = :userId
         )
-        .where("chat.user_id = :userId", { userId }) // ✅ and here
-        .orderBy("chat.updatedAt", "DESC")
-        .skip(skip)
-        .take(limit)
-        .getMany();
-    }
+      `)
+      .addSelect([
+        "chat.id",
+        "chat.chatId",
+        "chat.question",
+        "chat.answer",
+        "chat.createdAt",
+        "chat.updatedAt",
+        "firstMessage.question AS heading"
+      ])
+      .where("chat.user_id = :userId", { userId })
+      .orderBy("chat.updatedAt", "DESC")
+      .skip(skip)
+      .take(limit)
+      .setParameter("userId", userId)
+      .getRawMany();
 
-    const response = {
-      page,
-      limit,
-      items: chatHistory,
-    };
+    // Map result
+    const items = chatHistory.map((item) => ({
+      id: item.chat_id,
+      chatId: item.chat_chatId,
+      question: item.chat_question,
+      answer: item.chat_answer,
+      updatedAt: item.chat_updatedAt,
+      createdAt: item.chat_createdAt,
+      heading: item.heading ?? null,
+    }));
 
-    res
-      .status(200)
-      .json(handleResponse("Chat history fetched successfully", response));
+    res.status(200).json(
+      handleResponse("Chat history fetched", {
+        page,
+        limit,
+        totalItems: totalChats,
+        totalPages: Math.ceil(totalChats / limit),
+        items,
+      })
+    );
     return next();
   } catch (error) {
     next(error);
   }
 }
 
+
+  async getMessagesByChatId(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const chatId = req.query.chatId as string;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.pageSize as string) || 10;
+      const skip = (page - 1) * limit;
+
+      if (!userId || !chatId) {
+        res.status(400).json(handleResponse("User ID or Chat ID is missing"));
+        return next();
+      }
+
+      const [messages, totalMessages] = await this.aiChatHistoryRepo
+        .createQueryBuilder("chat")
+        .where("chat.user_id = :userId", { userId })
+        .andWhere("chat.chatId = :chatId", { chatId })
+        .orderBy("chat.createdAt", "ASC")
+        .skip(skip)
+        .take(limit)
+        .getManyAndCount();
+
+      const response = {
+        page,
+        limit,
+        totalItems: totalMessages,
+        totalPages: Math.ceil(totalMessages / limit),
+        items: messages,
+      };
+
+      res.status(200).json(handleResponse("Chat messages fetched", response));
+      return next();
+    } catch (error) {
+      next(error);
+    }
+  }
 }

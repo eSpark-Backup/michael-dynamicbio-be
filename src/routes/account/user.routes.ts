@@ -1295,7 +1295,7 @@ router.get(
  * /user/chat-history:
  *   get:
  *     summary: Get user's chat history
- *     description: Fetch paginated chat history of the logged-in user.
+ *     description: Fetch paginated list of user's recent chat threads.
  *     security:
  *       - bearerAuth: []
  *     tags:
@@ -1304,37 +1304,65 @@ router.get(
  *       - in: query
  *         name: page
  *         required: false
- *         description: Page number to retrieve (for paginated results).
  *         schema:
  *           type: integer
  *           example: 1
  *       - in: query
- *         name: limit
+ *         name: pageSize
  *         required: false
- *         description: Number of records per page.
  *         schema:
  *           type: integer
  *           example: 10
- *       - in: query
- *         name: chatId
- *         required: false
- *         description: ID of the specific chat thread. If provided, returns all messages from this chat thread.
- *         schema:
- *           type: string
- *           example: "abc123xyz"
  *     responses:
  *       200:
- *         description: Chat history fetched successfully
- *       400:
- *         description: Bad request or missing parameters
- *       500:
- *         description: Server error
+ *         description: Chat history fetched
  */
 router.get(
   "/chat-history",
   checkJwt,
   validateRoles([ROLES.USER]),
   (req, res, next) => userController.getChatHistory(req, res, next)
+);
+
+/**
+ * @swagger
+ * /user/chat-messages:
+ *   get:
+ *     summary: Get messages of a specific chat
+ *     description: Returns paginated messages for a given chatId.
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - User
+ *     parameters:
+ *       - in: query
+ *         name: chatId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: "abc123xyz"
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *       - in: query
+ *         name: pageSize
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           example: 10
+ *     responses:
+ *       200:
+ *         description: Messages fetched successfully
+ */
+
+router.get(
+  "/chat-messages",
+  checkJwt,
+  validateRoles([ROLES.USER]),
+  (req, res, next) => userController.getMessagesByChatId(req, res, next)
 );
 
 export { router };

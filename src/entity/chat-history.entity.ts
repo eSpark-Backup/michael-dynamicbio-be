@@ -29,4 +29,5 @@ export class ChatHistory extends BaseEntity {
 
   @Column({ type: "text" })
   answer: string;
+  firstMessage: any;
 }
