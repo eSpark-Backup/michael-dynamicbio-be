@@ -3433,7 +3433,7 @@ export class UserController {
       if (deleteResult.affected === 0) {
         res
           .status(404)
-          .json(handleResponse("Chat not found or already deleted"));
+          .json(handleResponse("Chat not found or already deleted,"));
       } else {
         res.status(200).json(handleResponse("Chat deleted successfully"));
       }
