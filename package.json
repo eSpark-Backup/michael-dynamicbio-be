@@ -6,10 +6,10 @@
   "scripts": {
     "start": "node build/server.js",
     "dev": "nodemon src/server.ts",
-    "migration:generate": "npx ts-node -P ./tsconfig.json -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:generate -d ./build/typeorm.config.js ./build/database/migrations/migration",
-    "migration:create": "npx ts-node -P ./tsconfig.json -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:create -d ./build/typeorm.config.js ./build/database/migrations/migration",
-    "migration:run": "npx ts-node -P ./tsconfig.json -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d ./build/typeorm.config.js",
-    "migration:revert": "npx ts-node -P ./tsconfig.json -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d ./build/typeorm.config.js",
+    "migration:generate": "typeorm migration:generate -d ./build/typeorm.config.js ./build/database/migrations/migration",
+    "migration:create": "typeorm migration:create ./build/database/migrations/migration",
+    "migration:run": "typeorm migration:run -d ./build/typeorm.config.js",
+    "migration:revert": "typeorm migration:revert -d ./build/typeorm.config.js",
     "build": "tsc"
   },
   "repository": {
