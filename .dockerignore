@@ -1,23 +1,70 @@
-# Ignore node_modules
+# Dependencies
 node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Ignore logs
+# Build outputs
+build
+dist
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
 logs
 *.log
-npm-debug.log*
 
-
-# Ignore Docker files
-Dockerfile
-docker-compose.yml
-
-# Ignore build directories
-dist
-build
-
-# Ignore coverage files
+# Coverage
 coverage
 
-# Ignore temporary files
+# Temporary files
+tmp
+temp
 *.tmp
 *.swp
+
+# Documentation
+*.md
+docs
+
+# Testing
+.nyc_output
+
+# Terraform
+*.tf
+*.tfstate
+*.tfstate.backup
+
+# Uploads (will be mounted as volume)
+uploads/*
+
+# Database files
+*.sql
+*.db
+
+# Cache
+.cache

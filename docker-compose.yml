@@ -1,0 +1,157 @@
+services:
+  # Your Node.js Application with FFmpeg
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fusion-app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3001}:${PORT:-3001}"
+    env_file:
+      - .env
+    environment:
+      # Override database connections to use Docker services
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - ME_CONFIG_MONGODB_URL=mongodb://admin:mongopass@mongodb:27017/${MYSQL_DATABASE:-Fusion}?authSource=admin
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - FFMPEG_PATH=/usr/bin/ffmpeg
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/usr/src/app/uploads
+      - ./logs:/usr/src/app/logs
+    networks:
+      - fusion-network
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: fusion-mysql
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD:-fusiontestingdb}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-Fusion}
+      - MYSQL_USER=appuser
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-fusiontestingdb}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+      interval: 30s
+    networks:
+      - fusion-network
+
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: fusion-mongodb
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=mongopass
+      - MONGO_INITDB_DATABASE=${MYSQL_DATABASE:-Fusion}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      timeout: 10s
+      retries: 5
+      interval: 30s
+    networks:
+      - fusion-network
+
+  # Redis
+  redis:
+    image: redis:7.2-alpine
+    container_name: fusion-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+    networks:
+      - fusion-network
+
+  # phpMyAdmin for MySQL management (Optional)
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: fusion-phpmyadmin
+    restart: unless-stopped
+    environment:
+      - PMA_HOST=mysql
+      - PMA_PORT=3306
+      - PMA_USER=root
+      - PMA_PASSWORD=${MYSQL_PASSWORD:-fusiontestingdb}
+    ports:
+      - "8080:80"
+    depends_on:
+      - mysql
+    networks:
+      - fusion-network
+
+  # Mongo Express for MongoDB management (Optional)
+  mongo-express:
+    image: mongo-express:latest
+    container_name: fusion-mongo-express
+    restart: unless-stopped
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=admin
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=mongopass
+      - ME_CONFIG_MONGODB_SERVER=mongodb
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=admin
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mongodb
+    networks:
+      - fusion-network
+
+  # Redis Commander for Redis management (Optional)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: fusion-redis-commander
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8082:8081"
+    depends_on:
+      - redis
+    networks:
+      - fusion-network
+
+# Named volumes for persistent data
+volumes:
+  mysql_data:
+    driver: local
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# Network configuration
+networks:
+  fusion-network:
+    driver: bridge
