@@ -73,8 +73,6 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=fusiontestingdb
       - MYSQL_DATABASE=Fusion
-      - MYSQL_USER=root
-      - MYSQL_PASSWORD=fusiontestingdb
     ports:
       - "3306:3306"
     volumes:
@@ -135,7 +133,8 @@ services:
       - ./processed:/tmp/processed
     networks:
       - fusion-network
-    command: tail -f /dev/null
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "while true; do sleep 30; done"]
 
 # Named volumes for persistent data
 volumes:
