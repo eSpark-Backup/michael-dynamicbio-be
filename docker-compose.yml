@@ -7,18 +7,49 @@ services:
     container_name: fusion-app
     restart: unless-stopped
     ports:
-      - "${PORT:-3001}:${PORT:-3001}"
-    env_file:
-      - .env
+      - "80:80"
     environment:
-      # Override database connections to use Docker services
+      # Hardcoded values from your .env
+      - PORT=80
+      - JWT_SECRET=JSON
+      - JWT_QR_SECRET=QRJSON
+      - LINK_SECRET_KEY=JSON
+      - EXPIRES_IN=365d
+      - NODE_ENV=production
+      - SALT=10
+      - QR_ISSUER=Fusion
+      - FFMPEG_PATH=/usr/bin/ffmpeg
+      
+      # Database connections (using Docker services)
       - MYSQL_HOST=mysql
       - MYSQL_PORT=3306
-      - ME_CONFIG_MONGODB_URL=mongodb://admin:mongopass@mongodb:27017/${MYSQL_DATABASE:-Fusion}?authSource=admin
+      - MYSQL_USER=root
+      - MYSQL_DATABASE=Fusion
+      - MYSQL_PASSWORD=fusiontestingdb
+      - ME_CONFIG_MONGODB_URL=mongodb://admin:mongopass@mongodb:27017/Fusion?authSource=admin
+      
+      # Redis
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=
-      - FFMPEG_PATH=/usr/bin/ffmpeg
+      
+      # URLs
+      - DEV_SERVER_URL=http://localhost:80
+      - PROD_SERVER_URL=http://localhost:80
+      - FRONTEND_URL=http://localhost:3000/
+      
+      # SMTP Settings (hardcoded)
+      - SMTP_HOST=mail.esparkconsultants.com
+      - SMTP_PORT=465
+      - SMTP_SECURE=true
+      - SMTP_SERVICE=mail
+      - SMTP_PASS=XmhNM99U!HOp
+      - SMTP_FROM=smtptesting@esparkconsultants.com
+      
+      # Cloudinary Settings (hardcoded)
+      - CLOUD_NAME=dbq6l12lh
+      - CLOUD_SECRET=c0OyWc6rLek1zHkiDjlW88GXM_8
+      - CLOUD_API_KEY=315962236495459
+      
     depends_on:
       mysql:
         condition: service_healthy
@@ -38,10 +69,10 @@ services:
     container_name: fusion-mysql
     restart: unless-stopped
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD:-fusiontestingdb}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-Fusion}
-      - MYSQL_USER=appuser
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-fusiontestingdb}
+      - MYSQL_ROOT_PASSWORD=fusiontestingdb
+      - MYSQL_DATABASE=Fusion
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=fusiontestingdb
     ports:
       - "3306:3306"
     volumes:
@@ -62,7 +93,7 @@ services:
     environment:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=mongopass
-      - MONGO_INITDB_DATABASE=${MYSQL_DATABASE:-Fusion}
+      - MONGO_INITDB_DATABASE=Fusion
     ports:
       - "27017:27017"
     volumes:
@@ -101,7 +132,7 @@ services:
       - PMA_HOST=mysql
       - PMA_PORT=3306
       - PMA_USER=root
-      - PMA_PASSWORD=${MYSQL_PASSWORD:-fusiontestingdb}
+      - PMA_PASSWORD=fusiontestingdb
     ports:
       - "8080:80"
     depends_on:
