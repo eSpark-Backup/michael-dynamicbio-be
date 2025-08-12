@@ -18,7 +18,7 @@ services:
       - NODE_ENV=production
       - SALT=10
       - QR_ISSUER=Fusion
-      - FFMPEG_PATH=/usr/bin/ffmpeg
+      - FFMPEG_PATH=ffmpeg
       
       # Database connections (using Docker services)
       - MYSQL_HOST=mysql
@@ -57,6 +57,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ffmpeg:
+        condition: service_started
     volumes:
       - ./uploads:/usr/src/app/uploads
       - ./logs:/usr/src/app/logs
@@ -122,6 +124,18 @@ services:
       interval: 30s
     networks:
       - fusion-network
+
+  # FFmpeg Service
+  ffmpeg:
+    image: jrottenberg/ffmpeg:latest
+    container_name: fusion-ffmpeg
+    restart: unless-stopped
+    volumes:
+      - ./uploads:/tmp/uploads
+      - ./processed:/tmp/processed
+    networks:
+      - fusion-network
+    command: tail -f /dev/null
 
   # phpMyAdmin for MySQL management (Optional)
   phpmyadmin:
