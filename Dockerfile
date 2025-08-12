@@ -10,8 +10,6 @@ RUN apk upgrade
 RUN npm install --silent && mv node_modules ../
 
 COPY . .
-RUN npm run migration:generate
-RUN npm run migration:run
 RUN npm run build
 
 CMD ["npm", "run", "start"]
