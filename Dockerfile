@@ -12,16 +12,4 @@ RUN npm install --silent && mv node_modules ../
 COPY . .
 RUN npm run build
 
-# Create startup script that runs migrations then starts the server
-RUN echo '#!/bin/sh' > /usr/src/start.sh && \
-    echo 'echo "🔄 Waiting for database..."' >> /usr/src/start.sh && \
-    echo 'sleep 10' >> /usr/src/start.sh && \
-    echo 'echo "🔄 Generating migrations..."' >> /usr/src/start.sh && \
-    echo 'npm run migration:generate || echo "⚠️  No schema changes detected"' >> /usr/src/start.sh && \
-    echo 'echo "🔄 Running database migrations..."' >> /usr/src/start.sh && \
-    echo 'npm run migration:run || echo "⚠️  Migration failed or no migrations to run"' >> /usr/src/start.sh && \
-    echo 'echo "🚀 Starting server..."' >> /usr/src/start.sh && \
-    echo 'npm run start' >> /usr/src/start.sh && \
-    chmod +x /usr/src/start.sh
-
-CMD ["/bin/sh", "/usr/src/start.sh"]
+CMD ["npm", "run", "start"]
