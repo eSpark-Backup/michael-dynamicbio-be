@@ -16,6 +16,8 @@ RUN npm run build
 RUN echo '#!/bin/sh' > /usr/src/start.sh && \
     echo 'echo "🔄 Waiting for database..."' >> /usr/src/start.sh && \
     echo 'sleep 10' >> /usr/src/start.sh && \
+    echo 'echo "🔄 Generating migrations..."' >> /usr/src/start.sh && \
+    echo 'npm run migration:generate || echo "⚠️  No schema changes detected"' >> /usr/src/start.sh && \
     echo 'echo "🔄 Running database migrations..."' >> /usr/src/start.sh && \
     echo 'npm run migration:run || echo "⚠️  Migration failed or no migrations to run"' >> /usr/src/start.sh && \
     echo 'echo "🚀 Starting server..."' >> /usr/src/start.sh && \
