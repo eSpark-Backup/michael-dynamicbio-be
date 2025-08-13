@@ -8,7 +8,7 @@
     "dev": "nodemon src/server.ts",
     "migration:generate": "npx typeorm-ts-node-commonjs migration:generate ./build/database/migrations/migration -d ./build/typeorm.config.js",
     "migration:run": "npx typeorm-ts-node-commonjs migration:run -d ./build/typeorm.config.js",
-    "migration:revert": "npx ts-node -P ./tsconfig.json -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d ./build/typeorm.config.js",
+    "migration:revert": "npx typeorm-ts-node-commonjs migration:revert -d ./build/typeorm.config.js",
     "build": "tsc"
   },
   "repository": {
