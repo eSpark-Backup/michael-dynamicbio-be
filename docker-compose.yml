@@ -7,7 +7,7 @@ services:
     container_name: fusion-app
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "3000:80"
     environment:
       # Hardcoded values from your .env
       - PORT=80
