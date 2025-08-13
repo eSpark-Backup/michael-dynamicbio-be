@@ -11,5 +11,7 @@ RUN npm install --silent && mv node_modules ../
 
 COPY . .
 RUN npm run build
+RUN npm run migration:generate
+RUN npm run migration:run
 
 CMD ["npm", "run", "start"]
