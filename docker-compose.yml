@@ -36,7 +36,7 @@ services:
       # URLs
       - DEV_SERVER_URL=http://localhost:80
       - PROD_SERVER_URL=http://localhost:80
-      - FRONTEND_URL=http://localhost:3000/
+      - FRONTEND_URL=http://72.60.29.127/
       
       # SMTP Settings (hardcoded)
       - SMTP_HOST=mail.esparkconsultants.com
