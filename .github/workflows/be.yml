@@ -1,0 +1,186 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: FUSION Backend Production CICD
+
+on:
+  push:
+    branches: ["be"]
+
+concurrency: ci-${{ github.repository }}-docker-pipeline
+
+env:
+  path_to_dockerfile: "Dockerfile"
+  docker_build_dir: "."
+  image_tag: "latest"
+  lifecycle_policy_file: "policy.json"
+  backend_s3_bucket: "talent-terraform-bucket"
+  backend_iam_role: "terraform-role"
+  github_iam_role: "cicd"
+  aws_account_id: "${{ secrets.AWS_ACCOUNT_ID }}"
+  aws_region: "${{ secrets.AWS_REGION }}"
+  backend_dynamodb_table: "talent-terraform-dynamodb"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    outputs:
+      image_tag: ${{ steps.build-publish.outputs.image_tag }}
+      full_image: ${{ steps.build-publish.outputs.full_image }}
+
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.aws_account_id }}:role/cicd
+          aws-region: ${{ env.aws_region }}
+
+      - name: Setup TerraForm
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: prepare ECR repo name based on the Github repository
+        shell: bash
+        run: |
+          set -eux
+
+          # lowercase the name
+          repo="${GITHUB_REPOSITORY,,}"
+
+          # replace / with _
+          echo "ECR_REPO_NAME=${repo//\//_}" >> $GITHUB_ENV
+
+      - name: TerraForm init
+        shell: bash
+        run: |
+          set -eux
+          terraform init -upgrade -reconfigure \
+            -backend-config='skip_metadata_api_check=true' \
+            -backend-config='skip_region_validation=true' \
+            -backend-config='skip_credentials_validation=true' \
+            -backend-config='region=${{ env.aws_region }}' \
+            -backend-config='bucket=${{ env.backend_s3_bucket }}' \
+            -backend-config='key=docker-ecr/terraform-${{ env.ECR_REPO_NAME }}.tfstate' \
+            -backend-config='dynamodb_table=${{ env.backend_dynamodb_table }}' \
+            -backend-config="assume_role={role_arn=\"arn:aws:iam::${{ env.aws_account_id }}:role/${{ env.backend_iam_role }}\"}"
+        working-directory: ${{ github.action_path }}
+
+      - name: Create ECR repo [TerraForm apply]
+        shell: bash
+        run: |
+          set -eux
+          terraform apply \
+            -var 'repository_name=${{ env.ECR_REPO_NAME }}' \
+            -var 'lifecycle_policy=${{ env.lifecycle_policy_file }}' \
+            -var 'iam_role=arn:aws:iam::${{ env.aws_account_id }}:role/${{ env.github_iam_role }}' \
+            -var 'aws_account_id=${{ env.aws_account_id }}' \
+            -auto-approve
+        working-directory: ${{ github.action_path }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registries: ${{ env.aws_account_id }}
+          mask-password: "true" # see: https://github.com/aws-actions/amazon-ecr-login#docker-credentials
+
+      - name: Create .env File
+        run: |
+          touch .env
+          echo "PORT=${{ secrets.PORT }}" >> .env
+          echo "NODE_ENV=${{ secrets.NODE_ENV }}" >> .env
+          echo "DEV_SERVER_URL=${{ secrets.DEV_SERVER_URL }}" >> .env
+          echo "PROD_SERVER_URL=${{ secrets.PROD_SERVER_URL }}" >> .env
+          echo "JWT_SECRET: ${{ secrets.JWT_SECRET }}" >> .env
+          echo "SALT: ${{ secrets.SALT }}" >> .env
+          echo "EXPIRES_IN: ${{ secrets.EXPIRES_IN }}" >> .env
+          echo "QR_ISSUER: ${{ secrets.QR_ISSUER }}" >> .env
+          echo "JWT_QR_SECRET: ${{ secrets.JWT_QR_SECRET }}" >> .env
+          echo "CLOUD_NAME: ${{ secrets.CLOUD_NAME }}" >> .env
+          echo "CLOUD_SECRET: ${{ secrets.CLOUD_SECRET }}" >> .env
+          echo "CLOUD_API_KEY: ${{ secrets.CLOUD_API_KEY }}" >> .env
+          echo "MYSQL_HOST: ${{ secrets.MYSQL_HOST }}" >> .env        
+          echo "MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}" >> .env
+          echo "MYSQL_PORT: ${{ secrets.MYSQL_PORT }}" >> .env
+          echo "MYSQL_USER: ${{ secrets.MYSQL_USER }}" >> .env
+          echo "MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}" >> .env
+          echo "ME_CONFIG_MONGODB_URL: ${{ secrets.ME_CONFIG_MONGODB_URL }}" >> .env
+          echo "LINK_SECRET_KEY: ${{ secrets.LINK_SECRET_KEY }}" >> .env
+          echo "FRONTEND_URL: ${{ secrets.FRONTEND_URL }}" >> .env
+          echo "SMTP_HOST: ${{ secrets.SMTP_HOST }}" >> .env
+          echo "SMTP_PORT: ${{ secrets.SMTP_PORT }}" >> .env
+          echo "SMTP_SECURE: ${{ secrets.SMTP_SECURE }}" >> .env
+          echo "SMTP_SERVICE: ${{ secrets.SMTP_SERVICE }}" >> .env
+          echo "SMTP_PASS: ${{ secrets.SMTP_PASS }}" >> .env
+          echo "SMTP_FROM: ${{ secrets.SMTP_FROM }}" >> .env
+          echo "FFMPEG_PATH: ${{ secrets.FFMPEG_PATH }}" >> .env
+        
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-publish
+        shell: bash
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_REPO_NAME }}
+          IMAGE_TAG: ${{ env.image_tag }}
+        run: |
+          docker build "${{ env.docker_build_dir }}" -f "${{ env.path_to_dockerfile }}" -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"    
+
+  deploy:
+    needs: build
+    runs-on: fusion-backend
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.aws_account_id }}:role/cicd
+          aws-region: ${{ env.aws_region }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registries: ${{ env.aws_account_id }}
+          mask-password: "true"
+
+      - name: Prepare ECR repo name based on the Github repository
+        shell: bash
+        run: |
+          set -eux
+            
+          # lowercase the name
+          repo="${GITHUB_REPOSITORY,,}"
+            
+          # replace / with _
+          echo "ECR_REPO_NAME=${repo//\//_}" >> $GITHUB_ENV
+
+      - name: Pull Image from Amazon ECR and Deploy as Docker Container to EC2
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_REPO_NAME }}
+          IMAGE_TAG: ${{ env.image_tag }}
+
+        run: |
+          docker pull "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker stop fusion-be || true
+          docker rm fusion-be || true
+          docker run -d \
+            --name fusion-be \
+            -p ${{ secrets.DOCKER_EXPOSED_PORT }}:${{ secrets.DOCKER_APPLICATION_PORT }} "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"

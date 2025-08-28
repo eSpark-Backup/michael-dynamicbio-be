@@ -1,0 +1,587 @@
+import { NextFunction, Request, RequestHandler, Response } from "express";
+import { Bond, BondStatus, ProfileStatus, User } from "../../entity";
+import { commonHelper } from "../../helpers";
+
+import { ApiError } from "../../errors";
+import { Repository } from "typeorm";
+import {
+  cookieOptions,
+  decrypt,
+  emitEvent,
+  generateToken,
+  handleResponse,
+  logger,
+  verifyToken,
+} from "../../utils";
+import {
+  BOND_REQUEST_UPDATED,
+  CHAT_COOKIE,
+  CLOUD_FOLDERS,
+  HTTP_STATUS,
+  NEW_BOND_REQUEST,
+  REFETCH_CHATS,
+} from "../../constants";
+import jwt from "jsonwebtoken";
+
+import bcrypt from "bcryptjs";
+import {
+  EventDate,
+  ICustomRequest,
+  IFileObject,
+  UploadResult,
+} from "../../interfaces";
+import { createNotification } from "../../services";
+import { object } from "joi";
+import { UserForChat, Message, Chat } from "../../models";
+
+export class BondController {
+  constructor(
+    private usersRepo: Repository<User>,
+    private bondsRepo: Repository<Bond>
+  ) {}
+
+  async createBond(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { recipientId } = req.body;
+      const requesterId = req.user.id;
+      const requester = await this.usersRepo
+        .createQueryBuilder("user")
+        .where("user.id = :id", { id: requesterId })
+        .getOne();
+      if (!requester) {
+        throw new ApiError("Requester not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      const recipient = await this.usersRepo
+        .createQueryBuilder("user")
+        .where("user.id = :id", { id: recipientId })
+        .getOne();
+      if (!recipient) {
+        throw new ApiError("Recipient not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      if (recipientId === requesterId) {
+        throw new ApiError(
+          "You cannot create a bond with yourself",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      const existingBond = await this.bondsRepo.findOne({
+        where: [
+          { requester: { id: requesterId }, recipient: { id: recipientId } },
+          { requester: { id: recipientId }, recipient: { id: requesterId } },
+        ],
+      });
+
+      if (existingBond && existingBond.status !== BondStatus.CANCELED) {
+        throw new ApiError(
+          "Bond already exists or pending",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+      let bond: Bond;
+      if (existingBond && existingBond.status === BondStatus.CANCELED) {
+        existingBond.status = BondStatus.PENDING;
+        bond = await this.bondsRepo.save(existingBond);
+      } else {
+        bond = this.bondsRepo.create({
+          requester: { id: requesterId },
+          recipient: { id: recipientId },
+          status: BondStatus.PENDING,
+        });
+        await this.bondsRepo.save(bond);
+      }
+
+      const members = [recipient.userChatId];
+      const notificationData = {
+        title: "New Bond Request 💖",
+        message: `${requester.firstName} ${requester.lastName} sent you a bond request!`,
+        bondId: bond.id,
+        requesterId: requester.userChatId,
+        requesterProfileImage: requester.profileImage,
+        bondStatus: BondStatus.PENDING,
+        metadata: {
+          bondId: bond.id,
+          event: NEW_BOND_REQUEST,
+          requesterId: requester.userChatId,
+          image: requester.profileImage,
+          requesterName: `${requester.firstName} ${requester.lastName}`,
+          bondStatus: BondStatus.PENDING,
+        },
+      };
+
+      emitEvent(req, NEW_BOND_REQUEST, members, notificationData);
+
+      await createNotification({
+        userId: recipient.userChatId,
+        title: "New Bond Request 💖",
+        message: `${requester.firstName} ${requester.lastName} sent you a bond request!`,
+        type: "info",
+        metadata: {
+          bondId: bond.id,
+          event: NEW_BOND_REQUEST,
+          requesterId: requester.userChatId,
+          image: requester.profileImage,
+          requesterName: `${requester.firstName} ${requester.lastName}`,
+          bondStatus: BondStatus.PENDING,
+        },
+      });
+
+      res
+        .status(HTTP_STATUS.CREATED)
+        .json(handleResponse("Bond request sent successfully", bond));
+    } catch (error) {
+      logger.error(`Error creating bond: ${error.message}`);
+      return next(error);
+    }
+  }
+
+  async getAllUsers(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { page, pageSize, search = "", id, skip } = req.query as any;
+      const userId = req.user.id;
+
+      let query = this.usersRepo
+        .createQueryBuilder("user")
+        .where("user.id != :id", { id: req.user.id })
+        .leftJoinAndSelect("user.profileSettings", "profileSettings");
+
+      if (id) {
+        query = query.andWhere("user.id = :userId", { userId: id });
+      } else if (search) {
+        const terms = search.split(" ").filter(Boolean);
+        for (const [i, term] of terms.entries()) {
+          query = query.andWhere(
+            `(user.firstName LIKE :term${i} OR user.lastName LIKE :term${i} OR user.email LIKE :term${i})`,
+            { [`term${i}`]: `%${term}%` }
+          );
+        }
+      }
+
+      const [users, total] = await query
+        .select([
+          "user.id",
+          "user.firstName",
+          "user.lastName",
+          "user.email",
+          "user.profileImage",
+          "user.countryCode",
+          "user.phoneNumber",
+          "user.coverImage",
+          "user.imageKey",
+          "user.coverImageKey",
+          "user.sendEmails",
+          "user.profile",
+          "user.userChatId",
+          "user.designation",
+          "user.about",
+        ])
+        .skip(skip)
+        .take(pageSize)
+        .getManyAndCount();
+
+      const bonds = await this.bondsRepo.find({
+        where: [{ requester: { id: userId } }, { recipient: { id: userId } }],
+        relations: ["requester", "recipient"],
+      });
+      const friendsSet = new Set<string>();
+      const pendingSet = new Set<string>();
+
+      bonds.forEach((bond) => {
+        const otherUserId =
+          bond.requester.id === userId ? bond.recipient.id : bond.requester.id;
+        if (bond.status === BondStatus.ACCEPTED) {
+          friendsSet.add(otherUserId);
+        } else if (bond.status === BondStatus.PENDING) {
+          pendingSet.add(otherUserId);
+        }
+      });
+
+      const usersWithFriendshipStatus = users.map((user) => {
+        if (user.id === userId) {
+          return {
+            ...user,
+            bondId: null,
+            bondStatus: null,
+            isFriend: false,
+            isPendingFriendRequest: false,
+            requestSentByMe: false,
+          };
+        }
+
+        const bond = bonds.find(
+          (bond) =>
+            (bond.requester.id === user.id && bond.recipient.id === userId) ||
+            (bond.recipient.id === user.id && bond.requester.id === userId)
+        );
+
+        const isPending = bond?.status === BondStatus.PENDING;
+        const isAccepted = bond?.status === BondStatus.ACCEPTED;
+
+        return {
+          ...user,
+          bondId: bond?.id || null,
+          bondStatus: bond?.status || null,
+          isFriend: isAccepted,
+          isPendingFriendRequest: isPending,
+          requestSentByMe: isPending ? bond?.requester.id === userId : false,
+        };
+      });
+
+      res.status(200).json({
+        status: true,
+        data: {
+          users: usersWithFriendshipStatus,
+          pagination: {
+            totalItems: total,
+            currentPage: +page,
+            pageSize: +pageSize,
+            totalPages: Math.ceil(total / pageSize),
+          },
+        },
+        message: "Users fetched successfully",
+        statusCode: 200,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getAllUserFriends(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const {
+        page = 1,
+        pageSize = 10,
+        search = "",
+        id,
+        skip = 0,
+      } = req.query as any;
+      const userId = req.user.id;
+
+      const query = this.bondsRepo
+        .createQueryBuilder("bond")
+        .leftJoinAndSelect("bond.requester", "requester")
+        .leftJoinAndSelect("bond.recipient", "recipient")
+        .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
+          userId,
+        })
+        .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED });
+
+      if (search) {
+        const searchWords = search.trim().split(" ");
+        searchWords.forEach((word: any, index: any) => {
+          query.andWhere(
+            `(requester.firstName LIKE :search${index} OR 
+                requester.lastName LIKE :search${index} OR 
+                recipient.firstName LIKE :search${index} OR 
+                recipient.lastName LIKE :search${index})`,
+            { [`search${index}`]: `%${word}%` }
+          );
+        });
+      }
+
+      if (id) {
+        query.andWhere(`(requester.id = :id OR recipient.id = :id)`, { id });
+      }
+
+      const [bonds, total] = await query
+        .select([
+          "bond.id",
+          "bond.status",
+          "bond.createdAt",
+          "bond.updatedAt",
+          "requester.id",
+          "requester.firstName",
+          "requester.lastName",
+          "requester.email",
+          "requester.company",
+          "requester.profileImage",
+          "requester.designation",
+          "requester.countryCode",
+          "requester.country",
+          "requester.about",
+          "requester.city",
+          "requester.userChatId",
+          "recipient.id",
+          "recipient.firstName",
+          "recipient.lastName",
+          "recipient.email",
+          "recipient.company",
+          "recipient.profileImage",
+          "recipient.designation",
+          "recipient.countryCode",
+          "recipient.country",
+          "recipient.about",
+          "recipient.city",
+          "recipient.userChatId",
+        ])
+        .skip(skip || (page - 1) * pageSize)
+        .take(pageSize)
+        .getManyAndCount();
+      const friends = bonds.map((bond) => {
+        const friend =
+          bond.requester.id === userId ? bond.recipient : bond.requester;
+        return {
+          bondId: bond.id,
+          bondStatus: bond.status,
+          createdAt: bond.createdAt,
+          updatedAt: bond.updatedAt,
+          friend,
+        };
+      });
+
+      res.json({
+        success: true,
+        data: friends,
+        total,
+        page: Number(page),
+        pageSize: Number(pageSize),
+      });
+      return next();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getAllBondRequests(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user.id;
+      const {
+        type = "all",
+        skip = "0",
+        take = "10",
+        page = "1",
+        pageSize = "10",
+        search = "",
+      } = req.query as any;
+
+      const query = this.bondsRepo
+        .createQueryBuilder("bond")
+        .leftJoinAndSelect("bond.requester", "requester")
+        .leftJoinAndSelect("bond.recipient", "recipient")
+        .where("bond.status = :status", { status: BondStatus.PENDING });
+
+      if (type === "sent") {
+        query.andWhere("bond.requesterId = :userId", { userId });
+      } else if (type === "received") {
+        query.andWhere("bond.recipientId = :userId", { userId });
+      } else {
+        query.andWhere(
+          "(bond.requesterId = :userId OR bond.recipientId = :userId)",
+          { userId }
+        );
+      }
+
+      if (search) {
+        const searchWords = search.trim().split(" ");
+        searchWords.forEach((word: any, index: any) => {
+          query.andWhere(
+            `(requester.firstName LIKE :search${index} OR 
+              requester.lastName LIKE :search${index} OR 
+              recipient.firstName LIKE :search${index} OR 
+              recipient.lastName LIKE :search${index})`,
+            { [`search${index}`]: `%${word}%` }
+          );
+        });
+      }
+
+      const [bonds, totalItems] = await query
+        .orderBy("bond.createdAt", "DESC")
+        .skip(Number(skip))
+        .take(Number(take))
+        .getManyAndCount();
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Bond requests fetched successfully", {
+          bonds,
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page, 10),
+            pageSize: parseInt(pageSize, 10),
+            totalPages: Math.ceil(totalItems / parseInt(pageSize, 10)),
+          },
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateBondStatus(
+    req: ICustomRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { bondId, action, otherUserId } = req.body;
+      const userId = req.user.id;
+      if (otherUserId) {
+        const bond = await this.bondsRepo.findOne({
+          where: [
+            { requester: { id: userId }, recipient: { id: otherUserId } },
+            { requester: { id: otherUserId }, recipient: { id: userId } },
+          ],
+          relations: ["requester", "recipient"],
+        });
+        if (bond) {
+          if (action == "unfriend") {
+            let members = [
+              bond.requester.userChatId,
+              bond.recipient.userChatId,
+            ].sort();
+            emitEvent(req, REFETCH_CHATS, members);
+
+            await this.bondsRepo.remove(bond);
+            res
+              .status(HTTP_STATUS.OK)
+              .json(handleResponse("Bond removed successfully", bond));
+            return;
+          }
+        } else {
+          throw new ApiError("Bond not found", HTTP_STATUS.NOT_FOUND);
+        }
+        res
+          .status(HTTP_STATUS.OK)
+          .json(handleResponse("Bond request updated successfully", bond));
+        return;
+      }
+      const bond = await this.bondsRepo.findOne({
+        where: { id: bondId },
+        relations: ["requester", "recipient"],
+      });
+
+      if (!bond) {
+        throw new ApiError("Bond not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      const recipientActions = ["accepted", "rejected", "blocked", "unfriend"];
+      const requesterActions = ["canceled", "unfriend"];
+      //TODO: Need to Add Optimize Logic for these conditions
+      if (recipientActions.includes(action)) {
+        if (action == "unfriend") {
+          await this.bondsRepo.remove(bond);
+          res
+            .status(HTTP_STATUS.OK)
+            .json(handleResponse("Bond removed successfully", bond));
+          return;
+        }
+        if (bond.recipient.id !== userId) {
+          throw new ApiError(
+            "You are not authorized to perform this action",
+            HTTP_STATUS.UN_AUTHORIZED
+          );
+        }
+      } else if (requesterActions.includes(action)) {
+        if (action == "unfriend") {
+          await this.bondsRepo.remove(bond);
+          res
+            .status(HTTP_STATUS.OK)
+            .json(handleResponse("Bond removed successfully", bond));
+        }
+        if (bond.requester.id !== userId) {
+          throw new ApiError(
+            "You are not authorized to perform this action",
+            HTTP_STATUS.UN_AUTHORIZED
+          );
+        }
+      } else {
+        throw new ApiError("Invalid action", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      if (bond.status !== BondStatus.PENDING) {
+        throw new ApiError(
+          "Bond request is not pending",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      const statusMap: Record<string, BondStatus> = {
+        accepted: BondStatus.ACCEPTED,
+        rejected: BondStatus.REJECTED,
+        blocked: BondStatus.BLOCKED,
+        canceled: BondStatus.CANCELED,
+      };
+
+      bond.status = statusMap[action];
+      if (action === "accepted" || action === "blocked") {
+        await this.bondsRepo.save(bond);
+      }
+      if (action === "canceled" || action === "rejected") {
+        await this.bondsRepo.remove(bond);
+      }
+
+      if (action == "accepted") {
+        const notificationData = {
+          title: commonHelper.getNotificationTitle(action),
+          message: commonHelper.getNotificationMessage(
+            action,
+            bond.recipient.firstName,
+            bond.recipient.lastName
+          ),
+          bondId: bond.id,
+          requesterId: bond.requester.userChatId,
+          image: bond.requester.profileImage,
+          bondStatus: bond.status,
+        };
+
+        let members = [
+          bond.requester.userChatId,
+          bond.recipient.userChatId,
+        ].sort();
+        const existingChat = await Chat.findOne({
+          members: { $all: members, $size: 2 },
+        });
+        if (!existingChat) {
+          await Chat.create({
+            members,
+            name: `${bond.requester.firstName} - ${bond.recipient.firstName}`,
+          });
+        }
+
+        emitEvent(req, REFETCH_CHATS, members);
+
+        members = [bond.requester.userChatId];
+
+        emitEvent(req, BOND_REQUEST_UPDATED, members, notificationData);
+
+        await createNotification({
+          userId: bond.requester.userChatId,
+          title: notificationData.title,
+          message: notificationData.message,
+          type: "info",
+          metadata: {
+            bondId: bond.id,
+            event: BOND_REQUEST_UPDATED,
+            requesterId: bond.requester.userChatId,
+            requesterName: `${bond.recipient.firstName} ${bond.recipient.lastName}`,
+            image: bond.recipient.profileImage,
+            bondStatus: bond.status,
+          },
+        });
+      }
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Bond request updated successfully", bond));
+    } catch (error) {
+      next(error);
+    }
+  }
+}

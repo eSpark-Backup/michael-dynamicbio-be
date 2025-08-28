@@ -1,0 +1,152 @@
+services:
+  # Your Node.js Application with FFmpeg
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fusion-app
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      # Hardcoded values from your .env
+      - PORT=80
+      - JWT_SECRET=JSON
+      - JWT_QR_SECRET=QRJSON
+      - LINK_SECRET_KEY=JSON
+      - EXPIRES_IN=365d
+      - NODE_ENV=production
+      - SALT=10
+      - QR_ISSUER=Fusion
+      - FFMPEG_PATH=ffmpeg
+      
+      # Database connections (using Docker services)
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_DATABASE=Fusion
+      - MYSQL_PASSWORD=fusiontestingdb
+      - ME_CONFIG_MONGODB_URL=mongodb://admin:mongopass@mongodb:27017/Fusion?authSource=admin
+      
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      
+      # URLs
+      - DEV_SERVER_URL=http://localhost:80
+      - PROD_SERVER_URL=http://localhost:80
+      - FRONTEND_URL=http://72.60.29.127/
+      
+      # SMTP Settings (hardcoded)
+      - SMTP_HOST=mail.esparkconsultants.com
+      - SMTP_PORT=465
+      - SMTP_SECURE=true
+      - SMTP_SERVICE=mail
+      - SMTP_PASS=XmhNM99U!HOp
+      - SMTP_FROM=smtptesting@esparkconsultants.com
+      
+      # Cloudinary Settings (hardcoded)
+      - CLOUD_NAME=dbq6l12lh
+      - CLOUD_SECRET=c0OyWc6rLek1zHkiDjlW88GXM_8
+      - CLOUD_API_KEY=315962236495459
+      
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ffmpeg:
+        condition: service_started
+    volumes:
+      - ./uploads:/usr/src/app/uploads
+      - ./logs:/usr/src/app/logs
+    networks:
+      - fusion-network
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: fusion-mysql
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=fusiontestingdb
+      - MYSQL_DATABASE=Fusion
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+      interval: 30s
+    networks:
+      - fusion-network
+
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: fusion-mongodb
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=mongopass
+      - MONGO_INITDB_DATABASE=Fusion
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      timeout: 10s
+      retries: 5
+      interval: 30s
+    networks:
+      - fusion-network
+
+  # Redis
+  redis:
+    image: redis:7.2-alpine
+    container_name: fusion-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+    networks:
+      - fusion-network
+
+  # FFmpeg Service
+  ffmpeg:
+    image: jrottenberg/ffmpeg:latest
+    container_name: fusion-ffmpeg
+    restart: unless-stopped
+    volumes:
+      - ./uploads:/tmp/uploads
+      - ./processed:/tmp/processed
+    networks:
+      - fusion-network
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "while true; do sleep 30; done"]
+
+# Named volumes for persistent data
+volumes:
+  mysql_data:
+    driver: local
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# Network configuration
+networks:
+  fusion-network:
+    driver: bridge
