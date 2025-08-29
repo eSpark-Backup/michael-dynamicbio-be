@@ -47,7 +47,7 @@ import {
 import { uploadService } from "../../services";
 import { schedulerService } from "../../services/scheduler.service";
 import { Notification } from "../../models";
-
+import { POST_STATUS, POST_VISIBILITY, POST_TYPE } from "../../constants/common.constants";
 export class PostController {
   constructor(
     private usersRepo: Repository<User>,
@@ -83,6 +83,20 @@ export class PostController {
         pageId,
         groupId,
       } = req.body;
+
+      status = Object.values(POST_STATUS).includes(status as POST_STATUS)
+        ? (status as POST_STATUS)
+        : POST_STATUS.DRAFT;
+
+      visibility = Object.values(POST_VISIBILITY).includes(
+        visibility as POST_VISIBILITY
+      )
+        ? (visibility as POST_VISIBILITY)
+        : POST_VISIBILITY.PUBLIC;
+
+      type = Object.values(POST_TYPE).includes(type as POST_TYPE)
+        ? (type as POST_TYPE)
+        : POST_TYPE.TEXT;
 
       if (type === PostType.POLL) {
         return this.createPostWithPoll(req, res, next);
