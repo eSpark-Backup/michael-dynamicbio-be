@@ -434,6 +434,26 @@ export class PostController {
       if (!existingPost) {
         return next(res.status(404).json({ message: "Post not found" }));
       }
+
+      const safeStatus: PostStatus = Object.values(POST_STATUS).includes(
+        status as POST_STATUS
+      )
+        ? (status as PostStatus)
+        : existingPost.status;
+
+      const safeVisibility: PostVisibility = Object.values(
+        POST_VISIBILITY
+      ).includes(visibility as POST_VISIBILITY)
+        ? (visibility as PostVisibility)
+        : existingPost.visibility;
+
+      const safeType: PostType = Object.values(POST_TYPE).includes(
+        type as POST_TYPE
+      )
+        ? (type as PostType)
+        : existingPost.type;
+
+      
       if (existingPost.author.id !== req.user?.id) {
         throw new ApiError(
           "You are not authorized to update this post",
@@ -445,8 +465,10 @@ export class PostController {
           ...existingPost.content,
           ...(content?.title && { title: content.title }),
         };
-        existingPost.status = status || existingPost.status;
-        existingPost.visibility = visibility || existingPost.visibility;
+        existingPost.content = content || existingPost.content;
+        existingPost.status = safeStatus;
+        existingPost.visibility = safeVisibility;
+        existingPost.type = safeType;
         existingPost.commentVisibility =
           commentVisibility || existingPost.commentVisibility;
         const UpdatedPost = await this.postRepo.update(id, existingPost);
@@ -654,11 +676,11 @@ export class PostController {
       }
 
       existingPost.content = content || existingPost.content;
-      existingPost.status = status || existingPost.status;
-      existingPost.visibility = visibility || existingPost.visibility;
+      existingPost.status = safeStatus;
+      existingPost.visibility = safeVisibility;
+      existingPost.type = safeType;
       existingPost.commentVisibility =
         commentVisibility || existingPost.commentVisibility;
-      existingPost.type = type || existingPost.type;
       existingPost.media = JSON.stringify({
         IMAGES: coverUrls,
         VIDEOS: uploadedVideoUrls,
