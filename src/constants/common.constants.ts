@@ -24,7 +24,7 @@ export enum POST_STATUS {
   ARCHIVE = "ARCHIVE",
   DRAFT = "DRAFT",
   PUBLISH = "PUBLISH",
-  SCHEDULED = PostStatus.SCHEDULED
+  SCHEDULED = "SCHEDULED",
 }
 export enum POST_TYPE {
   TEXT = "TEXT",
@@ -40,7 +40,8 @@ export enum POST_VISIBILITY {
   ONLY_ME = "ONLY_ME",
   GROUPS = "GROUPS",
   FOLLOWERS = "FOLLOWERS",
-  
+  PAGE = "PAGE",
+  CUSTOM = "CUSTOM"
 }
 export const enum ERROR_MESSAGES {
   SUCCESS = "Success",

@@ -12,3 +12,35 @@ The project requirements are outlined in below documents:
 
 ### Existing Showcase Website (created in Wix)
 https://www.dynamicbio.net/
+
+# DynamicBio Platform Backend
+
+## Project Overview
+The DynamicBio Platform Backend is a Node.js and TypeScript-based backend service designed for Michael Netherly's DynamicBio platform. The backend integrates secure authentication, data storage, and communication services.
+
+### Technology Stack
+- **Backend Framework:** Express.js with TypeScript
+- **Database:** MySQL (via `mysql2`) and MongoDB (via `mongoose`)
+- **ORM:** TypeORM
+- **Authentication:** JSON Web Tokens (JWT) with OTP support
+- **File Uploads:** Multer (with Cloudinary integration)
+- **Documentation:** Swagger
+- **Real-Time Communication:** Socket.io
+
+### Security and Encryption
+- **`otplib`**: Used for generating and verifying one-time passwords (OTPs) to secure user authentication.
+- **`crypto-js`**: Employed for encryption and decryption of sensitive data, ensuring secure storage and transmission.
+
+### Scripts
+- `npm run dev`: Start the development server with `nodemon`
+- `npm run build`: Compile TypeScript
+- `npm run migration:generate`: Generate database migrations
+- `npm run migration:run`: Run database migrations
+- `npm run migration:revert`: Revert the last migration
+
+### Repository
+- **URL:** [GitHub Repository](https://github.com/eSpark-Consultants/michael-dynamicbio-be)
+- **Issues:** [Issue Tracker](https://github.com/eSpark-Consultants/michael-dynamicbio-be/issues)
+
+### Author
+- Developed by eSpark Consulting Group for Michael Netherly
