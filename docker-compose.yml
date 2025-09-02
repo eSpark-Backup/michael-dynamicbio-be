@@ -19,7 +19,7 @@ services:
       - SALT=10
       - QR_ISSUER=Fusion
       - FFMPEG_PATH=ffmpeg
-      
+
       # Database connections (using Docker services)
       - MYSQL_HOST=mysql
       - MYSQL_PORT=3306
@@ -27,17 +27,17 @@ services:
       - MYSQL_DATABASE=Fusion
       - MYSQL_PASSWORD=fusiontestingdb
       - ME_CONFIG_MONGODB_URL=mongodb://admin:mongopass@mongodb:27017/Fusion?authSource=admin
-      
+
       # Redis
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
-      
+
       # URLs
       - DEV_SERVER_URL=http://localhost:80
       - PROD_SERVER_URL=http://localhost:80
-      - FRONTEND_URL=http://72.60.29.127/
-      
+      - FRONTEND_URL=https://app.h2fusion.org/
+
       # SMTP Settings (hardcoded)
       - SMTP_HOST=mail.esparkconsultants.com
       - SMTP_PORT=465
@@ -45,12 +45,12 @@ services:
       - SMTP_SERVICE=mail
       - SMTP_PASS=XmhNM99U!HOp
       - SMTP_FROM=smtptesting@esparkconsultants.com
-      
+
       # Cloudinary Settings (hardcoded)
       - CLOUD_NAME=dbq6l12lh
       - CLOUD_SECRET=c0OyWc6rLek1zHkiDjlW88GXM_8
       - CLOUD_API_KEY=315962236495459
-      
+
     depends_on:
       mysql:
         condition: service_healthy
@@ -86,7 +86,7 @@ services:
     networks:
       - fusion-network
 
-  # MongoDB
+        # MongoDB
   mongodb:
     image: mongo:7.0
     container_name: fusion-mongodb
@@ -135,7 +135,7 @@ services:
     networks:
       - fusion-network
     entrypoint: ["/bin/sh"]
-    command: ["-c", "while true; do sleep 30; done"]
+        command: ["-c", "while true; do sleep 30; done"]
 
 # Named volumes for persistent data
 volumes:
