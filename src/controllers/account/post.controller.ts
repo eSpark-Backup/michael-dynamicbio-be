@@ -280,7 +280,7 @@ export class PostController {
         if (!isAdmin && !isCreator) {
           const notificationPromises = group.admins.map(async (groupAdmin) => {
             const notification = {
-              user: groupAdmin.admin.userChatId,
+              user: groupAdmin.admin.id,
               title: "Group Post Request",
               type: "group_post_request",
               message: `${user.firstName} ${user.lastName} has requested to post in ${group.name}`,

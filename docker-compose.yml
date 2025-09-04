@@ -135,7 +135,7 @@ services:
     networks:
       - fusion-network
     entrypoint: ["/bin/sh"]
-        command: ["-c", "while true; do sleep 30; done"]
+    command: ["-c", "while true; do sleep 30; done"]
 
 # Named volumes for persistent data
 volumes:
