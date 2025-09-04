@@ -46,16 +46,6 @@ const corsOptions = {
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
 };
 
-const server = createServer(app);
-
-const io = new Server(server, {
-  path: "/api/socket.io",
-  cors: corsOptions,
-});
-
-app.set("io", io);
-// createSingleChats(20);
-// createMessages(6);
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
