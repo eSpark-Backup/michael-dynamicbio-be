@@ -706,21 +706,21 @@ export class GroupController {
 
         const notificationPromises = groupAdmins.map(async (groupAdmin) => {
           const notification = {
-            user: groupAdmin.admin.userChatId,
+            user: groupAdmin.admin.id,
             title: "Group Join Request",
             type: "group_join_request",
             message: `${user.firstName} ${user.lastName} has requested to join the group ${group.name}`,
             link: `/groups/${id}/join-requests`,
             metadata: {
               image: user.profileImage,
-              event:NEW_GROUP_REQUEST,
+              event: NEW_GROUP_REQUEST,
               groupId: group.id,
-              userId:user.id,
+              userId: user.id,
               groupName: group.name,
             },
           };
 
-          const members = [groupAdmin.admin.userChatId];
+          const members = [groupAdmin.admin.id];
           emitEvent(req, NEW_GROUP_REQUEST, members, notification);
 
           await this.notificationModel.create(notification);
@@ -825,19 +825,19 @@ export class GroupController {
         await this.groupRepo.save(group);
 
         const notification = {
-          user: request.user.userChatId,
+          user: request.user.id,
           title: "Group Join Request Approved",
           type: "info",
           message: `Your request to join the group ${request.group.name} has been approved.`,
           link: `/groups/${request.group.id}`,
-          metadata:{
-            event:GROUP_REQUEST_UPDATED,
+          metadata: {
+            event: GROUP_REQUEST_UPDATED,
             image: request.group.logoUrl,
             groupId: request.group.id,
             groupName: request.group.name,
-          }
+          },
         };
-        const members = [request.user.userChatId];
+        const members = [request.user.id];
         await Promise.all([
           this.notificationModel.create(notification),
           emitEvent(req, GROUP_REQUEST_UPDATED, members, notification),
@@ -848,19 +848,19 @@ export class GroupController {
           .json(handleResponse("Join request approved", { approved: true }));
       } else if (action == "reject") {
         const notification = {
-          user: request.user.userChatId,
+          user: request.user.id,
           title: "Group Join Request Rejected",
           type: "info",
           message: `Your request to join the group ${request.group.name} has been rejected.`,
           link: `/groups/${request.group.id}`,
-          metadata:{
-            event:GROUP_REQUEST_UPDATED,
+          metadata: {
+            event: GROUP_REQUEST_UPDATED,
             image: request.group.logoUrl,
             groupId: request.group.id,
             groupName: request.group.name,
-          }
+          },
         };
-        const members = [request.user.userChatId];
+        const members = [request.user.id];
         await Promise.all([
           this.notificationModel.create(notification),
           emitEvent(req, GROUP_REQUEST_UPDATED, members, notification),
@@ -1050,7 +1050,7 @@ export class GroupController {
         groupPostRequest.status = PostRequestStatus.APPROVED;
 
         const notification = {
-          user: groupPostRequest.user.userChatId,
+          user: groupPostRequest.user.id,
           title: "Group Post Request Approved",
           type: "info",
           message: `Your request to post in the group ${groupPostRequest.group.name} has been approved.`,
@@ -1062,7 +1062,7 @@ export class GroupController {
             groupId: groupPostRequest.group.id,
           },
         };
-        const members = [groupPostRequest.user.userChatId];
+        const members = [groupPostRequest.user.id];
         await Promise.all([
           this.notificationModel.create(notification),
           emitEvent(req, GROUP_POST_REQUEST_UPDATED, members, notification),
@@ -1078,7 +1078,7 @@ export class GroupController {
         groupPostRequest.isApproved = false;
         groupPostRequest.status = PostRequestStatus.REJECTED;
         const notification = {
-          user: groupPostRequest.user.userChatId,
+          user: groupPostRequest.user.id,
           title: "Group Post Request Rejected",
           type: "info",
           message: `Your request to post in the group ${groupPostRequest.group.name} has been rejected.`,
@@ -1090,7 +1090,7 @@ export class GroupController {
             groupId: groupPostRequest.group.id,
           },
         };
-        const members = [groupPostRequest.user.userChatId];
+        const members = [groupPostRequest.user.id];
         await Promise.all([
           this.notificationModel.create(notification),
           emitEvent(req, GROUP_POST_REQUEST_UPDATED, members, notification),
@@ -1190,12 +1190,11 @@ export class GroupController {
       // Create notification for the new admin
       try {
         await this.notificationModel.create({
-          user: newAdmin.userChatId,
+          user: newAdmin.id,
           title: "New Page Admin Role",
           message: `You have been made an admin of the group: ${group.name}`,
           type: "info",
           metadata: {
-
             groupId: group.id,
             image: group.logoUrl,
           },
@@ -1316,7 +1315,7 @@ export class GroupController {
       if (removedAdmin) {
         try {
           await this.notificationModel.create({
-            user: removedAdmin.userChatId,
+            user: removedAdmin.id,
             title: "Group Admin Role Removed",
             message: `You are no longer an admin of the group: ${group.name}`,
             type: "info",

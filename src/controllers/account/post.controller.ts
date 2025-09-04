@@ -294,7 +294,7 @@ export class PostController {
               },
             };
 
-            const members = [groupAdmin.admin.userChatId];
+            const members = [groupAdmin.admin.id];
             emitEvent(req, NEW_GROUP_POST_REQUEST, members, notification);
 
             await this.notificationModel.create(notification);

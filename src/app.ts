@@ -65,6 +65,7 @@ AppDataSource.initialize()
   .then(async () => {
     await connectDb(mongoURI);
     console.log("✅ SQL Database connection established successfully");
+    
     app.use(clearUploadsFolder);
     app.use("/api", router);
     app.use("/api/chat", ChatRouter);

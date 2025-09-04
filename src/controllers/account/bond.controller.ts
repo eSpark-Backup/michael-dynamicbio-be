@@ -118,14 +118,14 @@ export class BondController {
       emitEvent(req, NEW_BOND_REQUEST, members, notificationData);
 
       await createNotification({
-        userId: recipient.userChatId,
+        userId: recipient.id,
         title: "New Bond Request 💖",
         message: `${requester.firstName} ${requester.lastName} sent you a bond request!`,
         type: "info",
         metadata: {
           bondId: bond.id,
           event: NEW_BOND_REQUEST,
-          requesterId: requester.userChatId,
+          requesterId: requester.id,
           image: requester.profileImage,
           requesterName: `${requester.firstName} ${requester.lastName}`,
           bondStatus: BondStatus.PENDING,
@@ -562,14 +562,14 @@ export class BondController {
         emitEvent(req, BOND_REQUEST_UPDATED, members, notificationData);
 
         await createNotification({
-          userId: bond.requester.userChatId,
+          userId: bond.requester.id,
           title: notificationData.title,
           message: notificationData.message,
           type: "info",
           metadata: {
             bondId: bond.id,
             event: BOND_REQUEST_UPDATED,
-            requesterId: bond.requester.userChatId,
+            requesterId: bond.requester.id,
             requesterName: `${bond.recipient.firstName} ${bond.recipient.lastName}`,
             image: bond.recipient.profileImage,
             bondStatus: bond.status,

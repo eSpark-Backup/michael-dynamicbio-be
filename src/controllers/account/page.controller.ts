@@ -545,7 +545,7 @@ export class PageController {
         if (page.creator.id !== userId) {
           try {
             await this.notificationModel.create({
-              user: page.creator.userChatId,
+              user: page.creator.id,
               title: "New Page Follower",
               message: `${user.firstName} ${user.lastName} followed your page: ${page.name}`,
               type: "info",
@@ -627,7 +627,7 @@ export class PageController {
       // Create notification for the new admin
       try {
         await this.notificationModel.create({
-          user: newAdmin.userChatId,
+          user: newAdmin.id,
           title: "New Page Admin Role",
           message: `You have been made an admin of the page: ${page.name}`,
           type: "info",
@@ -709,7 +709,7 @@ export class PageController {
       if (removedAdmin) {
         try {
           await this.notificationModel.create({
-            user: removedAdmin.userChatId,
+            user: removedAdmin.id,
             title: "Page Admin Role Removed",
             message: `You are no longer an admin of the page: ${page.name}`,
             type: "info",
