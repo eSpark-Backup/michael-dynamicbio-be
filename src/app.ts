@@ -39,12 +39,23 @@ const corsOptions = {
     "http://localhost",
     "https://fusion.esparkconsultants.com",
     "https://fusion-stg.esparkconsultants.com",
+    "https://app.h2fusion.org"
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
 };
 
+const server = createServer(app);
+
+const io = new Server(server, {
+  path: "/api/socket.io",
+  cors: corsOptions,
+});
+
+app.set("io", io);
+// createSingleChats(20);
+// createMessages(6);
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
