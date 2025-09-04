@@ -40,6 +40,7 @@ const corsOptions = {
     "http://localhost", // Allow localhost if needed
     "https://fusion.esparkconsultants.com", // Corrected staging URL
     "https://fusion-stg.esparkconsultants.com",
+    "https://app.h2fusion.org"
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true,
@@ -49,6 +50,7 @@ const corsOptions = {
 const server = createServer(app);
 
 const io = new Server(server, {
+  path: "/api/socket.io",
   cors: corsOptions,
 });
 
