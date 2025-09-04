@@ -19,13 +19,34 @@
 //   subscribers: [],
 // });
 
+// import { DataSource } from "typeorm";
+// import dotenv from "dotenv";
+
+// dotenv.config();
+
+// // TypeORM Configuration
+// console.log(__dirname);
+// export const AppDataSource = new DataSource({
+//   type: "mysql",
+//   host: process.env.MYSQL_HOST,
+//   port: process.env.MYSQL_PORT ? Number(process.env.MYSQL_PORT) : 3306,
+//   username: process.env.MYSQL_USER,
+//   database: process.env.MYSQL_DATABASE,
+//   password: process.env.MYSQL_PASSWORD,
+//   synchronize: false,
+//   logging: false,
+//   entities: [__dirname + "/entity/*.entity{.ts,.js}"],
+//   migrations: [__dirname + "/database/migrations/*.{ts,js}"],
+//   migrationsTableName: "_migrations",
+
+//   cache: false,
+// });
+
 import { DataSource } from "typeorm";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-// TypeORM Configuration
-console.log(__dirname);
 export const AppDataSource = new DataSource({
   type: "mysql",
   host: process.env.MYSQL_HOST,
@@ -33,11 +54,10 @@ export const AppDataSource = new DataSource({
   username: process.env.MYSQL_USER,
   database: process.env.MYSQL_DATABASE,
   password: process.env.MYSQL_PASSWORD,
-  synchronize: false,
+  synchronize: true, // <-- enable auto table creation
   logging: false,
   entities: [__dirname + "/entity/*.entity{.ts,.js}"],
   migrations: [__dirname + "/database/migrations/*.{ts,js}"],
   migrationsTableName: "_migrations",
-
   cache: false,
 });
