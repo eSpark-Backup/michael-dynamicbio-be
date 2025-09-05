@@ -1,0 +1,87 @@
+version: "3.9"
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: fusion-mysql
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=fusiontestingdb
+      - MYSQL_DATABASE=Fusion
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+      interval: 30s
+    networks:
+      - fusion-network
+
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: fusion-mongodb
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=mongopass
+      - MONGO_INITDB_DATABASE=Fusion
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      timeout: 10s
+      retries: 5
+      interval: 30s
+    networks:
+      - fusion-network
+
+  # Redis
+  redis:
+    image: redis:7.2-alpine
+    container_name: fusion-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+    networks:
+      - fusion-network
+
+  # FFmpeg (optional helper container for media processing)
+  ffmpeg:
+    image: jrottenberg/ffmpeg:latest
+    container_name: fusion-ffmpeg
+    restart: unless-stopped
+    volumes:
+      - ./uploads:/tmp/uploads
+      - ./processed:/tmp/processed
+    networks:
+      - fusion-network
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "while true; do sleep 30; done"]
+
+# Named volumes for persistent data
+volumes:
+  mysql_data:
+    driver: local
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# Network configuration
+networks:
+  fusion-network:
+    driver: bridge
