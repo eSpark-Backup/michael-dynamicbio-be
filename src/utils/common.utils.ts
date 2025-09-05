@@ -335,17 +335,19 @@ export const generateShareableLink = (
     .replace(/\s+/g, "-")
     .toLowerCase();
 
+  const baseUrl = process.env.FRONTEND_URL || "https://app.h2fusion.org";
+
   if (entitiesArray.some((e) => e.type === "post")) {
-    return `https://fusion-stg.esparkconsultants.com/post/${sanitizedTypeName}/share?data=${encoded}`;
+    return `${baseUrl}/post/${sanitizedTypeName}/share?data=${encoded}`;
   } else if (entitiesArray.some((e) => e.type === "page")) {
-    return `https://fusion-stg.esparkconsultants.com/page/${sanitizedTypeName}/share?data=${encoded}`;
+    return `${baseUrl}/page/${sanitizedTypeName}/share?data=${encoded}`;
   } else if (entitiesArray.some((e) => e.type === "group")) {
-    return `https://fusion-stg.esparkconsultants.com/group/${sanitizedTypeName}/share?data=${encoded}`;
+    return `${baseUrl}/group/${sanitizedTypeName}/share?data=${encoded}`;
   } else if (entitiesArray.some((e) => e.type === "user")) {
-    return `https://fusion-stg.esparkconsultants.com/profile/${sanitizedTypeName}/share?data=${encoded}`;
+    return `${baseUrl}/profile/${sanitizedTypeName}/share?data=${encoded}`;
   }
 
-  return `https://fusion-stg.esparkconsultants.com/share?data=${encoded}`;
+  return `${baseUrl}/share?data=${encoded}`;
 };
 
 export const decryptShareableLink = (encryptedData: string) => {
