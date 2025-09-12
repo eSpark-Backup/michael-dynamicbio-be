@@ -335,19 +335,19 @@ export const generateShareableLink = (
     .replace(/\s+/g, "-")
     .toLowerCase();
 
-  const baseUrl = process.env.FRONTEND_URL || "https://app.h2fusion.org";
+  const baseUrl = process.env.FRONTEND_URL || "https://app.h2fusion.org/";
 
   if (entitiesArray.some((e) => e.type === "post")) {
-    return `${baseUrl}/post/${sanitizedTypeName}/share?data=${encoded}`;
+    return `${baseUrl}post/${sanitizedTypeName}/share?data=${encoded}`;
   } else if (entitiesArray.some((e) => e.type === "page")) {
-    return `${baseUrl}/page/${sanitizedTypeName}/share?data=${encoded}`;
+    return `${baseUrl}page/${sanitizedTypeName}/share?data=${encoded}`;
   } else if (entitiesArray.some((e) => e.type === "group")) {
-    return `${baseUrl}/group/${sanitizedTypeName}/share?data=${encoded}`;
+    return `${baseUrl}group/${sanitizedTypeName}/share?data=${encoded}`;
   } else if (entitiesArray.some((e) => e.type === "user")) {
-    return `${baseUrl}/profile/${sanitizedTypeName}/share?data=${encoded}`;
+    return `${baseUrl}profile/${sanitizedTypeName}/share?data=${encoded}`;
   }
 
-  return `${baseUrl}/share?data=${encoded}`;
+  return `${baseUrl}share?data=${encoded}`;
 };
 
 export const decryptShareableLink = (encryptedData: string) => {
