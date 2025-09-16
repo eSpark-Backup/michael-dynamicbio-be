@@ -16,9 +16,8 @@ class UploadService {
     if (!files?.length) {
       return resolve();
     }
-  
+
     try {
-     
       const uploadResults = await Promise.all(
         files.map(async (file) => {
           const uploadFile = await this.uploadFile(file, folderName);
@@ -28,23 +27,30 @@ class UploadService {
           };
         })
       );
-  
+
       return uploadResults;
     } catch (err) {
       logger.error(`Errors in uploading files: ${(err as Error)?.message}`);
       throw err; // Throw the error instead of rejecting manually
     }
   }
-  
+
   async uploadFile(file: IFileObject, folderName: string) {
     if (!file || !file.buffer) throw new Error("Invalid file object");
-  
+
     const filename = `${Date.now()}-${folderName}${extname(file.originalname)}`;
-  
+
+    // decide resource type
+    const resourceType = file.mimetype.startsWith("video")
+      ? "video"
+      : file.mimetype.startsWith("image")
+      ? "image"
+      : "auto";
+
     return new Promise((resolve, reject) => {
       const cloudStream = cloudinary.uploader.upload_stream(
         {
-          resource_type: "auto",
+          resource_type: resourceType,
           folder: folderName,
           filename_override: filename,
         },
@@ -57,8 +63,8 @@ class UploadService {
           resolve(result);
         }
       );
-  
-      cloudStream.end(file.buffer); 
+
+      cloudStream.end(file.buffer);
     });
   }
 
