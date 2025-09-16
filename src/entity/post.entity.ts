@@ -7,8 +7,19 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToOne,
+  JoinColumn,
 } from "typeorm";
-import { BaseEntity, Comments, Likes, Page, Poll, Saved, User, Group, GroupPostRequest } from ".";
+import {
+  BaseEntity,
+  Comments,
+  Likes,
+  Page,
+  Poll,
+  Saved,
+  User,
+  Group,
+  GroupPostRequest,
+} from ".";
 
 export enum PostStatus {
   ARCHIVE = "ARCHIVE",
@@ -114,7 +125,11 @@ export class Post extends BaseEntity {
   })
   poll: Poll | null;
 
-  @ManyToOne(() => Page, (page) => page.posts, { nullable: true })
+  @ManyToOne(() => Page, (page) => page.posts, {
+    nullable: true,
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "pageId" })
   page: Page;
 
   @ManyToOne(() => Group, (group) => group.posts, { nullable: true })
