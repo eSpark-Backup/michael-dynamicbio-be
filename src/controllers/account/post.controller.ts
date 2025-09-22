@@ -211,20 +211,22 @@ export class PostController {
       newPost.visibility = visibility;
       newPost.type = type;
 
-      if (page) {
-        newPost.page = page;
-        newPost.pageId = page.id;
-        newPost.isPagePost = true;
+      if (pageId) {
+        // Get the page entity
+        const page = await this.pageRepo.findOne({ where: { id: pageId } });
+        if (page) {
+          newPost.page = page;
+          newPost.pageId = page.id;
+          newPost.isPagePost = true;
+        }
       }
 
-      newPost.media =
-        (JSON.stringify({
-          IMAGES: coverUrls,
-          VIDEOS: uploadedVideoUrls,
-          THUMBNAILS: uploadedThumbnailUrls,
-          [type === PostType.EVENT ? "EVENTS" : "ARTICLES"]:
-            uploadedArticleUrls,
-        }) as Object) || null;
+      newPost.media = {
+        IMAGES: coverUrls,
+        VIDEOS: uploadedVideoUrls,
+        THUMBNAILS: uploadedThumbnailUrls,
+        [type === PostType.EVENT ? "EVENTS" : "ARTICLES"]: uploadedArticleUrls,
+      };
       let post = await this.postRepo.save(newPost);
       let msg = "Post Created Successfully";
       if (groupId) {
@@ -1560,7 +1562,8 @@ export class PostController {
   ): Promise<void> {
     try {
       // Get the post data
-      const { poll, content, status, visibility, type, groupId } = req.body;
+      const { poll, content, status, visibility, type, groupId, pageId } =
+        req.body;
 
       if (type !== PostType.POLL) {
         throw new ApiError("Post type must be POLL", HTTP_STATUS.BAD_REQUEST);
@@ -1576,6 +1579,56 @@ export class PostController {
       const userId = req.user?.id;
       const user = await this.usersRepo.findOne({ where: { id: userId } });
 
+      const postFilesPath = path.join(process.cwd(), "uploads");
+
+      // collect files
+      let videoFiles = fs
+        .readdirSync(postFilesPath)
+        .filter((f) => f.startsWith("videos"));
+      let thumbnailFiles = fs
+        .readdirSync(postFilesPath)
+        .filter((f) => f.startsWith("thumbnails"));
+
+      // reorder if client sends custom order
+      const { videosOrder = [], thumbnailsOrder = [] } = req.body;
+      videoFiles = commonHelper.reorderCoverFiles(videoFiles, videosOrder);
+      thumbnailFiles = commonHelper.reorderCoverFiles(
+        thumbnailFiles,
+        thumbnailsOrder
+      );
+
+      // auto-generate thumbnail if none provided
+      if (thumbnailFiles.length === 0 && videoFiles.length > 0) {
+        try {
+          const videoPath = path.join(postFilesPath, videoFiles[0]);
+          const generatedThumb = await commonHelper.generateVideoThumbnail(
+            videoPath,
+            postFilesPath
+          );
+          if (generatedThumb) thumbnailFiles.push(generatedThumb);
+        } catch (err) {
+          logger.error("Failed to generate thumbnail:", err);
+        }
+      }
+
+      // upload videos & thumbnails
+      const folderName = `${CLOUD_FOLDERS.POST}/${user.firstName}_${user.lastName}`;
+      const uploadedVideoUrls = await commonHelper.uploadFiles(
+        videoFiles.map((f) =>
+          commonHelper.createFileObject(path.join(postFilesPath, f), "videos")
+        ),
+        folderName
+      );
+      const uploadedThumbUrls = await commonHelper.uploadFiles(
+        thumbnailFiles.map((f) =>
+          commonHelper.createFileObject(
+            path.join(postFilesPath, f),
+            "thumbnails"
+          )
+        ),
+        folderName
+      );
+
       // Create the post
       const newPost = new Post();
       newPost.author = user as User;
@@ -1583,6 +1636,20 @@ export class PostController {
       newPost.status = status;
       newPost.visibility = visibility;
       newPost.type = PostType.POLL;
+
+      if (pageId) {
+        const pageEntity = await this.pageRepo.findOne({ where: { id: pageId } });
+        if (pageEntity) {
+          newPost.page = pageEntity;
+          newPost.pageId = pageEntity.id;
+          newPost.isPagePost = true;
+        }
+      }
+
+      newPost.media = {
+        VIDEOS: uploadedVideoUrls,
+        THUMBNAILS: uploadedThumbUrls,
+      };
 
       // Save the post first to get its ID
       const savedPost = await this.postRepo.save(newPost);
@@ -1664,6 +1731,11 @@ export class PostController {
         savedPost.groupId = group.id;
         savedPost.isGroupPost = true;
         await this.postRepo.save(savedPost);
+      }
+
+      const uploadsPath = path.join(process.cwd(), "uploads");
+      for (const f of fs.readdirSync(uploadsPath)) {
+        fs.unlinkSync(path.join(uploadsPath, f));
       }
 
       res
