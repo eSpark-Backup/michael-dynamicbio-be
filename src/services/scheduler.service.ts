@@ -43,34 +43,6 @@ class SchedulerService {
     this.setupListeners();
   }
 
-  // Method to schedule a post for publication
-  // async schedulePost(postId: string, userId: string, publishAt: Date): Promise<Queue.Job<SchedulePostJob>> {
-  //     try {
-  //         const delay = publishAt.getTime() - Date.now();
-
-  //         if (delay <= 0) {
-  //             throw new Error('Scheduled time must be in the future');
-  //         }
-
-  //         const job = await this.postQueue.add(
-  //             {
-  //                 postId,
-  //                 userId
-  //             },
-  //             {
-  //                 delay,
-  //                 jobId: `post:${postId}:${userId}`
-  //             }
-  //         );
-
-  //         logger.info(`Post with ID ${postId} scheduled for publication at ${publishAt}`);
-  //         return job;
-  //     } catch (error) {
-  //         logger.error(`Error scheduling post with ID ${postId}: ${(error as Error).message}`);
-  //         throw error;
-  //     }
-  // }
-
   async schedulePost(
     postId: string,
     userId: string,
@@ -83,7 +55,6 @@ class SchedulerService {
         throw new Error("Scheduled time must be in the future");
       }
 
-      // Add job to queue
       const job = await this.postQueue.add(
         {
           postId,
@@ -94,16 +65,6 @@ class SchedulerService {
           jobId: `post:${postId}:${userId}`,
         }
       );
-
-      // Update post in DB
-      const post = await this.postRepository.findOne({ where: { id: postId } });
-      if (!post) throw new Error(`Post with ID ${postId} not found`);
-
-      post.status = PostStatus.SCHEDULED;
-      post.scheduledFor = publishAt;
-      post.scheduledJobId = job.id.toString();
-
-      await this.postRepository.save(post);
 
       logger.info(
         `Post with ID ${postId} scheduled for publication at ${publishAt}`
