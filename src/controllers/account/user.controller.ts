@@ -496,9 +496,10 @@ export class UserController {
     try {
       const userId = req.user.id;
       const { page, take, skip } = req?.query;
-      const skipNumber = Number(skip);
-      const takeNumber = Number(take);
+      const skipNumber = Number(skip) || 0;
+      const takeNumber = Number(take) || 15;
 
+      // 1) get accepted bonds
       const bonds = await this.bondsRepo
         .createQueryBuilder("bond")
         .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
@@ -509,22 +510,18 @@ export class UserController {
         .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
         .getMany();
 
-      const bondedUserIds = bonds.map((bond) =>
-        bond.requester.id === userId ? bond.recipient.id : bond.requester.id
+      const bondedUserIds = bonds.map((b) =>
+        b.requester.id === userId ? b.recipient.id : b.requester.id
       );
 
-      bondedUserIds.push(userId);
+      // include self so checks that use IN(...) can include author = self where needed
+      if (!bondedUserIds.includes(userId)) bondedUserIds.push(userId);
 
-      if (bondedUserIds.length === 0) {
-        res.status(200).json({
-          status: true,
-          data: [],
-          message: "No posts found in timeline",
-          statusCode: 200,
-        });
-        return next();
-      }
-
+      // 2) query posts with precise visibility logic:
+      //    - author always sees own posts (post.author = :userId)
+      //    - posts with no page and no group follow the normal visibility rules
+      //    - posts with a page require page follower to be the user (user must follow page)
+      //    - posts with a group require group follower to be the user (user must be group member)
       const [posts, totalItems] = await this.postsRepo
         .createQueryBuilder("post")
         .where("post.status NOT IN (:...excludedStatuses)", {
@@ -536,41 +533,135 @@ export class UserController {
         })
         .andWhere(
           new Brackets((qb) => {
-            qb.where("post.author = :userId", { userId })
-              .orWhere("post.visibility = :public", {
-                public: PostVisibility.PUBLIC,
-              })
-              .orWhere(
-                new Brackets((subQb) => {
-                  subQb
-                    .where("post.visibility = :connections", {
-                      connections: PostVisibility.CONNECTIONS,
-                    })
-                    .andWhere("post.author IN (:...bondedUserIds)", {
-                      bondedUserIds,
-                    })
-                    .orWhere(
-                      new Brackets((groupQb) => {
-                        groupQb
-                          .where("post.visibility = :groups", {
-                            groups: PostVisibility.GROUPS,
+            // 1) always include posts authored by the current user
+            qb.where("post.author = :userId", { userId });
+
+            // 2) include posts that are not page-posts and not group-posts (normal visibility)
+            qb.orWhere(
+              new Brackets((inner) => {
+                inner
+                  .where("post.page IS NULL")
+                  .andWhere("post.group IS NULL")
+                  .andWhere(
+                    new Brackets((vis) => {
+                      // public
+                      vis
+                        .where("post.visibility = :public", {
+                          public: PostVisibility.PUBLIC,
+                        })
+                        // connections: author must be in bondedUserIds
+                        .orWhere(
+                          new Brackets((conn) => {
+                            conn
+                              .where("post.visibility = :connections", {
+                                connections: PostVisibility.CONNECTIONS,
+                              })
+                              .andWhere("post.author IN (:...bondedUserIds)", {
+                                bondedUserIds,
+                              });
                           })
-                          .andWhere("groupFollower.id = :userId", { userId });
-                      })
-                    );
-                })
-              );
+                        )
+                        // only me: author must be the user (author case already covered, but keep for completeness)
+                        .orWhere(
+                          new Brackets((onlyMe) => {
+                            onlyMe
+                              .where("post.visibility = :onlyMe", {
+                                onlyMe: PostVisibility.ONLY_ME,
+                              })
+                              .andWhere("post.author = :userId", { userId });
+                          })
+                        );
+                    })
+                  );
+              })
+            );
+
+            // 3) include page posts ONLY if the user follows the page (pageFollower.id = :userId)
+            //    and then apply visibility rules relative to the author (connections/onlyMe/public)
+            qb.orWhere(
+              new Brackets((pageQ) => {
+                pageQ
+                  .where("post.page IS NOT NULL")
+                  .andWhere("pageFollower.id = :userId", { userId }) // user follows the page
+                  .andWhere(
+                    new Brackets((visPage) => {
+                      visPage
+                        .where("post.visibility = :public", {
+                          public: PostVisibility.PUBLIC,
+                        })
+                        .orWhere(
+                          new Brackets((conn) => {
+                            conn
+                              .where("post.visibility = :connections", {
+                                connections: PostVisibility.CONNECTIONS,
+                              })
+                              .andWhere("post.author IN (:...bondedUserIds)", {
+                                bondedUserIds,
+                              });
+                          })
+                        )
+                        .orWhere(
+                          new Brackets((onlyMe) => {
+                            onlyMe
+                              .where("post.visibility = :onlyMe", {
+                                onlyMe: PostVisibility.ONLY_ME,
+                              })
+                              .andWhere("post.author = :userId", { userId });
+                          })
+                        );
+                    })
+                  );
+              })
+            );
+
+            // 4) include group posts ONLY if the user is a group follower (groupFollower.id = :userId)
+            //    and then apply visibility rules
+            qb.orWhere(
+              new Brackets((groupQ) => {
+                groupQ
+                  .where("post.group IS NOT NULL")
+                  .andWhere("groupFollower.id = :userId", { userId }) // user is member of group
+                  .andWhere(
+                    new Brackets((visGroup) => {
+                      visGroup
+                        .where("post.visibility = :public", {
+                          public: PostVisibility.PUBLIC,
+                        })
+                        .orWhere(
+                          new Brackets((conn) => {
+                            conn
+                              .where("post.visibility = :connections", {
+                                connections: PostVisibility.CONNECTIONS,
+                              })
+                              .andWhere("post.author IN (:...bondedUserIds)", {
+                                bondedUserIds,
+                              });
+                          })
+                        )
+                        .orWhere(
+                          new Brackets((onlyMe) => {
+                            onlyMe
+                              .where("post.visibility = :onlyMe", {
+                                onlyMe: PostVisibility.ONLY_ME,
+                              })
+                              .andWhere("post.author = :userId", { userId });
+                          })
+                        );
+                    })
+                  );
+              })
+            );
           })
         )
+        // joins (keep your existing selects / joins so post-processing works)
         .leftJoinAndSelect("post.author", "author")
         .leftJoinAndSelect("author.profileSettings", "profileSettings")
         .leftJoinAndSelect("post.page", "page")
-        .leftJoinAndSelect("page.followers", "follower")
+        .leftJoinAndSelect("page.followers", "pageFollower")
         .leftJoinAndSelect("post.likes", "like")
         .leftJoinAndSelect("like.user", "likedUser")
-        .leftJoinAndSelect("like.user", "lastLikedUser")
-        .leftJoinAndSelect("post.poll", "poll") // Include poll data
-        .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+        .leftJoinAndSelect("post.poll", "poll")
+        .leftJoinAndSelect("poll.votes", "pollVotes")
         .leftJoinAndSelect("post.comments", "comment")
         .leftJoinAndSelect("comment.user", "commentUser")
         .leftJoinAndSelect("post.group", "group")
@@ -578,8 +669,8 @@ export class UserController {
         .leftJoinAndSelect("group.admins", "groupAdmin")
         .leftJoinAndSelect("groupAdmin.admin", "adminUser")
         .leftJoinAndSelect("post.groupPostRequests", "request")
-        .andWhere("(post.group IS NULL OR request.status = :status)", {
-          status: PostRequestStatus.APPROVED,
+        .andWhere("(post.group IS NULL OR request.status = :gStatus)", {
+          gStatus: PostRequestStatus.APPROVED,
         })
         .select([
           "post",
@@ -602,13 +693,13 @@ export class UserController {
           "commentUser.company",
           "commentUser.designation",
           "commentUser.industry",
-          "poll", // Include poll fields
+          "poll",
           "pollVotes.id",
           "pollVotes.optionIndex",
           "pollVotes.userId",
           "pollVotes.createdAt",
           "page",
-          "follower",
+          "pageFollower",
           "group",
           "groupFollower",
           "groupAdmin",
@@ -621,46 +712,48 @@ export class UserController {
         .take(takeNumber)
         .getManyAndCount();
 
+      // 3) saved posts lookup (unchanged)
       const savedPosts = await this.savedRepo.find({
         where: { user: { id: userId } },
         relations: ["post"],
       });
 
-      // Process each post
+      // 4) post-processing (null-safe)
       for (const post of posts) {
         praseMedia(post);
 
+        const postAuthorId = post.author?.id || null;
         let canComment = false;
-        const postAuthorId = post.author.id;
 
-        switch (post.commentVisibility) {
-          case COMMENT_VISIBILITY.PUBLIC:
-            canComment = true;
-            break;
-
-          case COMMENT_VISIBILITY.CONNECTIONS:
-            canComment = bondedUserIds.includes(postAuthorId);
-            break;
-
-          case COMMENT_VISIBILITY.ONLY_ME:
-            canComment = userId === postAuthorId;
-            break;
-
-          case COMMENT_VISIBILITY.GROUPS:
-            canComment = post.group?.followers.some(
-              (follower) => follower.id === userId
-            );
-            break;
-          default:
-            canComment = false;
-            break;
+        if (postAuthorId) {
+          switch (post.commentVisibility) {
+            case COMMENT_VISIBILITY.PUBLIC:
+              canComment = true;
+              break;
+            case COMMENT_VISIBILITY.CONNECTIONS:
+              canComment = bondedUserIds.includes(postAuthorId);
+              break;
+            case COMMENT_VISIBILITY.ONLY_ME:
+              canComment = userId === postAuthorId;
+              break;
+            case COMMENT_VISIBILITY.GROUPS:
+              canComment =
+                post.group?.followers?.some((f) => f.id === userId) || false;
+              break;
+            default:
+              canComment = false;
+              break;
+          }
+        } else {
+          // If no author (edge case), disallow commenting unless it's a page and user follows
+          canComment = false;
         }
 
-        if (post.author.profileSettings) {
+        // filtered author profile if exists
+        if (post.author?.profileSettings) {
           const user = post.author;
           const settings = user.profileSettings;
-          let about = user.about as any;
-
+          const about = user.about as any;
           const filteredProfile: any = buildFilteredProfile(
             user,
             about,
@@ -671,74 +764,74 @@ export class UserController {
 
         (post as any).canComment = canComment;
 
-        ((post as any).shareableLink = generateShareableLink({
-          id: post.id,
-          type: "post",
-          typeName: post.type,
-        })),
-          ((post as any).likesCount = post.likes.length);
-        const lastLike = post.likes[0];
-        (post as any).lastLikedUser = lastLike
+        // likes & lastLike
+        (post as any).likesCount = post.likes?.length || 0;
+        const lastLike = post.likes?.[0];
+        (post as any).lastLikedUser = lastLike?.user
           ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
           : null;
-        for (const like of post.likes) {
-          const likeUserId = like.user.id;
 
-          const bond = await this.bondsRepo.findOne({
+        // mark bond status for each like user (null-safe)
+        for (const like of post.likes || []) {
+          const likeUserId = like.user?.id;
+          if (!likeUserId) {
+            (like as any).isBond = false;
+            continue;
+          }
+          const lBond = await this.bondsRepo.findOne({
             where: [
               { requester: { id: userId }, recipient: { id: likeUserId } },
               { requester: { id: likeUserId }, recipient: { id: userId } },
             ],
           });
-
-          (like as any).isBond = !!bond; // true if bond exists, false otherwise
+          (like as any).isBond = !!lBond;
         }
+
+        // isSaved
         (post as any).isSaved = savedPosts.some(
-          (savedPost) =>
-            savedPost.type === SavedType.POST && savedPost.post.id === post.id
+          (s) => s.type === SavedType.POST && s.post?.id === post.id
         );
 
-        if (post.isPagePost) {
-          const isFollowing = post.page.followers.some(
-            (follower) => follower.id === userId
-          );
-          (post as any).isPageFollowing = isFollowing;
-
-          (post as any).pageFollowerCount = post.page.followers.length;
-
+        // page following (only present when page exists)
+        if (post.page) {
+          (post as any).isPageFollowing =
+            post.page.followers?.some((f) => f.id === userId) || false;
+          (post as any).pageFollowerCount = post.page.followers?.length || 0;
+          // remove followers payload to keep response small
           delete post.page.followers;
         }
-        if (post.group) {
-          const isFollowing = post.group.followers.some(
-            (follower) => follower.id === userId
-          );
-          (post as any).isGroupFollowing = isFollowing;
 
-          (post as any).groupFollowerCount = post.group.followers.length;
-          (post as any).isAdmin = post.group.admins.some(
-            (admin) => admin.admin.id === userId
-          );
-          (post as any).isCreator = post.group.creatorId === userId;
+        // group membership flags
+        if (post.group) {
+          (post as any).isGroupFollowing =
+            post.group.followers?.some((f) => f.id === userId) || false;
+          (post as any).groupFollowerCount = post.group.followers?.length || 0;
+          (post as any).isAdmin =
+            post.group.admins?.some((a) => a.admin?.id === userId) || false;
+          (post as any).isCreator = post.group?.creatorId === userId;
           delete post.group.followers;
         }
 
-        const bond = await this.bondsRepo.findOne({
-          where: [
-            { requester: { id: userId }, recipient: { id: post.author.id } },
-            { requester: { id: post.author.id }, recipient: { id: userId } },
-          ],
-        });
-        (post as any).isBond = !!bond;
+        // isBond between current user and post author (null-safe)
+        if (postAuthorId) {
+          const postAuthorBond = await this.bondsRepo.findOne({
+            where: [
+              { requester: { id: userId }, recipient: { id: postAuthorId } },
+              { requester: { id: postAuthorId }, recipient: { id: userId } },
+            ],
+          });
+          (post as any).isBond = !!postAuthorBond;
+        } else {
+          (post as any).isBond = false;
+        }
 
-        (post as any).commentsCount = post.comments.length;
+        (post as any).commentsCount = post.comments?.length || 0;
 
-        // If the post is a poll, include vote statistics
+        // polls: compute results and user votes with safeguards
         if (post.type === PostType.POLL && post.poll) {
           const voteCounts = await this.getPollVoteCounts(post.poll);
-          const userVotes = this.getUserPollVotes(post.poll, userId);
+          const userVotes = this.getUserPollVotes(post.poll, userId) || [];
           const hasVoted = userVotes.length > 0;
-
-          // Determine if results should be shown
           const hasEnded = post.poll.endDate
             ? new Date() > post.poll.endDate
             : false;
@@ -752,18 +845,22 @@ export class UserController {
             ? userVotes
             : undefined;
           (post as any).hasVoted = hasVoted;
-
-          // Calculate poll statistics
           (post as any).pollStats = {
             totalVotes: post.poll.votes?.length || 0,
-            hasEnded: hasEnded,
+            hasEnded,
           };
 
-          // Remove sensitive data if poll is anonymous
           if (post.poll.isAnonymous) {
             delete post.poll.votes;
           }
         }
+
+        // shareable link
+        (post as any).shareableLink = generateShareableLink({
+          id: post.id,
+          type: "post",
+          typeName: post.type,
+        });
       }
 
       res.status(200).json(
@@ -771,9 +868,9 @@ export class UserController {
           posts,
           pagination: {
             totalItems,
-            currentPage: parseInt(page as string, 10),
+            currentPage: parseInt(page as string, 10) || 1,
             pageSize: takeNumber,
-            totalPages: Math.ceil(totalItems / takeNumber),
+            totalPages: Math.ceil(totalItems / takeNumber) || 1,
           },
         })
       );
@@ -2094,11 +2191,12 @@ export class UserController {
   ): Promise<void> {
     try {
       const { id } = req.params;
-      const { page, take, skip, profileId } = req?.query;
+      const { page, take, skip, profileId } = req.query;
       const userId = req.user?.id;
-      const skipNumber = Number(skip);
-      const takeNumber = Number(take);
+      const skipNumber = Number(skip) || 0;
+      const takeNumber = Number(take) || 15;
 
+      // Collect accepted bonds for visibility checks
       const bonds = await this.bondsRepo
         .createQueryBuilder("bond")
         .where("(bond.requesterId = :userId OR bond.recipientId = :userId)", {
@@ -2109,71 +2207,58 @@ export class UserController {
         .andWhere("bond.status = :status", { status: BondStatus.ACCEPTED })
         .getMany();
 
-      const bondedUserIds = bonds.map((bond) =>
-        bond.requester.id === userId ? bond.recipient.id : bond.requester.id
+      const bondedUserIds = bonds.map((b) =>
+        b.requester.id === userId ? b.recipient.id : b.requester.id
       );
-
       bondedUserIds.push(userId);
 
-      // Case 1: Get a single post by ID
+      // ============= Single Post =============
       if (id && id !== "{id}") {
         const singlePost = await this.postsRepo
           .createQueryBuilder("post")
-          .where("post.id = :id", { id })
-          .andWhere("post.author = :profileId", { profileId })
-          .andWhere(
-            new Brackets((qb) => {
-              qb.where("post.author = :userId", { userId })
-                .orWhere("post.visibility = :public", {
-                  public: PostVisibility.PUBLIC,
-                })
-                .orWhere(
-                  new Brackets((subQb) => {
-                    subQb
-                      .where("post.visibility = :connections", {
-                        connections: PostVisibility.CONNECTIONS,
-                      })
-                      .andWhere("post.author IN (:...bondedUserIds)", {
-                        bondedUserIds,
-                      });
-                  })
-                )
-                .orWhere(
-                  new Brackets((groupQb) => {
-                    groupQb
-                      .where("post.visibility = :groups", {
-                        groups: PostVisibility.GROUPS,
-                      })
-                      .andWhere("groupFollower.id = :userId", { userId });
-                  })
-                );
-            })
-          )
           .leftJoinAndSelect("post.author", "author")
           .leftJoinAndSelect("author.profileSettings", "profileSettings")
           .leftJoinAndSelect("post.likes", "like")
           .leftJoinAndSelect("like.user", "likeUser")
-          .leftJoinAndSelect("like.user", "lastLikedUser")
-          .leftJoinAndSelect("post.poll", "poll") // Include poll data
-          .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
+          .leftJoinAndSelect("post.poll", "poll")
+          .leftJoinAndSelect("poll.votes", "pollVotes")
           .leftJoinAndSelect("post.comments", "comment")
-          .leftJoinAndSelect("post.page", "page")
           .leftJoinAndSelect("comment.user", "commentUser")
-          .leftJoinAndSelect("page.followers", "follower")
+          .leftJoinAndSelect("post.page", "page")
+          .leftJoinAndSelect("page.followers", "pageFollower")
           .leftJoinAndSelect("post.group", "group")
           .leftJoinAndSelect("group.followers", "groupFollower")
           .leftJoinAndSelect("group.admins", "groupAdmin")
           .leftJoinAndSelect("groupAdmin.admin", "adminUser")
           .leftJoinAndSelect("post.groupPostRequests", "request")
+          .where("post.id = :id", { id })
+          .andWhere("post.author = :profileId", { profileId })
+          .andWhere(
+            new Brackets((qb) => {
+              qb.where("post.visibility = :public", {
+                public: PostVisibility.PUBLIC,
+              }).orWhere(
+                new Brackets((sub) => {
+                  sub
+                    .where("post.visibility = :connections", {
+                      connections: PostVisibility.CONNECTIONS,
+                    })
+                    .andWhere("post.author IN (:...bondedUserIds)", {
+                      bondedUserIds,
+                    });
+                })
+              );
+            })
+          )
+
           .andWhere("(post.group IS NULL OR request.status = :status)", {
             status: PostRequestStatus.APPROVED,
           })
-
           .select([
             "post",
             "author",
+            "profileSettings",
             "like",
-
             "likeUser.id",
             "likeUser.firstName",
             "likeUser.lastName",
@@ -2182,20 +2267,19 @@ export class UserController {
             "likeUser.company",
             "likeUser.designation",
             "likeUser.industry",
-            // "lastLikedUser.firstName",
-            // "lastLikedUser.lastName",
             "poll",
             "pollVotes.id",
             "pollVotes.optionIndex",
             "pollVotes.userId",
             "comment",
+            "commentUser",
             "page",
-            "follower",
+            "pageFollower",
             "group",
             "groupFollower",
             "groupAdmin",
             "adminUser",
-            "profileSettings",
+            "request",
           ])
           .addOrderBy("like.createdAt", "DESC")
           .getOne();
@@ -2205,60 +2289,44 @@ export class UserController {
           return next();
         }
 
+        // --- Existing processing remains unchanged ---
         let canComment = false;
         const postAuthorId = singlePost.author.id;
-
         switch (singlePost.commentVisibility) {
           case COMMENT_VISIBILITY.PUBLIC:
             canComment = true;
             break;
-
           case COMMENT_VISIBILITY.CONNECTIONS:
             canComment = bondedUserIds.includes(postAuthorId);
             break;
-
           case COMMENT_VISIBILITY.ONLY_ME:
             canComment = userId === postAuthorId;
             break;
-
           case COMMENT_VISIBILITY.GROUPS:
-            canComment = singlePost.group?.followers.some(
-              (follower) => follower.id === userId
-            );
-            break;
-
-          default:
-            canComment = false;
+            canComment =
+              singlePost.group?.followers.some((f) => f.id === userId) || false;
             break;
         }
-
         (singlePost as any).canComment = canComment;
 
         if (singlePost.author.profileSettings) {
-          const user = singlePost.author;
-          const settings = user.profileSettings;
-          let about = user.about as any;
-
-          const filteredProfile: any = buildFilteredProfile(
-            user,
-            about,
-            settings
+          (singlePost as any).author = buildFilteredProfile(
+            singlePost.author,
+            singlePost.author.about as any,
+            singlePost.author.profileSettings
           );
-          (singlePost as any).author = filteredProfile;
         }
+
         praseMedia(singlePost);
         (singlePost as any).likesCount = singlePost.likes.length;
         (singlePost as any).commentsCount = singlePost.comments.length;
-        //remove the comments from post
         delete singlePost.comments;
+
         const isSaved = await this.savedRepo.find({
           where: { user: { id: userId }, post: { id } },
         });
-        if (isSaved.length > 0) {
-          (singlePost as any).isSaved = true;
-        } else {
-          (singlePost as any).isSaved = false;
-        }
+        (singlePost as any).isSaved = isSaved.length > 0;
+
         const lastLike = singlePost.likes[0];
         (singlePost as any).lastLikedUser = lastLike
           ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
@@ -2266,343 +2334,262 @@ export class UserController {
 
         const bond = await this.bondsRepo.findOne({
           where: [
-            {
-              requester: { id: userId },
-              recipient: { id: singlePost.author.id },
-            },
-            {
-              requester: { id: singlePost.author.id },
-              recipient: { id: userId },
-            },
+            { requester: { id: userId }, recipient: { id: postAuthorId } },
+            { requester: { id: postAuthorId }, recipient: { id: userId } },
           ],
         });
         (singlePost as any).isBond = !!bond;
 
-        // If the post is a poll, include vote statistics
         if (singlePost.type === PostType.POLL && singlePost.poll) {
           const voteCounts = await this.getPollVoteCounts(singlePost.poll);
           const userVote = this.getUserPollVote(
             singlePost.poll,
             userId as string
           );
-
-          // Only show results if poll is configured to show results or user has voted
-          const shouldShowResults =
-            singlePost.poll.showResults ||
-            (userVote !== null && userVote !== undefined);
-
-          (singlePost as any).pollResults = shouldShowResults
-            ? voteCounts
-            : null;
+          const showResults = singlePost.poll.showResults || userVote !== null;
+          (singlePost as any).pollResults = showResults ? voteCounts : null;
           (singlePost as any).userVote = userVote;
-          (singlePost as any).hasVoted = userVote !== null; // Add hasVoted flag
-
-          // Calculate poll statistics
-          if (singlePost.poll.votes && singlePost.poll.votes.length > 0) {
-            (singlePost as any).pollStats = {
-              totalVotes: singlePost.poll.votes.length,
-              hasEnded: singlePost.poll.endDate
-                ? new Date() > singlePost.poll.endDate
-                : false,
-            };
-          } else {
-            (singlePost as any).pollStats = {
-              totalVotes: 0,
-              hasEnded: singlePost.poll.endDate
-                ? new Date() > singlePost.poll.endDate
-                : false,
-            };
-          }
-
-          // Remove sensitive data if poll is anonymous
-          if (singlePost.poll.isAnonymous) {
-            delete singlePost.poll.votes;
-          }
+          (singlePost as any).hasVoted = userVote !== null;
+          (singlePost as any).pollStats = {
+            totalVotes: singlePost.poll.votes?.length || 0,
+            hasEnded: singlePost.poll.endDate
+              ? new Date() > singlePost.poll.endDate
+              : false,
+          };
+          if (singlePost.poll.isAnonymous) delete singlePost.poll.votes;
         }
 
         for (const like of singlePost.likes) {
-          const likeUserId = like.user.id;
-
-          const bond = await this.bondsRepo.findOne({
+          const lBond = await this.bondsRepo.findOne({
             where: [
-              {
-                requester: { id: userId as string },
-                recipient: { id: likeUserId },
-              },
-              {
-                requester: { id: likeUserId },
-                recipient: { id: userId as string },
-              },
+              { requester: { id: userId }, recipient: { id: like.user.id } },
+              { requester: { id: like.user.id }, recipient: { id: userId } },
             ],
           });
-
-          (like as any).isBond = !!bond; // true if bond exists, false otherwise
+          (like as any).isBond = !!lBond;
         }
-        if (singlePost.group) {
-          const isFollowing = singlePost.group.followers.some(
-            (follower) => follower.id === userId
-          );
-          (singlePost as any).isAdmin = singlePost.group?.admins.some(
-            (groupAdmin) => groupAdmin.admin.id === userId
-          );
-          (singlePost as any).isCreator =
-            singlePost.group?.creatorId === userId;
-          (singlePost as any).isGroupFollowing = isFollowing;
 
+        if (singlePost.group) {
+          (singlePost as any).isAdmin = singlePost.group.admins.some(
+            (a) => a.admin.id === userId
+          );
+          (singlePost as any).isCreator = singlePost.group.creatorId === userId;
+          (singlePost as any).isGroupFollowing =
+            singlePost.group.followers.some((f) => f.id === userId);
           (singlePost as any).groupFollowerCount =
             singlePost.group.followers.length;
-
           delete singlePost.group.followers;
         }
 
-        ((singlePost as any).shareableLink = generateShareableLink({
+        (singlePost as any).shareableLink = generateShareableLink({
           id: singlePost.id,
           type: "post",
           typeName: singlePost.type,
-        })),
-          res
-            .status(200)
-            .json(handleResponse("Post Found Successfully", singlePost));
+        });
+
+        res
+          .status(200)
+          .json(handleResponse("Post Found Successfully", singlePost));
         return next();
       }
 
-      // Case 2: Get all posts for the authenticated user
-      else {
-        const [posts, totalItems] = await this.postsRepo
-          .createQueryBuilder("post")
-          .where("post.author = :userId", { userId: profileId })
-          .andWhere("post.status= :status", { status: PostStatus.PUBLISH })
-          .leftJoinAndSelect("post.author", "author")
-          .leftJoinAndSelect("author.profileSettings", "profileSettings")
-          .leftJoinAndSelect("post.likes", "like")
-          .leftJoinAndSelect("like.user", "likedUser")
-          .leftJoinAndSelect("like.user", "lastLikedUser")
-          .leftJoinAndSelect("post.poll", "poll") // Include poll data
-          .leftJoinAndSelect("poll.votes", "pollVotes") // Include poll votes
-          .leftJoinAndSelect("post.comments", "comment")
-          .leftJoinAndSelect("comment.user", "commentUser")
-          .leftJoinAndSelect("post.page", "page")
-          .leftJoinAndSelect("page.followers", "follower")
-          .leftJoinAndSelect("post.group", "group")
-          .leftJoinAndSelect("group.followers", "groupFollower")
-          .leftJoinAndSelect("group.admins", "groupAdmin")
-          .leftJoinAndSelect("groupAdmin.admin", "adminUser")
-          .leftJoinAndSelect("post.groupPostRequests", "request")
-          // .andWhere("(post.group IS NULL OR request.status = :status)", {
-          //   status: PostRequestStatus.APPROVED,
-          // })
-          .select([
-            "post",
-            "author",
-            "like",
-            "likedUser.id",
-            "likedUser.firstName",
-            "likedUser.lastName",
-            "likedUser.profileImage",
-            "likedUser.role",
-            "likedUser.company",
-            "likedUser.designation",
-            "likedUser.industry",
-            "poll", // Include poll fields
-            "pollVotes.id",
-            "pollVotes.optionIndex",
-            "pollVotes.userId",
-            "comment",
-            "page",
-            "follower",
-            "group",
-            "groupFollower",
-            "groupAdmin",
-            "adminUser",
-            "profileSettings",
-            "request",
-          ])
-          .orderBy("post.createdAt", "DESC")
-          .addOrderBy("like.createdAt", "DESC")
-          .skip(skipNumber)
-          .take(takeNumber)
-          .getManyAndCount();
+      // ============= All Posts of Profile =============
+      const [posts, totalItems] = await this.postsRepo
+        .createQueryBuilder("post")
+        .leftJoinAndSelect("post.author", "author")
+        .leftJoinAndSelect("author.profileSettings", "profileSettings")
+        .leftJoinAndSelect("post.likes", "like")
+        .leftJoinAndSelect("like.user", "likedUser")
+        .leftJoinAndSelect("post.poll", "poll")
+        .leftJoinAndSelect("poll.votes", "pollVotes")
+        .leftJoinAndSelect("post.comments", "comment")
+        .leftJoinAndSelect("comment.user", "commentUser")
+        .leftJoinAndSelect("post.page", "page")
+        .leftJoinAndSelect("page.followers", "pageFollower")
+        .leftJoinAndSelect("post.group", "group")
+        .leftJoinAndSelect("group.followers", "groupFollower")
+        .leftJoinAndSelect("group.admins", "groupAdmin")
+        .leftJoinAndSelect("groupAdmin.admin", "adminUser")
+        .leftJoinAndSelect("post.groupPostRequests", "request")
+        .where("post.author = :profileId", { profileId })
+        .andWhere("post.status = :status", { status: PostStatus.PUBLISH })
+        .andWhere(
+          new Brackets((qb) => {
+            qb.where("post.visibility = :public", {
+              public: PostVisibility.PUBLIC,
+            }).orWhere(
+              new Brackets((sub) => {
+                sub
+                  .where("post.visibility = :connections", {
+                    connections: PostVisibility.CONNECTIONS,
+                  })
+                  .andWhere("post.author IN (:...bondedUserIds)", {
+                    bondedUserIds,
+                  });
+              })
+            );
+          })
+        )
 
-        if (posts.length === 0) {
-          res.status(200).json(handleResponse("No Posts Found"));
-          return next();
+        .orderBy("post.createdAt", "DESC")
+        .addOrderBy("like.createdAt", "DESC")
+        .skip(skipNumber)
+        .take(takeNumber)
+        .select([
+          "post",
+          "author",
+          "profileSettings",
+          "like",
+          "likedUser.id",
+          "likedUser.firstName",
+          "likedUser.lastName",
+          "likedUser.profileImage",
+          "likedUser.role",
+          "likedUser.company",
+          "likedUser.designation",
+          "likedUser.industry",
+          "poll",
+          "pollVotes.id",
+          "pollVotes.optionIndex",
+          "pollVotes.userId",
+          "comment",
+          "commentUser",
+          "page",
+          "pageFollower",
+          "group",
+          "groupFollower",
+          "groupAdmin",
+          "adminUser",
+          "request",
+        ])
+        .getManyAndCount();
+
+      if (!posts.length) {
+        res.status(200).json(handleResponse("No Posts Found"));
+        return next();
+      }
+
+      // Existing processing for list of posts
+      for (const post of posts) {
+        if (post.groupPostRequests) {
+          post.groupPostRequests = post.groupPostRequests.filter(
+            (r) => r.status === PostRequestStatus.APPROVED
+          );
+        }
+        praseMedia(post);
+
+        let canComment = false;
+        const postAuthorId = post.author.id;
+        switch (post.commentVisibility) {
+          case COMMENT_VISIBILITY.PUBLIC:
+            canComment = true;
+            break;
+          case COMMENT_VISIBILITY.CONNECTIONS:
+            canComment = bondedUserIds.includes(postAuthorId);
+            break;
+          case COMMENT_VISIBILITY.ONLY_ME:
+            canComment = userId === postAuthorId;
+            break;
+          case COMMENT_VISIBILITY.GROUPS:
+            canComment =
+              post.group?.followers.some((f) => f.id === userId) || false;
+            break;
+        }
+        (post as any).canComment = canComment;
+
+        if (post.author.profileSettings) {
+          (post as any).author = buildFilteredProfile(
+            post.author,
+            post.author.about as any,
+            post.author.profileSettings
+          );
         }
 
-        // Process each post
-        for (const post of posts) {
-          if (post.groupPostRequests) {
-            post.groupPostRequests = post.groupPostRequests.filter(
-              (request) => request.status === PostRequestStatus.APPROVED
-            );
-          }
-          praseMedia(post);
+        const isSaved = await this.savedRepo.find({
+          where: { user: { id: userId }, post: { id: post.id } },
+        });
+        (post as any).isSaved = isSaved.length > 0;
 
-          let canComment = false;
-          const postAuthorId = post.author.id;
+        (post as any).likesCount = post.likes.length;
+        (post as any).commentsCount = post.comments.length;
+        const lastLike = post.likes[0];
+        (post as any).lastLikedUser = lastLike
+          ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
+          : null;
 
-          switch (post.commentVisibility) {
-            case COMMENT_VISIBILITY.PUBLIC:
-              canComment = true;
-              break;
+        const bond = await this.bondsRepo.findOne({
+          where: [
+            { requester: { id: userId }, recipient: { id: post.author.id } },
+            { requester: { id: post.author.id }, recipient: { id: userId } },
+          ],
+        });
+        (post as any).isBond = !!bond;
 
-            case COMMENT_VISIBILITY.CONNECTIONS:
-              canComment = bondedUserIds.includes(postAuthorId);
-              break;
+        if (post.page) {
+          (post as any).isPageFollowing = post.page.followers.some(
+            (f) => f.id === userId
+          );
+          (post as any).pageFollowerCount = post.page.followers.length;
+          delete post.page.followers;
+        }
 
-            case COMMENT_VISIBILITY.ONLY_ME:
-              canComment = userId === postAuthorId;
-              break;
+        if (post.group) {
+          (post as any).isGroupFollowing = post.group.followers.some(
+            (f) => f.id === userId
+          );
+          (post as any).groupFollowerCount = post.group.followers.length;
+          (post as any).isAdmin = post.group.admins.some(
+            (a) => a.admin.id === userId
+          );
+          (post as any).isCreator = post.group.creatorId === userId;
+          delete post.group.followers;
+        }
 
-            case COMMENT_VISIBILITY.GROUPS:
-              canComment = post.group?.followers.some(
-                (follower) => follower.id === userId
-              );
-              break;
-
-            default:
-              canComment = false;
-              break;
-          }
-          if (post.author.profileSettings) {
-            const user = post.author;
-            const settings = user.profileSettings;
-            let about = user.about as any;
-
-            const filteredProfile: any = buildFilteredProfile(
-              user,
-              about,
-              settings
-            );
-            (post as any).author = filteredProfile;
-          }
-
-          (post as any).canComment = canComment;
-
-          const isSaved = await this.savedRepo.find({
-            where: { user: { id: userId }, post: { id } },
-          });
-          if (isSaved.length > 0) {
-            (post as any).isSaved = true;
-          } else {
-            (post as any).isSaved = false;
-          }
-
-          const bond = await this.bondsRepo.findOne({
+        for (const like of post.likes) {
+          const lBond = await this.bondsRepo.findOne({
             where: [
-              { requester: { id: userId }, recipient: { id: post.author.id } },
-              { requester: { id: post.author.id }, recipient: { id: userId } },
+              { requester: { id: userId }, recipient: { id: like.user.id } },
+              { requester: { id: like.user.id }, recipient: { id: userId } },
             ],
           });
-          (post as any).isBond = !!bond;
-          ((post as any).shareableLink = generateShareableLink({
-            id: post.id,
-            type: "post",
-            typeName: post.type,
-          })),
-            ((post as any).commentsCount = post.comments.length);
-          (post as any).likesCount = post.likes.length;
-
-          const lastLike = post.likes[0];
-          (post as any).lastLikedUser = lastLike
-            ? `${lastLike.user.firstName} ${lastLike.user.lastName}`
-            : null;
-
-          if (post.page) {
-            const isFollowing = post.page.followers.some(
-              (follower) => follower.id === userId
-            );
-            (post as any).isPageFollowing = isFollowing;
-
-            (post as any).pageFollowerCount = post.page.followers.length;
-
-            delete post.page.followers;
-          }
-
-          if (post.group) {
-            const isFollowing = post.group.followers.some(
-              (follower) => follower.id === userId
-            );
-            (post as any).isGroupFollowing = isFollowing;
-
-            (post as any).groupFollowerCount = post.group.followers.length;
-            (post as any).isAdmin = post.group.admins.some(
-              (admin) => admin.admin.id === userId
-            );
-            (post as any).isCreator = post.group.creatorId === userId;
-            delete post.group.followers;
-          }
-
-          for (const like of post.likes) {
-            const likeUserId = like.user.id;
-
-            const bond = await this.bondsRepo.findOne({
-              where: [
-                {
-                  requester: { id: userId as string },
-                  recipient: { id: likeUserId },
-                },
-                {
-                  requester: { id: likeUserId },
-                  recipient: { id: userId as string },
-                },
-              ],
-            });
-
-            (like as any).isBond = !!bond; // true if bond exists, false otherwise
-          }
-
-          // If the post is a poll, include vote statistics
-          if (post.type === PostType.POLL && post.poll) {
-            const voteCounts = await this.getPollVoteCounts(post.poll);
-            const userVote = this.getUserPollVote(post.poll, userId as string);
-
-            // Only show results if poll is configured to show results or user has voted
-            const shouldShowResults =
-              post.poll.showResults ||
-              (userVote !== null && userVote !== undefined);
-
-            (post as any).pollResults = shouldShowResults ? voteCounts : null;
-            (post as any).userVote = userVote;
-            (post as any).hasVoted = userVote !== null; // Add hasVoted flag
-
-            // Calculate poll statistics
-            if (post.poll.votes && post.poll.votes.length > 0) {
-              (post as any).pollStats = {
-                totalVotes: post.poll.votes.length,
-                hasEnded: post.poll.endDate
-                  ? new Date() > post.poll.endDate
-                  : false,
-              };
-            } else {
-              (post as any).pollStats = {
-                totalVotes: 0,
-                hasEnded: post.poll.endDate
-                  ? new Date() > post.poll.endDate
-                  : false,
-              };
-            }
-
-            // Remove sensitive data if poll is anonymous
-            if (post.poll.isAnonymous) {
-              delete post.poll.votes;
-            }
-          }
+          (like as any).isBond = !!lBond;
         }
 
-        res.status(200).json(
-          handleResponse("Posts Fetched Successfully", {
-            posts,
+        if (post.type === PostType.POLL && post.poll) {
+          const voteCounts = await this.getPollVoteCounts(post.poll);
+          const userVote = this.getUserPollVote(post.poll, userId as string);
+          const showResults = post.poll.showResults || userVote !== null;
+          (post as any).pollResults = showResults ? voteCounts : null;
+          (post as any).userVote = userVote;
+          (post as any).hasVoted = userVote !== null;
+          (post as any).pollStats = {
+            totalVotes: post.poll.votes?.length || 0,
+            hasEnded: post.poll.endDate
+              ? new Date() > post.poll.endDate
+              : false,
+          };
+          if (post.poll.isAnonymous) delete post.poll.votes;
+        }
 
-            pagination: {
-              totalItems,
-              currentPage: parseInt(page as string, 10),
-              pageSize: takeNumber,
-              totalPages: Math.ceil(totalItems / takeNumber),
-            },
-          })
-        );
-        return next();
+        (post as any).shareableLink = generateShareableLink({
+          id: post.id,
+          type: "post",
+          typeName: post.type,
+        });
       }
+
+      res.status(200).json(
+        handleResponse("Posts Fetched Successfully", {
+          posts,
+          pagination: {
+            totalItems,
+            currentPage: parseInt(page as string, 10) || 1,
+            pageSize: takeNumber,
+            totalPages: Math.ceil(totalItems / takeNumber),
+          },
+        })
+      );
+      return next();
     } catch (error) {
       next(error);
     }
