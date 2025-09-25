@@ -1,6 +1,6 @@
 export enum ROLES {
-  USER = "user",
-  ADMIN = "admin",
+  USER = "USER",
+  ADMIN = "ADMIN",
 }
 
 export enum LOGIN_TYPE {

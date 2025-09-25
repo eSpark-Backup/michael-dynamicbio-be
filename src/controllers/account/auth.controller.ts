@@ -52,7 +52,7 @@ export class AuthController {
         password,
         socialId,
         profileImage,
-        about
+        about,
       } = req.body;
 
       if (isSocialLogin) {
@@ -116,7 +116,7 @@ export class AuthController {
         user.lastName = lastName;
         user.email = email;
         user.loginType = loginType;
-        user.about=about;
+        user.about = about;
         // user.countryCode = countryCode;
         // user.phoneNumber = phoneNumber;
         user.profileImage = profileImage;
@@ -179,16 +179,17 @@ export class AuthController {
       const user = new User();
       user.firstName = firstName;
       user.lastName = lastName;
-      user.about= about;
+      user.about = about;
       // user.phoneNumber = phoneNumber;
       // user.countryCode = countryCode;
       user.email = email;
-      user.password = password;
+      // user.password = password;
+      user.password = await bcrypt.hash(password, 10);
       user.role = role;
       user.loginType = LoginType.LOCAL;
       user.isSocialLogin = false;
 
-      // const newUser = await this.usersRepo.save(user);
+      const newUser = await this.usersRepo.save(user);
 
       const { token, expiresAt } = generateTokenForRegistration(
         {
@@ -196,31 +197,31 @@ export class AuthController {
           password: user.password,
           firstName: user.firstName,
           lastName: user.lastName,
-          about:user.about
+          about: user.about,
         },
         "1h"
       );
       const verifyLink = `${process.env.FRONTEND_URL}email-verified?token=${token}&expiresAt=${expiresAt}`;
 
-      // const userChat = await UserForChat.findOne({
-      //   where: { accountId: newUser.id },
-      // });
-      // let socketUser = userChat;
-      // if (!userChat) {
-      //   const newUserChat = await UserForChat.create({
-      //     name: firstName + " " + lastName,
-      //     accountId: newUser.id,
-      //     username: email,
-      //     password: "",
-      //     bio: "",
-      //   });
-      //   socketUser = newUserChat;
-      //   const usersocketId = socketUser._id;
-      //   newUser.userChatId = usersocketId.toString();
-      //   newUser.passwordResetExpire = expiresAt;
+      const userChat = await UserForChat.findOne({
+        where: { accountId: newUser.id },
+      });
+      let socketUser = userChat;
+      if (!userChat) {
+        const newUserChat = await UserForChat.create({
+          name: firstName + " " + lastName,
+          accountId: newUser.id,
+          username: email,
+          password: "",
+          bio: "",
+        });
+        socketUser = newUserChat;
+        const usersocketId = socketUser._id;
+        newUser.userChatId = usersocketId.toString();
+        newUser.passwordResetExpire = expiresAt;
 
-      //   await this.usersRepo.save(newUser);
-      // }
+        await this.usersRepo.save(newUser);
+      }
       logger.info("User Created");
       await mailService.verifyEmail({
         name: user.firstName + " " + user.lastName,
@@ -305,30 +306,30 @@ export class AuthController {
       }
       const userChat = await UserForChat.findById(user.userChatId);
       let socketUser = userChat;
-      if(!user.is2FAEnabled){
-      const token = jwt.sign(
-        {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          _id: socketUser._id,
-        },
-        process.env.JWT_SECRET!,
-        { expiresIn: "24h" }
-      );
-      const { password: _, ...userWithoutPassword } = user;
-
-      res
-        .status(HTTP_STATUS.OK)
-        .cookie(CHAT_COOKIE, token, cookieOptions)
-        .json(
-          handleResponse("Login successful", {
-            token,
-            user: userWithoutPassword,
-          })
+      if (!user.is2FAEnabled) {
+        const token = jwt.sign(
+          {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            _id: socketUser._id,
+          },
+          process.env.JWT_SECRET!,
+          { expiresIn: "24h" }
         );
-      return next();
-      }else if (user.is2FAEnabled) {
+        const { password: _, ...userWithoutPassword } = user;
+
+        res
+          .status(HTTP_STATUS.OK)
+          .cookie(CHAT_COOKIE, token, cookieOptions)
+          .json(
+            handleResponse("Login successful", {
+              token,
+              user: userWithoutPassword,
+            })
+          );
+        return next();
+      } else if (user.is2FAEnabled) {
         const QrToken = jwt.sign(
           {
             id: user.id,
@@ -354,7 +355,7 @@ export class AuthController {
       return next(error);
     }
   }
-async findEmail(
+  async findEmail(
     req: Request,
     res: Response,
     next: NextFunction
@@ -362,21 +363,25 @@ async findEmail(
     try {
       const { email } = req.body;
 
-      const user = await this.usersRepo.createQueryBuilder("user")
-      .where("user.email = :email", { email: email })
-      .andWhere("user.isEmailVerified = :isEmailVerified", { isEmailVerified: true })
-      .andWhere("user.isSocialLogin = :isSocialLogin", { isSocialLogin: false })
-      .getOne();
+      const user = await this.usersRepo
+        .createQueryBuilder("user")
+        .where("user.email = :email", { email: email })
+        .andWhere("user.isEmailVerified = :isEmailVerified", {
+          isEmailVerified: true,
+        })
+        .andWhere("user.isSocialLogin = :isSocialLogin", {
+          isSocialLogin: false,
+        })
+        .getOne();
       if (!user) {
         throw new ApiError("User not found.", HTTP_STATUS.NOT_FOUND);
       }
       res.status(HTTP_STATUS.OK).json(
         handleResponse("Email Found", {
           id: user.id,
-          name:user.firstName + " " + user.lastName,
+          name: user.firstName + " " + user.lastName,
           email: user.email,
           image: user.profileImage,
-          
         })
       );
     } catch (error) {
@@ -623,7 +628,6 @@ async findEmail(
         );
       }
 
-
       const currentTime = new Date();
       const expirationTime = new Date(expiresAt as string);
       if (currentTime > expirationTime) {
@@ -635,7 +639,7 @@ async findEmail(
         password: string;
         firstName: string;
         lastName: string;
-        about:object
+        about: object;
       };
 
       try {
@@ -644,9 +648,8 @@ async findEmail(
           password: string;
           firstName: string;
           lastName: string;
-          about:object
+          about: object;
         };
-
       } catch (error) {
         throw new ApiError(
           "Invalid or tampered token",
@@ -657,7 +660,8 @@ async findEmail(
       if (!payload) {
         throw new ApiError("Invalid token", HTTP_STATUS.BAD_REQUEST);
       }
-      const findUser = await this.usersRepo.createQueryBuilder("user")
+      const findUser = await this.usersRepo
+        .createQueryBuilder("user")
         .where("user.email = :email", { email: payload.email })
         .getOne();
       if (findUser) {
@@ -667,10 +671,8 @@ async findEmail(
       user.firstName = payload.firstName;
       user.lastName = payload.lastName;
       user.email = payload.email;
-      user.about= payload.about;
+      user.about = payload.about;
 
-
-      
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(payload.password, salt);
 
@@ -678,7 +680,7 @@ async findEmail(
       user.passwordResetExpire = null;
       user.isEmailVerified = true;
       const existingUser = await this.usersRepo.save(user);
-         const userChat = await UserForChat.findOne({
+      const userChat = await UserForChat.findOne({
         where: { accountId: user.id },
       });
       let socketUser = userChat;
@@ -693,7 +695,7 @@ async findEmail(
         socketUser = newUserChat;
         const usersocketId = socketUser._id;
         user.userChatId = usersocketId.toString();
-        user.profileStatus=ProfileStatus.BOTH_VERIFIED;
+        user.profileStatus = ProfileStatus.BOTH_VERIFIED;
 
         await this.usersRepo.save(user);
       }
