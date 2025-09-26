@@ -39,12 +39,12 @@ services:
       - FRONTEND_URL=https://app.h2fusion.org/
 
       # SMTP Settings (hardcoded)
-      - SMTP_HOST=mail.esparkconsultants.com
+      - SMTP_HOST=smtp.gmail.com
       - SMTP_PORT=465
       - SMTP_SECURE=true
-      - SMTP_SERVICE=mail
-      - SMTP_PASS=XmhNM99U!HOp
-      - SMTP_FROM=smtptesting@esparkconsultants.com
+      - SMTP_SERVICE=gmail
+      - SMTP_FROM=fkjdsjofjowjeojjjfkljdlvnv@gmail.com
+      - SMTP_PASS="ipxl gtfo zbix fhrg"
 
       # Cloudinary Settings (hardcoded)
       - CLOUD_NAME=dbq6l12lh
