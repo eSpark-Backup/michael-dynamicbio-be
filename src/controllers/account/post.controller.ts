@@ -108,20 +108,47 @@ export class PostController {
 
       const postFilesPath = path.join(process.cwd(), "uploads");
 
+      // let postFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter((file) => file.startsWith("images"));
+
+      // let videoFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter((file) => file.startsWith("videos"));
+      // let thumbnailFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter((file) => file.startsWith("thumbnails"));
+
+      // let articleFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter((file) => file.startsWith("cover"));
+
       let postFiles = fs
         .readdirSync(postFilesPath)
-        .filter((file) => file.startsWith("images"));
+        .filter(
+          (file) =>
+            file.startsWith("images") || /\.(jpg|jpeg|png|gif)$/i.test(file)
+        );
 
       let videoFiles = fs
         .readdirSync(postFilesPath)
-        .filter((file) => file.startsWith("videos"));
+        .filter(
+          (file) =>
+            file.startsWith("videos") || /\.(mp4|mov|avi|mkv|webm)$/i.test(file)
+        );
+
       let thumbnailFiles = fs
         .readdirSync(postFilesPath)
-        .filter((file) => file.startsWith("thumbnails"));
+        .filter(
+          (file) =>
+            file.startsWith("thumbnails") || /\.(jpg|jpeg|png)$/i.test(file)
+        );
 
       let articleFiles = fs
         .readdirSync(postFilesPath)
-        .filter((file) => file.startsWith("cover"));
+        .filter(
+          (file) => file.startsWith("cover") || /\.(jpg|jpeg|png)$/i.test(file)
+        );
 
       videosOrder = videosOrder || [];
 
@@ -368,21 +395,48 @@ export class PostController {
   ): Promise<void> {
     try {
       const postFilesPath = path.join(process.cwd(), "uploads");
-      const postFiles = fs
+      // const postFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter((file) => file.startsWith("images"));
+
+      // let videoFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter((file) => file.startsWith("videos"));
+
+      // let thumbnailFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter((file) => file.startsWith("thumbnails"));
+
+      // let articleFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter((file) => file.startsWith("cover"));
+
+      let postFiles = fs
         .readdirSync(postFilesPath)
-        .filter((file) => file.startsWith("images"));
+        .filter(
+          (file) =>
+            file.startsWith("images") || /\.(jpg|jpeg|png|gif)$/i.test(file)
+        );
 
       let videoFiles = fs
         .readdirSync(postFilesPath)
-        .filter((file) => file.startsWith("videos"));
+        .filter(
+          (file) =>
+            file.startsWith("videos") || /\.(mp4|mov|avi|mkv|webm)$/i.test(file)
+        );
 
       let thumbnailFiles = fs
         .readdirSync(postFilesPath)
-        .filter((file) => file.startsWith("thumbnails"));
+        .filter(
+          (file) =>
+            file.startsWith("thumbnails") || /\.(jpg|jpeg|png)$/i.test(file)
+        );
 
       let articleFiles = fs
         .readdirSync(postFilesPath)
-        .filter((file) => file.startsWith("cover"));
+        .filter(
+          (file) => file.startsWith("cover") || /\.(jpg|jpeg|png)$/i.test(file)
+        );
 
       if (thumbnailFiles.length === 0 && videoFiles.length > 0) {
         const videoPath = path.join(postFilesPath, videoFiles[0]);
@@ -1194,13 +1248,45 @@ export class PostController {
 
       const postFilesPath = path.join(process.cwd(), "uploads");
 
-      // collect files
+      // let postFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter((file) => file.startsWith("images"));
+
+      // let videoFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter((file) => file.startsWith("videos"));
+      // let thumbnailFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter((file) => file.startsWith("thumbnails"));
+
+      // let articleFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter((file) => file.startsWith("cover"));
+
+      // let postFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter(
+      //     (file) =>
+      //       file.startsWith("images") || /\.(jpg|jpeg|png|gif)$/i.test(file)
+      //   );
+
       let videoFiles = fs
         .readdirSync(postFilesPath)
-        .filter((f) => f.startsWith("videos"));
+        .filter(
+          (f) => f.startsWith("videos") || /\.(mp4|mov|avi|mkv|webm)$/i.test(f)
+        );
+
       let thumbnailFiles = fs
         .readdirSync(postFilesPath)
-        .filter((f) => f.startsWith("thumbnails"));
+        .filter(
+          (f) => f.startsWith("thumbnails") || /\.(jpg|jpeg|png)$/i.test(f)
+        );
+
+      // let articleFiles = fs
+      //   .readdirSync(postFilesPath)
+      //   .filter(
+      //     (file) => file.startsWith("cover") || /\.(jpg|jpeg|png)$/i.test(file)
+      //   );
 
       // reorder if client sends custom order
       const { videosOrder = [], thumbnailsOrder = [] } = req.body;
