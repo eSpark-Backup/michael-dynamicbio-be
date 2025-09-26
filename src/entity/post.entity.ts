@@ -132,8 +132,15 @@ export class Post extends BaseEntity {
   @JoinColumn({ name: "pageId" })
   page: Page;
 
-  @ManyToOne(() => Group, (group) => group.posts, { nullable: true })
+  @ManyToOne(() => Group, (group) => group.posts, {
+    nullable: true,
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "groupId" })
   group: Group;
+
+  @Column({ nullable: true })
+  groupId: string;
 
   @Column({ nullable: true, type: "varchar" })
   pageId: string;
@@ -144,15 +151,13 @@ export class Post extends BaseEntity {
   @Column({ default: false, type: "boolean" })
   isGroupPost: boolean;
 
-  @Column({ nullable: true, type: "varchar" })
-  groupId: string;
-
   @OneToMany(() => Saved, (saved) => saved.post)
   savedByUsers: Saved[];
 
   @OneToMany(
     () => GroupPostRequest,
-    (groupPostRequest) => groupPostRequest.post
+    (groupPostRequest) => groupPostRequest.post,
+    { cascade: true, onDelete: "CASCADE" }
   )
   groupPostRequests: GroupPostRequest[];
 }

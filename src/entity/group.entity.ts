@@ -9,7 +9,14 @@ import {
   ManyToMany,
   JoinTable,
 } from "typeorm";
-import { BaseEntity, GroupAdmin, GroupJoinRequest, GroupPostRequest, Post, User } from ".";
+import {
+  BaseEntity,
+  GroupAdmin,
+  GroupJoinRequest,
+  GroupPostRequest,
+  Post,
+  User,
+} from ".";
 
 export enum GroupIndustryType {
   PRODUCTION = "PRODUCTION",
@@ -90,8 +97,11 @@ export class Group extends BaseEntity {
   // })
   // admins: User[];
 
-  @OneToMany(() => GroupAdmin, (groupAdmin) => groupAdmin.group)
-  admins: GroupAdmin[]; 
+  @OneToMany(() => GroupAdmin, (groupAdmin) => groupAdmin.group, {
+    cascade: true,
+    onDelete: "CASCADE",
+  })
+  admins: GroupAdmin[];
 
   @ManyToMany(() => User)
   @JoinTable({
@@ -101,18 +111,23 @@ export class Group extends BaseEntity {
   })
   followers: User[];
 
-  @OneToMany(() => Post, (post) => post.group)
+  @OneToMany(() => Post, (post) => post.group, {
+    cascade: true,
+    onDelete: "CASCADE",
+  })
   posts: Post[];
 
   @OneToMany(
     () => GroupPostRequest,
-    (groupPostRequest) => groupPostRequest.group
+    (groupPostRequest) => groupPostRequest.group,
+    { cascade: true, onDelete: "CASCADE" }
   )
   groupPostRequests: GroupPostRequest[];
 
   @OneToMany(
     () => GroupJoinRequest,
-    (groupJoinRequest) => groupJoinRequest.group
+    (groupJoinRequest) => groupJoinRequest.group,
+    { cascade: true, onDelete: "CASCADE" }
   )
   groupJoinRequests: GroupJoinRequest[];
 }

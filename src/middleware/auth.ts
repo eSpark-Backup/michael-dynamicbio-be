@@ -11,6 +11,14 @@ const isAuthenticated = TryCatch((req: any, res: any, next: any) => {
   const decodedData = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
 
   req.socketUserId = decodedData._id;
+
+  req.user = {
+    id: decodedData.id,
+    email: decodedData.email,
+    role: decodedData.role,
+    _id: decodedData._id,
+  };
+
   return next();
 });
 
@@ -18,8 +26,9 @@ const socketAuthenticator = async (error: any, socket: any, next: any) => {
   try {
     if (error) return next(error);
 
-    const authToken = socket.request.headers.authorization?.split(" ")[1] ||   socket.handshake.auth.token;
-    
+    const authToken =
+      socket.request.headers.authorization?.split(" ")[1] ||
+      socket.handshake.auth.token;
 
     if (!authToken) throw new Error("Token not found");
 
