@@ -44,7 +44,7 @@ services:
       - SMTP_SECURE=true
       - SMTP_SERVICE=gmail
       - SMTP_FROM=fkjdsjofjowjeojjjfkljdlvnv@gmail.com
-      - SMTP_PASS="ipxl gtfo zbix fhrg"
+      - SMTP_PASS=ipxl gtfo zbix fhrg
 
       # Cloudinary Settings (hardcoded)
       - CLOUD_NAME=dbq6l12lh
