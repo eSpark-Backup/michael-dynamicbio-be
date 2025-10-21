@@ -141,7 +141,6 @@ router.delete(
   (req, res, next) => authController.deleteAccount(req, res, next)
 );
 
-
 /**
  * @swagger
  * /auth/forgot-password:
@@ -191,13 +190,10 @@ router.delete(
  *         description: Server error
  */
 router.post(
-  "/forgot-password", 
+  "/forgot-password",
   validate(AuthValidation.forgotPassword, "body"),
-  (req, res, next) =>
-  authController.forgotPassword(req, res, next)
+  (req, res, next) => authController.forgotPassword(req, res, next)
 );
-
-
 
 /**
  * @swagger
@@ -248,13 +244,10 @@ router.post(
  *         description: Server error
  */
 router.post(
-  "/find-email", 
+  "/find-email",
   validate(AuthValidation.findEmail, "body"),
-  (req, res, next) =>
-  authController.findEmail(req, res, next)
+  (req, res, next) => authController.findEmail(req, res, next)
 );
-
-
 
 /**
  * @swagger
@@ -307,12 +300,10 @@ router.post(
  *         description: Server error
  */
 router.post(
-  "/set-password/:token/:expiresAt", 
+  "/set-password/:token/:expiresAt",
   validate(AuthValidation.passwordReset, "body"),
-  (req, res, next) =>
-  authController.setPassword(req, res, next)
+  (req, res, next) => authController.setPassword(req, res, next)
 );
-
 
 /**
  * @swagger
@@ -363,16 +354,10 @@ router.post(
  *         description: Server error
  */
 router.post(
-  "/forgot-password", 
+  "/forgot-password",
   validate(AuthValidation.forgotPassword, "body"),
-  (req, res, next) =>
-  authController.forgotPassword(req, res, next)
+  (req, res, next) => authController.forgotPassword(req, res, next)
 );
-
-
-
-
-
 
 /**
  * @swagger
@@ -438,12 +423,10 @@ router.post(
  *         description: Server error
  */
 router.post(
-  "/reset-password/:token/:expiresAt", 
+  "/reset-password/:token/:expiresAt",
   validate(AuthValidation.passwordReset, "body"),
-  (req, res, next) =>
-  authController.resetPassword(req, res, next)
+  (req, res, next) => authController.resetPassword(req, res, next)
 );
-
 
 /**
  * @swagger
@@ -495,10 +478,69 @@ router.post(
  *       500:
  *         description: Server error
  */
-router.post(
-  "/register-device/:token/:expiresAt", 
-  (req, res, next) =>
+router.post("/register-device/:token/:expiresAt", (req, res, next) =>
   authController.verifyRegisteredDevice(req, res, next)
+);
+
+/**
+ * @swagger
+ * /auth/resend-email:
+ *   post:
+ *     summary: Resend verification email
+ *     description: Resends a verification email to the user if their account is not yet verified.
+ *     tags:
+ *      - Auth
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *             required:
+ *               - email
+ *     responses:
+ *       200:
+ *         description: Verification email resent successfully
+ *       404:
+ *         description: User not found or already verified
+ *       500:
+ *         description: Server error
+ */
+router.post(
+  "/resend-email",
+  validate(AuthValidation.findEmail, "body"),
+  (req, res, next) => authController.resendEmail(req, res, next)
+);
+
+/**
+ * @swagger
+ * /auth/verify-email:
+ *   get:
+ *     summary: Verify user email
+ *     description: Verifies a user's email using a token from the email link.
+ *     tags:
+ *      - Auth
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The verification token.
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *       400:
+ *         description: Invalid or expired token
+ *       404:
+ *         description: User not found
+ */
+router.get("/verify-email", (req, res, next) =>
+  authController.verifyEmail(req, res, next)
 );
 
 export { router };

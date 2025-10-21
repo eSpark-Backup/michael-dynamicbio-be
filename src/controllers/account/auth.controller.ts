@@ -241,6 +241,127 @@ export class AuthController {
     }
   }
 
+  async resendEmail(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { email } = req.body;
+
+      const user = await this.usersRepo.findOne({ where: { email } });
+
+      if (!user) {
+        throw new ApiError("User not found.", HTTP_STATUS.NOT_FOUND);
+      }
+
+      if (user.isEmailVerified) {
+        throw new ApiError(
+          "Email is already verified.",
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      const { token, expiresAt } = generateTokenForRegistration(
+        {
+          email: user.email,
+          password: user.password,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          about: user.about,
+        },
+        "1h"
+      );
+
+      const verifyLink = `${process.env.FRONTEND_URL}email-verified?token=${token}&expiresAt=${expiresAt}`;
+
+      user.passwordResetExpire = expiresAt;
+      await this.usersRepo.save(user);
+
+      await mailService.verifyEmail({
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        link: verifyLink,
+      });
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Verification email resent successfully", {
+          email: user.email,
+        })
+      );
+    } catch (error) {
+      logger.error(
+        `AuthController :: resendEmail :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
+  async verifyEmail(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { token } = req.query;
+      if (!token) {
+        throw new ApiError("Token is required", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      let payload: {
+        email: string;
+        password: string;
+        firstName: string;
+        lastName: string;
+        about: object;
+      };
+
+      try {
+        payload = verifyToken(token as string) as {
+          email: string;
+          password: string;
+          firstName: string;
+          lastName: string;
+          about: object;
+        };
+      } catch (error) {
+        throw new ApiError("Invalid or expired token", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      if (!payload?.email) {
+        throw new ApiError("Invalid token data", HTTP_STATUS.BAD_REQUEST);
+      }
+
+      const user = await this.usersRepo.findOne({
+        where: { email: payload.email },
+      });
+
+      if (!user) {
+        throw new ApiError("User not found", HTTP_STATUS.NOT_FOUND);
+      }
+
+      if (user.isEmailVerified) {
+        res
+          .status(HTTP_STATUS.OK)
+          .json(handleResponse("Email already verified"));
+        return next();
+      }
+
+      user.isEmailVerified = true;
+      await this.usersRepo.save(user);
+
+      res
+        .status(HTTP_STATUS.OK)
+        .json(handleResponse("Email verified successfully"));
+      return next();
+    } catch (error) {
+      logger.error(
+        `AuthController :: verifyEmail :: ${(error as Error)?.message}`
+      );
+      return next(error);
+    }
+  }
+
   async deleteAccount(
     req: Request,
     res: Response,
