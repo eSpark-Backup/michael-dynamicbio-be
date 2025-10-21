@@ -2,13 +2,13 @@ import { SendMailOptions, createTransport } from "nodemailer";
 import { MAILER_CONFIG } from "../config";
 import { logger } from "../utils";
 import { changeEmailAddress, registerNewDevice } from "../templates";
-import { forgotPassword ,verifyEmail} from "../templates";
+import { forgotPassword, verifyEmail } from "../templates";
 
 const transporter = createTransport({
   service: MAILER_CONFIG.service,
-  host: "mail.esparkconsultants.com",
-  port: 465, // Typically 465 for SSL/TLS
-  secure: true, // true for SSL
+  host: MAILER_CONFIG.host,
+  port: MAILER_CONFIG.port, // Typically 465 for SSL/TLS
+  secure: MAILER_CONFIG.secure, // true for SSL
   auth: {
     user: MAILER_CONFIG.from,
     pass: MAILER_CONFIG.pass,
@@ -56,7 +56,6 @@ class MailService {
     };
     return this.sendMail(mailDetails);
   }
-
 
   registerNewDevice(userData: any) {
     const template = registerNewDevice({
