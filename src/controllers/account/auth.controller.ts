@@ -348,11 +348,25 @@ export class AuthController {
       }
 
       user.isEmailVerified = true;
-      await this.usersRepo.save(user);
+      const updatedUser = await this.usersRepo.save(user);
 
-      res
-        .status(HTTP_STATUS.OK)
-        .json(handleResponse("Email verified successfully"));
+      const loginToken = jwt.sign(
+        {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          _id: updatedUser.userChatId,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "24h" }
+      );
+
+      res.status(HTTP_STATUS.OK).json(
+        handleResponse("Email verified successfully", {
+          token: loginToken,
+          user: updatedUser,
+        })
+      );
       return next();
     } catch (error) {
       logger.error(
