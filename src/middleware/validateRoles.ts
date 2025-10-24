@@ -10,11 +10,16 @@ export const validateRoles =
     try {
       const userDetails = req?.user;
 
-      if (!roles.includes(userDetails?.role as ROLES)) {
+      if (
+        !roles
+          .map((r) => r.toLowerCase())
+          .includes(userDetails?.role?.toLowerCase())
+      ) {
         throw new UnAuthorizedError(
           "You are not authorized to access this route"
         );
       }
+
       return next();
     } catch (err) {
       logger.error(`Error in validateRoles :: ${(err as Error).message}`);
