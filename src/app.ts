@@ -7,7 +7,7 @@ import swaggerUi from "swagger-ui-express";
 import { errorHandler } from "./middleware/errorHandler";
 import express, { Request, Response, NextFunction } from "express";
 import { clearUploadsFolder } from "./middleware";
-import { router, ChatRouter } from "./routes";
+import { router, ChatRouter, marketplaceRouter } from "./routes";
 import { Server } from "socket.io";
 const userSocketIDs = new Map();
 import { v4 as uuid } from "uuid";
@@ -40,7 +40,7 @@ const corsOptions = {
     "http://localhost", // Allow localhost if needed
     "https://fusion.esparkconsultants.com", // Corrected staging URL
     "https://fusion-stg.esparkconsultants.com",
-    "https://app.h2fusion.org"
+    "https://app.h2fusion.org",
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true,
@@ -70,6 +70,7 @@ AppDataSource.initialize()
     app.use(clearUploadsFolder);
     app.use("/api", router);
     app.use("/api/chat", ChatRouter);
+    app.use("/api", marketplaceRouter);
     const nsp = io.of("/socket");
 
     nsp.use((socket, next) => {
@@ -136,14 +137,14 @@ AppDataSource.initialize()
       socket.on(START_TYPING, ({ members, chatId }) => {
         const membersSocket = getSockets(members);
         if ((membersSocket as any).length > 0) {
-          socket.to(membersSocket).emit(START_TYPING, { chatId,userId });
+          socket.to(membersSocket).emit(START_TYPING, { chatId, userId });
         }
       });
 
       socket.on(STOP_TYPING, ({ members, chatId }) => {
         const membersSocket = getSockets(members);
         if ((membersSocket as any).length > 0) {
-          socket.to(membersSocket).emit(STOP_TYPING, { chatId,userId });
+          socket.to(membersSocket).emit(STOP_TYPING, { chatId, userId });
         }
       });
 
