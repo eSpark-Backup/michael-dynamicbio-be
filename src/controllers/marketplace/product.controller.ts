@@ -10,39 +10,28 @@ import { commonHelper } from "../../helpers";
 const productRepository = AppDataSource.getRepository(Product);
 
 export class ProductController {
-  /**
-   * Normalize multer files (array or fields -> flat array)
-   */
   private static normalizeFiles(req: Request): any[] {
     if (!req.files) return [];
     if (Array.isArray(req.files)) return req.files as any[];
     return Object.values(req.files).flat() as any[];
   }
 
-  /**
-   * Convert raw multer files to IFileObject → upload → return cloud results
-   */
   private static async uploadFilesIfAny(req: Request): Promise<string[]> {
     const files = ProductController.normalizeFiles(req);
     if (!files.length) return [];
 
-    // Use the same structure as PostController
     const fileObjects = files.map((f: any) =>
       commonHelper.createFileObject(f.path, "images")
     );
 
-    const FolderName = "marketplace/products"; // same as used in PostController
+    const FolderName = "marketplace/products";
     const uploaded = await commonHelper.uploadFiles(fileObjects, FolderName);
 
-    // Convert upload results to URLs
     return Array.isArray(uploaded)
       ? uploaded.map((f: any) => f.url || f.secure_url || "")
       : [];
   }
 
-  /**
-   * Extract public_id from Cloudinary URL
-   */
   private static extractPublicIdFromUrl(url?: string): string | null {
     if (!url) return null;
     try {
@@ -52,7 +41,7 @@ export class ProductController {
       if (idx === -1) return null;
 
       let path = cleaned.substring(idx + marker.length);
-      path = path.replace(/^v\d+\//, ""); // remove version
+      path = path.replace(/^v\d+\//, "");
       const lastDot = path.lastIndexOf(".");
       if (lastDot !== -1) path = path.substring(0, lastDot);
       return decodeURIComponent(path);
@@ -61,9 +50,6 @@ export class ProductController {
     }
   }
 
-  /**
-   * CREATE PRODUCT
-   */
   async createProduct(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = (req as any)?.user?.id;
@@ -122,9 +108,6 @@ export class ProductController {
     }
   }
 
-  /**
-   * GET ALL
-   */
   async getAllProducts(
     req: Request,
     res: Response,
@@ -162,9 +145,6 @@ export class ProductController {
     }
   }
 
-  /**
-   * GET BY ID
-   */
   async getProductById(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
@@ -180,9 +160,6 @@ export class ProductController {
     }
   }
 
-  /**
-   * UPDATE PRODUCT
-   */
   async updateProduct(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = (req as any)?.user?.id;
@@ -221,7 +198,6 @@ export class ProductController {
       const uploaded = await ProductController.uploadFilesIfAny(req);
       const photos = uploaded;
 
-      // normalize req.body.photos
       let desired: string[] = [];
       if (req.body.photos) {
         desired = Array.isArray(req.body.photos)
@@ -236,7 +212,6 @@ export class ProductController {
 
       const finalPhotos = [...desired, ...uploaded];
 
-      // remove dropped photos
       const removed = (product.photos || []).filter(
         (p) => !finalPhotos.includes(p)
       );
@@ -277,10 +252,6 @@ export class ProductController {
       next(err);
     }
   }
-
-  /**
-   * DELETE PRODUCT
-   */
   async deleteProduct(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = (req as any)?.user?.id;

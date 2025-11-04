@@ -18,10 +18,7 @@ export class ProductValidation {
     authenticity: Joi.string().valid("YES", "NO").required(),
 
     tags: Joi.alternatives()
-      .try(
-        Joi.array().items(Joi.string().trim()).min(1),
-        Joi.string().trim() // allows string or JSON string input
-      )
+      .try(Joi.array().items(Joi.string().trim()).min(1), Joi.string().trim())
       .required(),
 
     ad_price: Joi.number().precision(2).positive().required(),
@@ -93,7 +90,7 @@ export class ProductValidation {
 
     photos: Joi.alternatives()
       .try(
-        Joi.string().allow(""), // ✅ allow empty
+        Joi.string().allow(""),
         Joi.array().items(
           Joi.string()
             .uri()
