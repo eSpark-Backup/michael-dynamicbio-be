@@ -41,6 +41,7 @@ const corsOptions = {
     "https://fusion.esparkconsultants.com", // Corrected staging URL
     "https://fusion-stg.esparkconsultants.com",
     "https://app.h2fusion.org",
+    "http://54.197.32.201/",
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true,
