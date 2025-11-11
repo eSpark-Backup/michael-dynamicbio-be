@@ -1,5 +1,4 @@
 import Joi from "joi";
-import { ProductCondition } from "../entity/product.entity";
 
 export class ProductValidation {
   static CreateProduct = Joi.object({
@@ -11,11 +10,9 @@ export class ProductValidation {
     brand: Joi.string().trim().max(255).required(),
     model: Joi.string().trim().max(255).required(),
 
-    condition: Joi.string()
-      .valid(...Object.values(ProductCondition))
-      .required(),
+    condition: Joi.string().trim().max(255).required(),
 
-    authenticity: Joi.string().valid("YES", "NO").required(),
+    authenticity: Joi.string().trim().max(255).required(),
 
     tags: Joi.alternatives()
       .try(Joi.array().items(Joi.string().trim()).min(1), Joi.string().trim())
@@ -23,7 +20,7 @@ export class ProductValidation {
 
     ad_price: Joi.number().precision(2).positive().required(),
 
-    negotiable: Joi.string().valid("YES", "NO").required(),
+    negotiable: Joi.string().trim().max(255).required(),
 
     description: Joi.string().trim().required(),
 
@@ -70,11 +67,9 @@ export class ProductValidation {
     brand: Joi.string().trim().max(255).optional(),
     model: Joi.string().trim().max(255).optional(),
 
-    condition: Joi.string()
-      .valid(...Object.values(ProductCondition))
-      .optional(),
+    condition: Joi.string().trim().max(255).optional(),
 
-    authenticity: Joi.string().valid("YES", "NO").optional(),
+    authenticity: Joi.string().trim().max(255).optional(),
 
     tags: Joi.alternatives()
       .try(Joi.array().items(Joi.string().trim()), Joi.string().trim())
@@ -82,7 +77,7 @@ export class ProductValidation {
 
     ad_price: Joi.number().precision(2).positive().optional(),
 
-    negotiable: Joi.string().valid("YES", "NO").optional(),
+    negotiable: Joi.string().trim().max(255).optional(),
 
     description: Joi.string().trim().optional(),
 

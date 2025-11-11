@@ -9,17 +9,6 @@ import {
 } from "typeorm";
 import { BaseEntity, User } from ".";
 
-export enum ProductCondition {
-  NEW = "NEW",
-  USED = "USED",
-  REFURBISHED = "REFURBISHED",
-}
-
-export enum YesNo {
-  YES = "YES",
-  NO = "NO",
-}
-
 @Entity()
 export class Product extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
@@ -41,24 +30,20 @@ export class Product extends BaseEntity {
   @Column({ type: "varchar", length: 255 })
   model: string;
 
-  @Column({
-    type: "enum",
-    enum: ProductCondition,
-    default: ProductCondition.NEW,
-  })
-  condition: ProductCondition;
+  @Column({ type: "varchar", length: 50 })
+  condition: string;
 
-  @Column({ type: "enum", enum: YesNo, default: YesNo.NO })
-  authenticity: YesNo;
+  @Column({ type: "varchar", length: 10 })
+  authenticity: string;
+
+  @Column({ type: "varchar", length: 10 })
+  negotiable: string;
 
   @Column({ type: "simple-array" })
   tags: string[];
 
   @Column({ type: "decimal", precision: 10, scale: 2 })
   ad_price: number;
-
-  @Column({ type: "enum", enum: YesNo, default: YesNo.NO })
-  negotiable: YesNo;
 
   @Column({ type: "text" })
   description: string;
