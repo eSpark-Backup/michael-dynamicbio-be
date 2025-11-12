@@ -75,7 +75,8 @@ services:
       - MYSQL_ROOT_PASSWORD=fusiontestingdb
       - MYSQL_DATABASE=Fusion
     ports:
-      - "3306:3306"
+     # - "3306:3306" # production changes
+      - "3307:3306" # stg changes
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
