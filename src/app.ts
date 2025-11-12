@@ -40,6 +40,7 @@ const corsOptions = {
     "http://localhost", // Allow localhost if needed
     "https://fusion.esparkconsultants.com", // Corrected staging URL
     "https://fusion-stg.esparkconsultants.com",
+    "https://fusion-stg-api.esparkconsultants.com",
     "https://app.h2fusion.org",
     "http://54.162.117.48:5000",
   ],
