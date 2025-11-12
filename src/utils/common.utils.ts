@@ -335,7 +335,7 @@ export const generateShareableLink = (
     .replace(/\s+/g, "-")
     .toLowerCase();
 
-  const baseUrl = process.env.FRONTEND_URL || "https://app.h2fusion.org/";
+  const baseUrl = process.env.FRONTEND_URL || "https://fusion-stg.esparkconsultants.com/";
 
   if (entitiesArray.some((e) => e.type === "post")) {
     return `${baseUrl}post/${sanitizedTypeName}/share?data=${encoded}`;
